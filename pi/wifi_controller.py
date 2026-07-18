@@ -34,7 +34,9 @@ DHCP_LEASE_TIME = "1h"
 
 WORK_DIR = "/tmp/wifi-tester"
 HOSTAPD_CONF = os.path.join(WORK_DIR, "hostapd.conf")
+HOSTAPD_LOG = os.path.join(WORK_DIR, "hostapd.log")
 DNSMASQ_CONF = os.path.join(WORK_DIR, "dnsmasq.conf")
+DNSMASQ_LOG = os.path.join(WORK_DIR, "dnsmasq.log")
 DNSMASQ_LEASES = os.path.join(WORK_DIR, "dnsmasq.leases")
 WPA_CONF = os.path.join(WORK_DIR, "wpa_supplicant.conf")
 WPA_LOG = os.path.join(WORK_DIR, "wpa_supplicant.log")
@@ -169,6 +171,35 @@ def _run(cmd, timeout=10, check=True):
     return result.stdout
 
 
+def _spawn_logged(cmd, log_path):
+    """Popen a long-running daemon with stdout+stderr appended to a file.
+
+    Never use stdout=PIPE for a process nobody drains: once the ~64KB pipe
+    buffer fills, the daemon blocks in write() and silently stops working.
+    That exact failure wedged dnsmasq (no more DHCP ACKs, so AP clients
+    "failed to connect" while hostapd kept associating them) and hostapd
+    itself after a few hours of chatty log-dhcp output — both found stuck
+    in anon_pipe_write on a live bench, 2026-07-18. A log file can't fill
+    a pipe, and keeps the output around for post-mortems.
+    """
+    logf = open(log_path, "ab")
+    try:
+        return subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+    finally:
+        logf.close()  # child keeps its own duplicated fd
+
+
+def _log_tail(log_path, max_bytes=500):
+    """Last max_bytes of a log file, for startup-failure diagnostics."""
+    try:
+        with open(log_path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - max_bytes))
+            return f.read().decode(errors="replace")
+    except OSError:
+        return ""
+
+
 def _kill_existing(name):
     """Kill any existing process by name (best effort)."""
     try:
@@ -237,6 +268,16 @@ def _flush_addr():
 # AP Mode
 # ---------------------------------------------------------------------------
 
+# (table, chain, rule-args) for the wlan0→eth0 NAT bridge — shared by
+# _enable_nat/_disable_nat so setup and teardown can't drift apart.
+_NAT_RULES = [
+    ("nat", "POSTROUTING", ["-s", AP_SUBNET, "-o", "eth0", "-j", "MASQUERADE"]),
+    ("filter", "FORWARD", ["-i", WLAN_IF, "-o", "eth0", "-j", "ACCEPT"]),
+    ("filter", "FORWARD", ["-i", "eth0", "-o", WLAN_IF, "-m", "state",
+                           "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"]),
+]
+
+
 def _enable_nat():
     """Bridge the wlan0 AP to the LAN/internet via NAT masquerade on eth0.
 
@@ -245,19 +286,30 @@ def _enable_nat():
     """
     subprocess.run(["sysctl", "-w", "net.ipv4.ip_forward=1"],
                    capture_output=True, check=False)
-    # (table, chain, rule-args) — added only if not already present (-C).
-    rules = [
-        ("nat", "POSTROUTING", ["-o", "eth0", "-j", "MASQUERADE"]),
-        ("filter", "FORWARD", ["-i", WLAN_IF, "-o", "eth0", "-j", "ACCEPT"]),
-        ("filter", "FORWARD", ["-i", "eth0", "-o", WLAN_IF, "-m", "state",
-                               "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"]),
-    ]
-    for table, chain, args in rules:
+    for table, chain, args in _NAT_RULES:
         base = ["iptables", "-t", table]
         exists = subprocess.run(base + ["-C", chain] + args,
                                 capture_output=True, check=False).returncode == 0
         if not exists:
             subprocess.run(base + ["-A", chain] + args,
+                           capture_output=True, check=False)
+
+
+def _disable_nat():
+    """Remove the NAT bridge rules (best effort, idempotent).
+
+    Without this, one ap_start(internet=True) leaves the bridge in place
+    forever — every later plain ap_start would still give the DUT a path to
+    the LAN/internet, silently breaking the isolation an air-gapped test
+    assumes it has.
+    """
+    for table, chain, args in _NAT_RULES:
+        base = ["iptables", "-t", table]
+        for _ in range(10):  # bounded: -D can fail while -C still matches
+            if subprocess.run(base + ["-C", chain] + args,
+                              capture_output=True, check=False).returncode != 0:
+                break
+            subprocess.run(base + ["-D", chain] + args,
                            capture_output=True, check=False)
 
 
@@ -331,29 +383,23 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         _run(["ip", "link", "set", WLAN_IF, "up"], check=False)
 
         # Start hostapd
-        _ap_hostapd_proc = subprocess.Popen(
-            ["hostapd", HOSTAPD_CONF],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        _ap_hostapd_proc = _spawn_logged(["hostapd", HOSTAPD_CONF], HOSTAPD_LOG)
         # Wait for hostapd to initialise
         time.sleep(1.5)
         if _ap_hostapd_proc.poll() is not None:
-            out = _ap_hostapd_proc.stdout.read().decode(errors="replace")
-            raise RuntimeError(f"hostapd failed to start: {out[:500]}")
+            raise RuntimeError(f"hostapd failed to start: {_log_tail(HOSTAPD_LOG)}")
 
         # Start dnsmasq
-        _ap_dnsmasq_proc = subprocess.Popen(
-            ["dnsmasq", "-C", DNSMASQ_CONF],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        _ap_dnsmasq_proc = _spawn_logged(["dnsmasq", "-C", DNSMASQ_CONF], DNSMASQ_LOG)
         time.sleep(0.5)
         if _ap_dnsmasq_proc.poll() is not None:
-            out = _ap_dnsmasq_proc.stdout.read().decode(errors="replace")
             _kill_proc(_ap_hostapd_proc)
-            raise RuntimeError(f"dnsmasq failed to start: {out[:500]}")
+            raise RuntimeError(f"dnsmasq failed to start: {_log_tail(DNSMASQ_LOG)}")
 
         if internet:
             _enable_nat()
+        else:
+            _disable_nat()  # a previous internet=True AP must not leak isolation
 
         _ap_active = True
         _ap_ssid = ssid
@@ -380,6 +426,7 @@ def _ap_stop_unlocked():
     _ap_dnsmasq_proc = None
     _kill_proc(_ap_hostapd_proc)
     _ap_hostapd_proc = None
+    _disable_nat()
 
     _ap_active = False
     _ap_ssid = ""
