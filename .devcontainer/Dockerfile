@@ -41,9 +41,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends tmux \
 USER dev
 
 # Per-user npm prefix on PATH so claude (installed into ~/.npm-global/bin by
-# postCreate) and the superclaude alias resolve. MUST come before the tmux guard
-# below: the guard execs tmux, so bashrc lines after it never run on SSH login.
-RUN echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> /home/dev/.bashrc
+# postCreate) and the superclaude alias resolve. Set as image ENV, not appended
+# to .bashrc: Debian's .bashrc returns early for non-interactive shells, so a
+# PATH export there is invisible to `ssh <host> claude ...`, cron and scripts.
+# ENV applies to every shell, interactive or not.
+ENV PATH="/home/dev/.npm-global/bin:${PATH}"
 
 # Force UTF-8 locale so tmux renders Unicode block glyphs (claude's splash logo)
 # correctly. Must also come before the tmux guard.
