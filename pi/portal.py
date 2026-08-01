@@ -1417,6 +1417,69 @@ def serial_monitor(slot: dict, pattern: str | None = None,
     }
 
 
+def serial_write(slot: dict, data: str, newline: str = "\n",
+                 expect: str | None = None, timeout: float = 10.0) -> dict:
+    """FR-030: Write to a device's serial input via the RFC2217 proxy.
+
+    Writes *data* + *newline*, then reads back until *expect* matches or
+    *timeout* expires.
+
+    The write and the read-back deliberately share one proxy connection: the
+    proxy accepts a single client at a time and nothing drains the port
+    in between, so a bare write followed by a separate /api/serial/monitor
+    call would lose everything the device emitted while no client was
+    attached.  Prompt-driven flows (provisioning, CLI firmware) need the
+    response that arrives microseconds after the write.
+
+    Returns {"ok": True, "written": N, "matched": bool, "line": str|None,
+             "output": [...]}.
+    """
+    import serial as pyserial
+
+    label = slot["label"]
+    tcp_port = slot.get("tcp_port")
+
+    if not tcp_port:
+        return {"ok": False, "error": f"{label}: no tcp_port configured"}
+    if not slot.get("running"):
+        return {"ok": False, "error": f"{label}: proxy not running"}
+
+    payload = (data + newline).encode("utf-8", errors="replace")
+
+    rfc2217_url = f"rfc2217://127.0.0.1:{tcp_port}"
+    try:
+        ser = pyserial.serial_for_url(rfc2217_url, do_not_open=True)
+        ser.baudrate = 115200
+        ser.timeout = 0.1
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
+    except Exception as e:
+        return {"ok": False, "error": f"Cannot connect to {rfc2217_url}: {e}"}
+
+    slot["state"] = STATE_MONITORING
+    try:
+        written = ser.write(payload)
+        ser.flush()
+        lines, matched_line = _read_serial_lines(ser, expect, timeout)
+    except Exception as e:
+        return {"ok": False, "error": f"{label}: write failed: {e}"}
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
+        slot["state"] = STATE_IDLE if slot["present"] else STATE_ABSENT
+
+    return {
+        "ok": True,
+        "written": written,
+        "matched": matched_line is not None,
+        "line": matched_line,
+        "output": lines,
+    }
+
+
 # ---------------------------------------------------------------------------
 # USB Flap Recovery — unbind USB to stop storm, then recover via GPIO or backoff
 # ---------------------------------------------------------------------------
@@ -1786,6 +1849,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_serial_reset()
         elif path == "/api/serial/monitor":
             self._handle_serial_monitor()
+        elif path == "/api/serial/write":
+            self._handle_serial_write()
         elif path == "/api/serial/recover":
             self._handle_serial_recover()
         elif path == "/api/serial/release":
@@ -2506,6 +2571,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log_activity(f"serial.monitor({slot_label}) — timeout, no match", "info")
         else:
             log_activity(f"serial.monitor({slot_label}) — {result.get('error', 'failed')}", "error")
+        self._send_json(result)
+
+    def _handle_serial_write(self):
+        body = self._read_json() or {}
+        slot_label = body.get("slot")
+        if not slot_label:
+            self._send_json({"ok": False, "error": "missing 'slot' field"}, 400)
+            return
+        if "data" not in body:
+            self._send_json({"ok": False, "error": "missing 'data' field"}, 400)
+            return
+        slot = _find_slot_by_label(slot_label)
+        if not slot:
+            self._send_json({"ok": False, "error": f"slot '{slot_label}' not found"})
+            return
+        data = body["data"]
+        if not isinstance(data, str):
+            self._send_json({"ok": False, "error": "'data' must be a string"}, 400)
+            return
+        newline = body.get("newline", "\n")
+        if newline not in ("\n", "\r\n", "\r", ""):
+            self._send_json(
+                {"ok": False,
+                 "error": "'newline' must be one of '\\n', '\\r\\n', '\\r', ''"}, 400)
+            return
+        expect = body.get("expect")
+        timeout = float(body.get("timeout", 10))
+        log_activity(
+            f"serial.write({slot_label}, {len(data)} chars, expect={expect!r}, "
+            f"timeout={timeout})", "step")
+        result = serial_write(slot, data, newline, expect, timeout)
+        if result["ok"]:
+            if expect and result.get("matched"):
+                log_activity(f"serial.write({slot_label}) — matched: {result['line']}", "ok")
+            elif expect:
+                log_activity(f"serial.write({slot_label}) — timeout, no match", "info")
+            else:
+                log_activity(f"serial.write({slot_label}) — {result['written']} bytes", "ok")
+        else:
+            log_activity(f"serial.write({slot_label}) — {result.get('error', 'failed')}", "error")
         self._send_json(result)
 
     def _handle_serial_output(self, qs):

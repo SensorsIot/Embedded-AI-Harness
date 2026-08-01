@@ -323,6 +323,7 @@ jack count, and add any unoccupied prefix(es) to the table.
 | GET | /api/info | Pi IP, hostname, slot counts |
 | POST | /api/serial/reset | Reset device via DTR/RTS (FR-008) |
 | POST | /api/serial/monitor | Read serial output with pattern match (FR-009) |
+| POST | /api/serial/write | Write to serial input and read the reply (FR-030) |
 
 **GET /api/devices** returns:
 
@@ -747,6 +748,55 @@ Uses the RFC2217 proxy (non-exclusive) so the proxy stays running.
 
 **Used by:** flapping recovery (FR-007), test verification
 
+### FR-030 — Serial Write
+
+Send input to a device and capture its reply.  FR-009 covers reading only;
+without a write path a DUT that asks a question over serial cannot be
+answered, so any prompt-driven flow (LoRaWAN key provisioning, a firmware
+CLI, a config menu) is unreachable through the API.
+
+**Endpoint:** `POST /api/serial/write`
+
+**Request body:**
+```json
+{"slot": "SLOT2", "data": "AT+JOIN", "newline": "\r\n", "expect": "OK", "timeout": 10}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| slot | string | Yes | — | Slot label (e.g. "SLOT2") |
+| data | string | Yes | — | Text to send, without a line ending |
+| newline | string | No | `"\n"` | Line ending: `"\n"`, `"\r\n"`, `"\r"`, or `""` for none |
+| expect | string | No | null | Substring to wait for in the reply |
+| timeout | number | No | 10 | Max seconds to wait for the reply |
+
+**Procedure:**
+1. Connect to the slot's RFC2217 proxy (non-exclusive)
+2. Write `data + newline`, then flush
+3. Read reply lines until `expect` matches or timeout expires
+4. Return bytes written, captured output, and match result
+
+The write and the read-back share one proxy connection by design.  The proxy
+serves a single client at a time and nothing drains the port between calls,
+so issuing a bare write and then a separate FR-009 monitor would discard
+whatever the device emitted while no client was attached — which for a
+prompt/response exchange is the entire reply.
+
+**Response (expect matched):**
+```json
+{"ok": true, "written": 9, "matched": true, "line": "OK", "output": ["AT+JOIN", "OK"]}
+```
+
+**Response (no expect given):**
+```json
+{"ok": true, "written": 9, "matched": false, "line": null, "output": ["AT+JOIN"]}
+```
+
+Local echo is common — the DUT usually echoes the sent line back, so `output`
+will often lead with `data` itself.
+
+**Used by:** device provisioning, firmware CLI interaction
+
 ### FR-007 — USB Flap Detection & Recovery
 
 When a device enters a boot loop (crash → reboot → crash every ~2-3s), the
@@ -895,6 +945,7 @@ serial-interface mode.
 | GET | /api/info | Pi IP, hostname, slot counts |
 | POST | /api/serial/reset | Reset device via DTR/RTS (FR-008) |
 | POST | /api/serial/monitor | Read serial output with pattern match (FR-009) |
+| POST | /api/serial/write | Write to serial input and read the reply (FR-030) |
 | **WiFi** | | |
 | GET | /api/wifi/ping | Version and uptime |
 | GET | /api/wifi/mode | Current operating mode |

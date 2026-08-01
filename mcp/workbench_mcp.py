@@ -66,6 +66,17 @@ SPECS = [
          desc="Read serial for up to `timeout` s, optionally returning when `pattern` matches.",
          props=p(slot=S_STR, pattern=S_STR, timeout=dict(**S_INT, default=10)),
          required=["slot"], timeout=90),
+    dict(name="serial_write", method="POST", path="/api/serial/write",
+         desc="Write a line to the DUT's serial input, then read the reply "
+              "(optionally until `expect` matches). Use for prompt-driven "
+              "flows like LoRaWAN key provisioning or a firmware CLI.",
+         props=p(slot=S_STR,
+                 data=dict(**S_STR, description="text to send, without newline"),
+                 newline=dict(**S_STR, default="\n",
+                              description=r"line ending: '\n', '\r\n', '\r', or '' for none"),
+                 expect=dict(**S_STR, description="substring to wait for in the reply"),
+                 timeout=dict(**S_INT, default=10)),
+         required=["slot", "data"], timeout=90),
     dict(name="serial_output", method="GET", path="/api/serial/output",
          desc="Passive read of the slot's serial buffer.",
          props=p(slot=S_STR, lines=dict(**S_INT, default=40), since=S_INT), required=["slot"]),

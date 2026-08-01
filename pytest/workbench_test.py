@@ -1412,6 +1412,31 @@ class TestSerialArchitecture:
         assert len(result.get("output", [])) >= 0
 
     @requires_dut
+    def test_wt1908_serial_write_accepted(self, workbench):
+        """WT-1908: serial_write sends a line and reports bytes written."""
+        dev = _find_present_device(workbench)
+        assert dev, "No device connected"
+        slot = dev["label"]
+
+        # A bare newline is inert on any firmware — this checks the write
+        # path itself, not a particular DUT's command set.
+        result = workbench.serial_write(slot, data="", newline="\n", timeout=2)
+        assert result.get("written") == 1
+        assert isinstance(result.get("output"), list)
+
+    @requires_dut
+    def test_wt1909_serial_write_requires_data(self, workbench):
+        """WT-1909: serial_write rejects a request with no 'data' field."""
+        dev = _find_present_device(workbench)
+        assert dev, "No device connected"
+        slot = dev["label"]
+
+        # The portal answers 400, which the driver surfaces as CommandTimeout
+        # (urllib raises HTTPError, a URLError subclass, before the body parses).
+        with pytest.raises((CommandTimeout, CommandError)):
+            workbench._api_post("/api/serial/write", {"slot": slot}, timeout=5)
+
+    @requires_dut
     def test_wt1907_multi_slot_detection(self, workbench):
         """WT-1907: Multiple slots independently detect their chips."""
         devices = workbench.get_devices()

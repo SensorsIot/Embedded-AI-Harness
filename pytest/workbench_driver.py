@@ -348,6 +348,20 @@ class WorkbenchDriver:
         )
         return {k: v for k, v in result.items() if k != "ok"}
 
+    def serial_write(self, slot: str = "SLOT2", data: str = "",
+                     newline: str = "\n",
+                     expect: Optional[str] = None,
+                     timeout: float = 10) -> dict:
+        """POST /api/serial/write — returns {written, matched, line, output}."""
+        body: dict = {"slot": slot, "data": data,
+                      "newline": newline, "timeout": timeout}
+        if expect is not None:
+            body["expect"] = expect
+        result = self._api_post(
+            "/api/serial/write", body, timeout=timeout + 5
+        )
+        return {k: v for k, v in result.items() if k != "ok"}
+
     def enter_portal(self, slot: str = "SLOT2",
                      resets: int = 3) -> dict:
         """POST /api/enter-portal — starts background portal trigger."""
