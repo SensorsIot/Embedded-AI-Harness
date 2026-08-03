@@ -57,15 +57,37 @@ def _kill_proc(proc, timeout=5.0):
 
 
 def _kill_existing():
-    """Kill any existing mosquitto process (best effort)."""
+    """Kill a previously-started *test* broker, and only that (best effort).
+
+    The pattern is matched against our own config path, not the bare word
+    "mosquitto". A broad `pkill -f mosquitto` also kills a system
+    `mosquitto.service` or any other broker on the host — a test fixture must
+    never take down infrastructure it does not own.
+
+    This reclaims the port after a portal restart, where the old broker is still
+    running but `_proc` no longer refers to it.
+    """
     try:
         subprocess.run(
-            ["pkill", "-f", "mosquitto"],
+            ["pkill", "-f", f"mosquitto -c {MOSQUITTO_CONF}"],
             capture_output=True, timeout=5, check=False,
         )
         time.sleep(0.3)
     except Exception:
         pass
+
+
+def _port_owner() -> str:
+    """Describe what is listening on MQTT_PORT, or '' if nothing is."""
+    try:
+        out = subprocess.run(
+            ["ss", "-tlnp", f"sport = :{MQTT_PORT}"],
+            capture_output=True, timeout=5, check=False,
+        ).stdout.decode(errors="replace")
+    except Exception:
+        return ""
+    lines = [ln for ln in out.splitlines()[1:] if ln.strip()]
+    return lines[0].strip() if lines else ""
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +104,15 @@ def start():
 
         _ensure_work_dir()
         _kill_existing()
+
+        # If something still holds the port it is not ours, so refuse rather than
+        # kill it. Silently killing a broker we did not start is how a test run
+        # takes down a service somebody else depends on.
+        owner = _port_owner()
+        if owner:
+            raise RuntimeError(
+                f"port {MQTT_PORT} is already in use by a broker this service did "
+                f"not start; stop it first. Listener: {owner}")
 
         # Write mosquitto config — open broker, no auth, listen on all interfaces
         conf_lines = [

@@ -2496,7 +2496,7 @@ terminates an active capture early.
 | GET | /api/sdr/status | — | Tool/dongle detection + active-capture state |
 | POST | /api/sdr/capture | `{freq_hz?, duration_s?, protocols?, sample_rate?, flex?, gain?}` | Decode RF for a window; returns decoded records + signal levels |
 | POST | /api/sdr/analyze | `{freq_hz?, duration_s?, gain?}` | Pulse-analyzer capture for recapturing a remote |
-| POST | /api/sdr/power | `{freq_hz?, duration_s?, span_hz?, bin_hz?}` | Narrowband RF power (rtl_power) → `{peak_db, peak_freq_hz, mean_db}` |
+| POST | /api/sdr/power | `{freq_hz?, duration_s?, span_hz?, bin_hz?, notch_hz?}` | Narrowband RF power (rtl_power) → `{peak_db, peak_freq_hz, mean_db}`. `notch_hz` excludes bins within that distance of the tuner centre, where the dongle's DC spike sits |
 | POST | /api/sdr/acquire | `{freq_hz?, span_hz?, bin_hz?, gains?, dwell_s?, decode_s?, flex?, wait_s?}` | Phased guided receive → per-phase report + `summary` |
 | POST | /api/sdr/stop | — | Terminate an in-progress capture |
 
@@ -3563,7 +3563,7 @@ RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 | GET | `/api/sdr/status` | Dongle + tool detection, active state |
 | POST | `/api/sdr/capture` | Decode window `{freq_hz, duration_s, gain?, sample_rate?, flex?}` |
 | POST | `/api/sdr/analyze` | Pulse-analyzer window (raw timing + RSSI) |
-| POST | `/api/sdr/power` | `rtl_power` sweep `{freq_hz, span_hz, bin_hz}` |
+| POST | `/api/sdr/power` | `rtl_power` sweep `{freq_hz, span_hz, bin_hz, notch_hz?}` |
 | POST | `/api/sdr/acquire` | Phased locate → level → decode → classify |
 | POST | `/api/sdr/live/start` · `/stop` | Live rtl_433 console |
 | GET | `/api/sdr/live` · `/live/status` | Poll ring buffer `?since=` · console state |

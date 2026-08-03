@@ -509,22 +509,53 @@ class TestSdr:
             workbench.sdr_capture(duration_s=2)
 
     def test_wt1906_flex_decoder_accepted(self, workbench):
-        """WT-1906: A flex (-X) decoder spec is accepted and returns events."""
+        """WT-1906: A flex (-X) decoder is applied — decoded events carry its model.
+
+        Receiving nothing is a valid outcome without a transmitter, so this cannot
+        assert `count > 0`. What it can assert is that the flex spec was actually
+        *applied*: any package decoded during the window must be attributed to the
+        `awn` model the spec names. A capture that returns events under some other
+        model means the -X spec was dropped on the way to rtl_433 — which is the
+        failure this test exists to catch. Proving decode of a real burst needs a
+        transmitter: that is WT-1908.
+        """
         if not _sdr_available(workbench):
             pytest.skip("no RTL-SDR dongle available")
         r = workbench.sdr_capture(
             duration_s=3, flex="n=awn,m=OOK_PWM,s=416,l=2150,r=16000")
         assert "events" in r and isinstance(r["events"], list)
         assert r["count"] == len(r["events"])
+        for ev in r["events"]:
+            model = ev.get("model")
+            assert model is None or model == "awn", (
+                f"flex spec named model 'awn' but rtl_433 reported {model!r} — "
+                "the -X spec did not reach the decoder")
 
-    def test_wt1907_reports_signal_levels(self, workbench):
-        """WT-1907: Capture reports rssi/snr level summary and an SNR gate."""
+    def test_wt1907_snr_gate_is_applied_consistently(self, workbench):
+        """WT-1907: `strong` is the count of events at or above the SNR gate.
+
+        The old assertion (`strong >= 0`) was true by construction and passed with
+        the antenna disconnected. This recomputes the gate from the returned events
+        and requires the server's answer to match, so a broken or bypassed gate
+        fails the test. It needs no RF: with zero events both sides are 0, and the
+        `max_snr`/`max_rssi` checks still bind.
+        """
         if not _sdr_available(workbench):
             pytest.skip("no RTL-SDR dongle available")
         r = workbench.sdr_capture(duration_s=3)
-        assert "snr_gate_db" in r and "strong" in r
-        assert "max_snr" in r and "max_rssi" in r
-        assert isinstance(r["strong"], int) and r["strong"] >= 0
+        for key in ("snr_gate_db", "strong", "max_snr", "max_rssi", "events"):
+            assert key in r, f"capture response is missing {key!r}"
+
+        gate = float(r["snr_gate_db"])
+        snrs = [e["snr"] for e in r["events"]
+                if isinstance(e.get("snr"), (int, float))]
+        assert r["strong"] == sum(1 for s in snrs if s >= gate), (
+            f"strong={r['strong']} disagrees with the {len(snrs)} event SNRs "
+            f"against gate {gate} dB")
+        assert r["max_snr"] == (max(snrs) if snrs else None)
+        rssis = [e["rssi"] for e in r["events"]
+                 if isinstance(e.get("rssi"), (int, float))]
+        assert r["max_rssi"] == (max(rssis) if rssis else None)
 
 
 # =====================================================================

@@ -105,7 +105,9 @@ SPECS = [
     dict(name="sdr_power", method="POST", path="/api/sdr/power",
          desc="Narrowband rtl_power sweep -> {peak_db, peak_freq_hz, mean_db}.",
          props=p(freq_hz=dict(**S_INT, default=433920000), duration_s=dict(**S_INT, default=5),
-                 span_hz=dict(**S_INT, default=500000), bin_hz=dict(**S_INT, default=10000)), timeout=60),
+                 span_hz=dict(**S_INT, default=500000), bin_hz=dict(**S_INT, default=10000),
+                 notch_hz=dict(**S_INT, description="exclude bins within this distance of "
+                               "the tuner centre, where the dongle's DC spike sits")), timeout=60),
     dict(name="sdr_acquire", method="POST", path="/api/sdr/acquire",
          desc="Phased guided receive: locate -> level -> decode -> classify.",
          props=p(freq_hz=dict(**S_INT, default=433920000)), timeout=120),

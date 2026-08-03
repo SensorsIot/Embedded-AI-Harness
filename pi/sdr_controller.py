@@ -807,7 +807,10 @@ class SdrReceiver:
         return best
 
     def stop(self) -> dict[str, Any]:
-        """Terminate an in-progress capture (from another request thread)."""
+        """Terminate an in-progress one-shot capture (from another request thread).
+
+        This does not stop the live console — that is ``stop_live()``.
+        """
         proc = self._proc
         if proc and proc.poll() is None:
             proc.terminate()
@@ -815,11 +818,19 @@ class SdrReceiver:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        # Barrier: the capture thread holds the lock for the whole run and
-        # resets state in its finally block. Acquiring it here blocks until
-        # that cleanup has run, so the returned status is never stale.
-        with self._lock:
-            pass
+        # Barrier: a one-shot capture thread holds the lock for the whole run and
+        # resets state in its finally block, so acquiring it here means the status
+        # we return is never stale.
+        #
+        # It must be skipped when the live console owns the lock. The live session
+        # holds it for its entire lifetime, so blocking here would park the caller
+        # until an operator stopped the console — an indefinite hang on a request
+        # that has nothing to wait for (live and one-shot are mutually exclusive,
+        # so no capture can be running). The timeout is belt-and-braces: this
+        # endpoint must never be the thing that wedges.
+        if not self._live_owns_lock:
+            if self._lock.acquire(timeout=10):
+                self._lock.release()
         return self.status()
 
     def status(self) -> dict[str, Any]:
