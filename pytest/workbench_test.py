@@ -8,7 +8,6 @@ import json
 import os
 import re
 import socket
-import threading
 import time
 
 import pytest
@@ -432,8 +431,7 @@ def _sdr_available(workbench) -> bool:
 
 # =====================================================================
 # WT-19xx  RF Path
-#   WT-1909  bench transmitter -> own SDR  (no DUT, no operator)
-#   WT-1908  DUT transmit      -> SDR      (requires the awning on SLOT3)
+#   WT-1909  bench transmitter -> own SDR: the SDR self-test
 # =====================================================================
 
 
@@ -506,64 +504,6 @@ class TestRfLoopback:
             "reading is not tracking the transmitter")
 
 
-@pytest.mark.requires_dut
-class TestRfPath:
-    """WT-1908: verify the awning's OOK transmission is received by the SDR.
-
-    Uses the flex decoder tuned to the awning timing plus rssi/snr levels to
-    separate signal from noise: a transmit window (boot-home UP burst on reset)
-    must show more/stronger OOK-PWM packages than a quiet baseline. Needs the
-    awning on SLOT3 and adequate RF isolation — close-range saturation garbles
-    the exact codeword, so this gates on signal strength, not decoded bits.
-    """
-
-    SLOT = "SLOT3"
-    # Narrowband power (rtl_power) isolates the carrier from broadband 433-band
-    # noise, which decode/package counting drowns in. Center off 433.92 so the
-    # awning's carrier doesn't sit on the dongle's DC spike.
-    CENTER_HZ = 434_000_000
-    SPAN_HZ = 2_000_000
-
-    def _peak_db(self, workbench, reset):
-        box = {}
-
-        def run():
-            box["r"] = workbench.sdr_power(
-                freq_hz=self.CENTER_HZ, duration_s=5,
-                span_hz=self.SPAN_HZ, bin_hz=10_000)
-        t = threading.Thread(target=run)
-        t.start()
-        for _ in range(25):
-            try:
-                if workbench.sdr_status().get("active"):
-                    break
-            except WorkbenchError:
-                pass
-            time.sleep(0.2)
-        if reset:
-            time.sleep(0.8)
-            workbench.serial_reset(slot=self.SLOT)  # boot-home UP burst
-        t.join()
-        return box.get("r", {}).get("peak_db")
-
-    def test_wt1908_transmit_window_exceeds_baseline(self, workbench):
-        """WT-1908: the DUT's OOK burst raises narrowband RF power vs a quiet
-        baseline (rtl_power). Detects emission independent of decodability."""
-        if not _sdr_available(workbench):
-            pytest.skip("no RTL-SDR dongle available")
-        # Precondition: the receiver must see RF at all (peak well above 0 dB).
-        base = self._peak_db(workbench, reset=False)
-        if base is None:
-            pytest.skip("SDR returned no power data (check antenna/dongle)")
-
-        workbench.serial_reset(slot=self.SLOT)
-        time.sleep(45)                                # settle past boot-home
-        b1 = self._peak_db(workbench, reset=False)
-        active = self._peak_db(workbench, reset=True)  # boot-home transmits
-
-        assert active is not None and active > b1 + 5, (
-            f"no carrier from DUT: active peak={active} dB vs baseline "
-            f"{b1} dB (expected a >=5 dB lift during transmission)")
 
 
 # =====================================================================

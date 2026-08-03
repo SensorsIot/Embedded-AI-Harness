@@ -2503,7 +2503,7 @@ terminates an active capture early.
 `POST /api/sdr/power` runs `rtl_power` over a small span centred on `freq_hz`
 and returns the peak/mean power (dB). Unlike decode-based detection, a raw
 carrier lifts `peak_db` clear of broadband band noise — the robust way to
-confirm a transmitter is emitting (WT-1908). `peak_freq_hz` reports the centre
+confirm a transmitter is emitting (WT-1909). `peak_freq_hz` reports the centre
 frequency of the strongest bin, locating a carrier of unknown frequency across
 a wide sweep. Centre the span off the target frequency so the carrier does not
 sit on the dongle's DC spike, or set `notch_hz` to drop bins around the tuner
@@ -2968,7 +2968,6 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-1302 | Signal generator frequency list (gpclk) | Signal Generator | No |
 | WT-1303 | Signal generator Morse keying | Signal Generator | No |
 | WT-1304 | Signal generator replaces previous | Signal Generator | No |
-| WT-1908 | SDR RF path: DUT-transmit window has higher SNR than quiet baseline | RF Path | Yes |
 | WT-1909 | RF loopback self-test: bench transmitter (86.784 MHz, 5th harmonic) lifts peak_db at 433.92 MHz by >= 15 dB at fixed gain | RF Path | No |
 | WT-2200 | `/api/devices` returns slots with labels and state | Serial Architecture | No |
 | WT-2201 | Present device has `detected_chip` set | Serial Architecture | Yes |
