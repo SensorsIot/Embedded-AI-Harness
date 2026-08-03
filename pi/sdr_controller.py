@@ -109,8 +109,14 @@ class SdrReceiver:
         self._log_active = False
         self._log: list[dict[str, Any]] = []
         self._hardware = self._detect_hardware()
+        self._hw_probed_at = time.monotonic()
 
     # ── detection ────────────────────────────────────────────────────
+
+    # Minimum gap between hot-plug re-probes. `rtl_test -t` costs up to 6 s and
+    # the web UI polls status continuously, so an unthrottled probe would pin a
+    # core and serialise every status call behind it.
+    HW_REPROBE_INTERVAL_S = 5.0
 
     def _detect_hardware(self) -> dict[str, bool]:
         rtl_433 = shutil.which(self._config["rtl_433_bin"]) is not None
@@ -130,10 +136,29 @@ class SdrReceiver:
                 "device": device}
 
     def hardware_status(self) -> dict[str, bool]:
+        """Current hardware detection, re-probing for a hot-plugged dongle.
+
+        Detection runs once at construction, so without this a dongle plugged in
+        after boot stays invisible until the portal restarts: `/api/sdr/status`
+        keeps reporting `device: false` while captures actually work (they
+        re-probe in `_require_ready`). That inconsistency also makes every
+        dongle-gated test skip forever, since they gate on this value.
+
+        Re-probe only when no device is known *and* nothing is using the dongle —
+        `rtl_test` opens the device, so probing mid-capture would fight it.
+        """
+        if (not self._hardware.get("device")
+                and not self._state.get("active")
+                and not self._live_running):
+            now = time.monotonic()
+            if now - self._hw_probed_at >= self.HW_REPROBE_INTERVAL_S:
+                self._hw_probed_at = now
+                self._hardware = self._detect_hardware()
         return dict(self._hardware)
 
     def available(self) -> bool:
-        return self._hardware["rtl_433"] and self._hardware["device"]
+        hw = self.hardware_status()
+        return hw["rtl_433"] and hw["device"]
 
     def _require_ready(self) -> None:
         if not self._hardware["rtl_433"]:
