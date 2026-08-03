@@ -1,7 +1,7 @@
 # FSD Writing Guide (Steps 8-10)
 
 Detailed instructions for writing the Operations / Verification & Validation /
-Appendix chapters with workbench-specific content. The fsd-writer FSD uses the
+Appendix chapters with workbench-specific content. The fsd-engineer FSD uses the
 layer-grouped Parts scheme, so locate these by role/title (under Part E / back
 matter), not by a fixed section number.
 
@@ -12,7 +12,7 @@ workbench-specific operational content. This chapter becomes a standalone
 **operations guide** -- how to interact with the device through the workbench. It
 contains no test cases.
 
-If the fsd-writer left a generic Operational Procedures chapter, replace it
+If the fsd-engineer left a generic Operational Procedures chapter, replace it
 entirely. The workbench operations are the operational procedures for this project.
 
 ### 8a. Hardware setup

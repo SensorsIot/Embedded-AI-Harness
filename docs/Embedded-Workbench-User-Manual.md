@@ -934,7 +934,7 @@ Claude Code loads skills at session start, so restart your session after copying
 | `signal-generator` · `sdr-receiver` | RF transmit · RF receive, decode, reverse-engineering |
 | `workbench-test-handling` · `esp32-test-harness` | Test sessions, operator prompts, DUT manipulation |
 | `workbench-integration` | Add workbench support to an existing ESP32 project |
-| `fsd-writer` · `test-designer` | Write FSDs · derive traceable test cases from them |
+| `fsd-engineer` | Requirements, verification contracts, test specifications, traceability, and the Harness/Handbook planes |
 
 Most `workbench-*` skills assume the bench is at `workbench.local`, or the IP in
 `SERIAL_PI` — override that in your shell or devcontainer if your network differs.

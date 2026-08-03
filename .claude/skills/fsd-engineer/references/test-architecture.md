@@ -12,7 +12,7 @@ Two FSD homes:
 §2.4 is the spine: the FSD body Parts/chapters and the test-spec files both mirror
 these components, so the architecture, the spec, and the matrix share one shape.
 
-The seam: this skill (`fsd-writer`) *declares* the layers and an empty matrix
+This skill *declares* the layers and an empty matrix
 skeleton; a test-traceability tool *fills in* status. Structure vs. status.
 
 ---
@@ -206,7 +206,7 @@ by layer), columns = tiers, each cell = covered/total requirements at that
 requirement → tier) crossed with test linkage — so it cannot drift from the code.
 Mark L0 fast-tier cells as expected-empty.
 
-`fsd-writer` authors the architecture and the empty skeleton; the **`test-designer`**
+This skill authors the architecture and the empty skeleton; its **test-design phase**
 skill authors the cases that fill it (FSD clauses → tests → `@fsd` tags, with the
 controllability/tier reasoning) and the traceability tool populates status. Do not
 hand-maintain the filled matrix in the FSD.

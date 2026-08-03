@@ -1,40 +1,92 @@
 ---
-name: fsd-writer
+name: fsd-engineer
 description: >
-  Generates or updates a project's specification documentation across three planes
-  — the FSD (WHAT must be true), the Harness (HOW it is built and changed), and the
-  Handbook (HOW to operate it) — for any kind of system: embedded, cloud back-end,
-  mobile, networking, SDR, or hybrid. Converts rough project descriptions into
-  atomic, falsifiable, provenance-tagged requirements with a state model,
-  verification tiers, and generated traceability; splits build conventions into the
-  Harness and operator procedures into the Handbook so the FSD stays behavioural.
-  Supports initial generation, incremental evolution, and retrofitting an existing
-  doc set into the three planes. Loads optional domain packs (e.g. ESP32) that
-  propose — never silently adopt — domain requirements and test libraries. Triggers
-  on "FSD", "fsd", "write FSD", "create FSD", "generate FSD", "new FSD",
-  "update FSD", "evolve FSD", "functional spec", "specification document",
-  "harness", "build contract", "handbook", "runbook", "operator manual",
-  "three planes", "WHAT HOW OPERATE", "split spec into planes".
+  Engineers the whole specification-and-verification contract for any system —
+  embedded, cloud back-end, mobile, networking, SDR, or hybrid. Owns both sides:
+  WHAT the system must do (the FSD), HOW it is built (the Harness), HOW it is
+  operated (the Handbook), and HOW compliance is demonstrated (verification
+  contracts, complete test specifications, traceability, evidence, and gap
+  reports). Produces atomic, falsifiable, typed, provenance-tagged requirements
+  with state models, interface and configuration catalogues, a security profile,
+  host/target/bench tier allocation, and a seven-state verification lifecycle that
+  never mistakes a tag or a coverage hit for proof. Modes: create, update, tests,
+  audit, reconcile, planes. Loads optional domain packs (e.g. ESP32) that propose —
+  never silently adopt — requirements and test libraries. Triggers on "FSD", "fsd",
+  "write FSD", "create FSD", "generate FSD", "update FSD", "evolve FSD",
+  "functional spec", "specification document", "requirements", "test spec",
+  "test specification", "test design", "design tests from FSD", "traceability",
+  "traceability matrix", "coverage audit", "gap report", "verification",
+  "reconcile spec with code", "harness", "build contract", "handbook", "runbook",
+  "three planes", "WHAT HOW OPERATE".
 ---
 
-# FSD Writer Skill
+# FSD Engineer Skill
 
-A general-purpose skill that turns a rough, unstructured project description into
-a structured Functional Specification Document (FSD) in Markdown, or surgically
-updates an existing FSD with new requirements, corrections, or expansions.
+Creates and maintains the **engineering contract** from which both implementation
+and verification are derived:
+
+```text
+What the system must do  +  How compliance will be demonstrated
+```
+
+It is not a document generator. It engineers requirements, testability,
+verification specifications, traceability, lifecycle updates, and the handoffs to
+whoever implements and executes.
+
+## 0. Scope — what this skill does and does not do
+
+**It does:** inspect the repository · establish scope, actors, context,
+constraints, assumptions · create and evolve the FSD, Harness, and Handbook ·
+express requirements as stable, atomic, measurable, typed obligations · model
+states, interfaces, data, configuration, and failures · validate the quality and
+testability of every normative requirement · attach a verification contract to
+every Must and Should · derive complete test specifications · allocate each test
+to host, target, or bench · define stimuli, observations, evidence, and cleanup ·
+maintain traceability across clause, test, implementation, execution, and
+evidence · report ambiguity, inconsistency, and coverage gaps by category ·
+produce structured handoffs.
+
+**It does not:** implement production code · write executable tests · execute
+tests · operate the workbench · claim a requirement is verified because code or a
+test merely exists · turn recommendations into approved requirements silently ·
+invent normative thresholds, tolerances, security assumptions, or failure
+behaviour.
+
+| Activity | This skill | Development skills | Workbench skills |
+|---|:--:|:--:|:--:|
+| Inspect repository | Yes | As needed | No |
+| Define scope, requirements, states, interfaces | Yes | No | No |
+| Architecture decisions | Yes (records) | May propose | No |
+| Design test specifications | Yes | No | No |
+| Define required evidence | Yes | No | No |
+| Generate production firmware | No | Yes | No |
+| Generate executable tests | Handoff only | Yes | Support |
+| Build and flash | No | Yes | Support |
+| Operate WiFi, MQTT, BLE, GPIO, RF | No | Coordinates | Yes |
+| Execute tests, capture raw evidence | Defines | Processes | Captures |
+| Maintain traceability | Yes | Supplies mappings | Supplies results |
+| Decide unresolved product questions | No | No | No |
+
+**GitHub is the system of record.** The FSD, decisions, test specifications,
+traceability, executable tests, evidence, and corrections are ordinary
+version-controlled artefacts. Chat history is not authoritative.
 
 ## 1. Purpose
 
 This skill:
 
-- Generates a canonical FSD from a rough description (**initial mode**).
-- Updates or expands an existing FSD using a delta description (**evolve mode**).
-- Writes the **Harness** (HOW) and **Handbook** (OPERATE) planes alongside it, and
-  retrofits an existing doc set into the three planes (**plane mode**, §2.4).
-- Dynamically adjusts depth and verbosity based on inferred system complexity.
-- Ensures full requirement traceability (FR / NFR <-> test coverage).
-- Surfaces risks, assumptions, and constraints as first-class content.
-- Produces deterministic, agent-consumable Markdown.
+- Generates a canonical FSD from a rough description (**create**, §2.1).
+- Updates or expands an existing FSD from a delta (**update**, §2.2).
+- Interviews depth-first when the input is too thin (**grill**, §2.3).
+- Writes the **Harness** (HOW) and **Handbook** (OPERATE) planes, and retrofits an
+  existing doc set into the three planes (**planes**, §2.4).
+- Designs complete test specifications from the FSD (**tests**, §2.5).
+- Reports the verification lifecycle state of every requirement (**audit**, §2.6).
+- Reconciles documents against drifted code (**reconcile**, §2.7).
+- Scales depth to inferred system complexity.
+- Maintains traceability across clause, test, implementation, execution, evidence.
+- Surfaces risks, assumptions, constraints, and open decisions as first-class.
+- Produces deterministic, agent-consumable Markdown and YAML.
 
 It supports embedded systems, networking, SDR, IoT, cloud backends, mobile apps,
 multi-service orchestrations, and hybrid hardware/software projects.
@@ -46,7 +98,7 @@ multi-service orchestrations, and hybrid hardware/software projects.
 Start a new FSD from scratch.
 
 ```
-/fsd-writer
+/fsd-engineer
 <rough description text>
 ```
 
@@ -62,7 +114,7 @@ Behavior:
 Update, expand, refactor, or correct an already existing FSD.
 
 ```
-/fsd-writer update <path-to-existing-fsd>
+/fsd-engineer update <path-to-existing-fsd>
 <delta description — changes, additions, clarifications, new constraints>
 ```
 
@@ -92,7 +144,7 @@ questions per round and infer aggressively; Mode C escalates that into a
 depth-first interview that resolves the design tree branch by branch.
 
 ```
-/fsd-writer --grill
+/fsd-engineer --grill
 <rough description text>
 ```
 
@@ -120,7 +172,7 @@ Create the Harness and Handbook alongside the FSD, or split an existing document
 set into the three planes (§6.11).
 
 ```
-/fsd-writer --planes [<path-to-existing-fsd-or-docs-dir>]
+/fsd-engineer --planes [<path-to-existing-fsd-or-docs-dir>]
 ```
 
 Behaviour:
@@ -143,6 +195,48 @@ Behaviour:
 
 A project may legitimately want only two planes (a library with no operators
 needs no Handbook). Do not manufacture a plane that has no reader.
+
+### 2.5 Mode E — Tests (design or refresh test specifications)
+
+```
+/fsd-engineer tests <fsd-path>
+```
+
+Creates or refreshes detailed test specifications without rewriting unaffected
+FSD content. Runs the clause inventory, tier allocation, controllability
+analysis, and the required test classes
+(`references/test-design.md`), emitting specs in the canonical schema
+(`references/test-spec-schema.md`) plus an updated traceability matrix.
+
+Use when the FSD is stable but its verification is not — or after a `tests`-only
+delta such as adding boundary cases.
+
+### 2.6 Mode F — Audit (what is actually verified?)
+
+```
+/fsd-engineer audit
+```
+
+Compares the FSD, requirement inventory, test specifications, executable tests,
+source mappings, and available evidence, then reports the **lifecycle state of
+every requirement** (`references/traceability.md` §1) and the gaps by category.
+
+This is the mode that answers "are we done?" honestly. Expect most requirements
+to sit below *Requirement verified*; that is information, not failure.
+
+### 2.7 Mode G — Reconcile (documents and code drifted)
+
+```
+/fsd-engineer reconcile
+```
+
+Used when code, tests, or documents changed independently. Identifies
+undocumented behaviour, obsolete tests, stale evidence, missing mappings, and
+contradictions, then **proposes** FSD changes.
+
+It does not silently adopt what the code happens to do — detected behaviour is
+adjudicated per `references/requirement-quality.md` §2, and the four outcomes are
+document / demote to Harness / fix the code / delete it.
 
 ## 3. Tool Usage
 
@@ -327,9 +421,9 @@ A requirement states **one** obligation. A sentence that promises several things
 is several requirements, because they are implemented, fail, and are tested
 independently.
 
-This is the same split `test-designer` performs in its Phase 1 clause inventory;
-apply it here so the downstream skill has nothing left to split. Splitting late
-means the FSD and the test suite disagree about how many promises exist.
+The same split drives the clause inventory in `references/test-design.md` §1.
+Splitting late means the requirements and the test suite disagree about how many
+promises exist, so do it once, here.
 
 > "Convert received text into USB HID reports and deliver them within 50 ms."
 
@@ -404,30 +498,16 @@ percentile API response under 200 ms at 50 concurrent clients" is.
 #### 6.5.1 Security profile before security requirements
 
 Never import individual security requirements — establish the **threat model
-first**, then let the requirements follow from it. "Credentials shall be
-encrypted at rest" is meaningless until you know who the attacker is, what
-physical access they have, and what the platform actually offers.
+first**, then derive. "Credentials shall be encrypted at rest" is meaningless
+until you know who the attacker is, what physical access they have, and what the
+platform actually costs you to provide it.
 
-Ask for, or infer and mark `(assumed)`, these four things, and state them in the
-FSD before any security requirement:
+Where the profile does not justify a protection, say so and record it in §5 Risks
+as an accepted risk. An honest "we do not claim confidentiality at rest" beats a
+requirement nobody implements. **Obfuscation is never encryption**, and
+"encrypted or obfuscated" is not an acceptance criterion — it cannot fail.
 
-1. **Who is the attacker?** Nobody (controlled site) · someone holding the device ·
-   someone who can read the flash · someone on the network path.
-2. **What does physical access get them?** Depends on enclosure, secure boot, and
-   flash encryption — not on wishes.
-3. **What is actually being protected, and for how long?** A WiFi PSK on a
-   segregated test VLAN is not a customer database.
-4. **What does the platform give you for free, and what does it cost?** Enabling
-   flash encryption changes flashing, OTA, and RMA. Say so before requiring it.
-
-Then state a named profile (the ESP32 pack defines P0/P1/P2 as a worked example)
-and derive from it. Where the profile does *not* justify a protection, say so
-explicitly and record it in §5 Risks as an accepted risk. An honest "we do not
-claim confidentiality at rest" beats a requirement nobody implements.
-
-**Obfuscation is not encryption.** Never accept base64, XOR, or a renamed key as
-satisfying an encryption requirement, and never write an acceptance criterion of
-the form "encrypted or obfuscated" — it cannot fail.
+Full profile checklist: `references/system-models.md` §7.
 
 ### 6.6 Interfaces & Data Models
 
@@ -461,88 +541,58 @@ Extract or infer:
 If not covered in the description, provide a generic but plausible set for the
 domain.
 
-### 6.9 Verification & Validation — what this skill owns
+### 6.9 Verification & Validation — this skill owns test design end to end
 
-This skill states **what must be true and how it will be judged**. It does not
-author the test suite. Three skills share this pipeline and each stops at a
-defined line:
+Requirements and their verification are **co-engineered**. A requirement is not
+complete because it reads well; it is complete when a test can be derived from
+it. Attempting to derive that test *is* the quality check — which is why design
+happens here and is not delegated to another skill.
 
-| Skill | Produces | Stops at |
-|-------|----------|----------|
-| **fsd-writer** (this) | Atomic requirements, acceptance criteria, verification tier per requirement, the stimuli and observations a test will need, and the intent of which requirements are tested together | Naming a tier and a criterion. It writes no test steps. |
-| **test-designer** | Detailed test specifications, positive / negative / boundary / state-transition variants, the traceability YAML, gap reports, `@fsd` code mappings | Designing and documenting. It runs nothing. |
-| **create-test-spec** | Structured test-spec documents with machine-checkable preconditions, step tables, and pass criteria | Authoring the document. |
-| **workbench-\* skills** | Python test implementations, hardware actions, observations, test reports | Execution against real hardware. |
+Two artefacts, at two levels of detail:
 
-All four ship in this repo — `.claude/skills/{fsd-writer,test-designer,create-test-spec,workbench-*}/` and
-`.claude/agents/fsd-compliance-checker.md` — so the chain works from a clone with
-nothing installed at user level. Skills resolve **by name**, not by path; if a
-name here does not resolve, the copy step in the README was incomplete.
+1. **Verification contract** — attached to every approved Must/Should, in the FSD
+   next to the requirement. Preconditions, stimulus, expected observations,
+   timing, tolerance, **prohibited outcomes**, tier, evidence, cleanup. This
+   establishes normative verification *intent*.
+   → `references/requirement-quality.md` §4
+2. **Test specification** — the executable-ready design: test data, equipment,
+   pass and failure criteria, required evidence, cleanup, failure recovery, and
+   the automation handoff. Kept as separate artefacts from the readable FSD, but
+   generated and maintained by this skill.
+   → `references/test-design.md`, `references/test-spec-schema.md`
 
-So in the V&V chapter, this skill writes:
+The FSD body stays readable: it carries requirements and their verification
+contracts. The full specs live under `verification/test-specs/` and are linked,
+not inlined.
 
-- Per requirement: its **verification tier** (from §x.0 Test Architecture) and its
-  **acceptance criterion** — the observable that decides pass or fail.
-- The **stimuli and observations** the tier must be able to produce and capture
-  (e.g. "requires the bench to drop the broker and watch the telemetry topic").
-- A **pointer** to the generated traceability matrix and gap report — never a
-  hand-filled coverage column (Section 8).
+**Where this skill stops.** It designs and documents. Development skills write
+executable tests; workbench skills operate hardware and capture evidence. See the
+responsibility table in §0.
 
-It must **not** write Objective / Preconditions / Steps / Expected Result tables.
-If the user asks for those in the same breath, generate the FSD first, then say
-that `test-designer` (for traceability-linked suites) or `create-test-spec` (for a
-standalone test-spec document) takes it from there.
+Everything ships in this repo — `.claude/skills/fsd-engineer/`,
+`.claude/skills/workbench-*/`, `.claude/agents/fsd-compliance-checker.md` — so the
+chain works from a clone with nothing installed at user level. Skills resolve **by
+name**, not by path.
 
-#### 6.9.1 State Model — mandatory for stateful systems
+#### 6.9.1 State model — mandatory for stateful systems
 
 If the system has modes that persist between events — provisioning, connecting,
-operational, degraded, recovery — the FSD **must** carry a formal state model. It
-is not optional prose and not a nice-to-have diagram.
+operational, degraded, recovery — the FSD **must** carry a formal state model.
+Not optional prose, not a nice-to-have diagram.
 
-This is where connected devices actually fail. Bugs rarely live in the happy path;
-they live in the transitions — what happens when WiFi drops *during* provisioning,
-whether a backoff timer survives a reconnect, which state a watchdog reset lands
-in. A requirement list that never names a state cannot express any of that, and
-the tests inherit the blindness.
+This is where connected devices actually fail. Bugs rarely live on the happy
+path; they live in the transitions. A requirement list that never names a state
+cannot express what happens when WiFi drops *during* provisioning, and the tests
+inherit the blindness.
 
-**Trigger.** Required when any of these hold: the system provisions or pairs; it
-maintains a connection it can lose; it has a recovery, safe, or degraded mode; it
-persists mode across reboot; or its behaviour depends on what happened before.
-For a stateless request/response service, skip it.
+The **transition table is normative** (from · event · guard · to · action ·
+limit); any diagram is generated from it. Every (state × event) pair is handled,
+explicitly ignored, or impossible-by-construction with a stated reason. Every
+normative row is a requirement and maps to at least one state-transition test —
+cover **transitions, not states**.
 
-**Contents.** One chapter (or a section of the owning component's chapter) with:
-
-- **States** — exhaustive and mutually exclusive. Name the failure states too;
-  "WiFi unavailable" and "broker unavailable" are different states with different
-  behaviour, and collapsing them into "error" hides the difference.
-- **A transition table** — the normative artefact. One row per transition:
-
-  | From | Event | Guard | To | Actions | Deadline |
-  |------|-------|-------|----|---------|----------|
-  | Connecting | `WIFI_DISCONNECTED` | retries < 5 | Connecting | backoff 2^n s, log attempt | — |
-  | Connecting | `WIFI_DISCONNECTED` | retries >= 5 | Recovery | stop radio, log `wifi: giving up` | within 1 s |
-
-- **A diagram** — Mermaid `stateDiagram-v2`, generated *from* the table. The table
-  is normative; the picture is for humans. If they disagree, the table wins.
-- **Entry and exit actions** per state, where they exist.
-- **Timers and backoff** — initial delay, growth, ceiling, and what resets them.
-- **Persistence** — which states survive a reboot and which do not, and where that
-  is stored. A device that reboots into Provisioning because it forgot it was
-  configured is a state-persistence bug.
-- **Behaviour in every failure state** — what still works, what is suspended, what
-  the user sees.
-
-**Completeness rule.** Every (state × event) pair is accounted for: handled,
-explicitly ignored, or impossible-by-construction with a stated reason. Blank
-cells are where the field bugs live. State the unhandled-event default once
-(e.g. "events not listed are logged at debug and discarded") rather than leaving
-readers to guess.
-
-**Verification.** Each transition row is an FR — atomic by construction (§6.4.1)
-and already carrying its stimulus, guard, response, and deadline (§6.4.2), so it
-drops straight into `test-designer`'s state-transition variants. Require coverage
-of every row, not merely every state: reaching a state proves nothing about the
-five edges into it.
+Trigger conditions, required contents, persistence rules, and the completeness
+rule: `references/system-models.md` §3.
 
 ### 6.10 Component Layering & Test Architecture
 
@@ -641,25 +691,39 @@ chapter-internal structure, section-inclusion rules, complexity scaling, and the
 migration map from the older flat layout, read
 `references/canonical-fsd-structure.md`.
 
-## 8. Traceability (Mandatory, generated)
+## 8. Traceability (mandatory, generated, seven states)
 
-Every FSD must carry traceability — but as a **pointer to generated artifacts**,
-never a hand-filled status table.
+Traceability separates **mapping** from **verification**. Collapsing them is the
+most consequential error this skill can make, because it turns "we wrote something
+down" into "it works" without anyone deciding to.
+
+A requirement moves through seven states, each a separate field — **never** a
+single `covered` flag:
+
+```text
+Specified → Test designed → Implementation mapped → Executable test implemented
+          → Test executed → Evidence captured → Requirement verified
+```
+
+An `@fsd` tag proves only that a source location *claims* responsibility. Coverage
+proves only that lines executed. Neither proves the behaviour was correct, and a
+passing test proves nothing about assertions it does not contain — which is why
+`prohibited_outcomes` is part of the contract.
 
 Rules:
-- Every **Must**/**Should** requirement — whether an `FR`/`NFR` item or a stable
-  **clause** (§6.4 conventions) — must be stated with a stable ID in its component
-  chapter and referenced by >= 1 test in the specs.
-- Every test case must reference the FR(s) / NFR(s) / clause(s) it validates.
-- The traceability tool computes coverage and emits the **coverage matrix**
-  (component × tier) and a **gap report** (requirements with no test). `GAP` is
-  *computed*, not typed into the FSD.
-- **May**-priority requirements may have coverage but it is not mandatory.
-- The FSD's V&V chapter (§x.2 Traceability) references the matrix/gap-report paths;
-  it must **not** hand-maintain a "Status: Covered / GAP" column — that drifts from
-  the code the moment a test changes (see `references/test-architecture.md` §4).
-- In evolve mode, adding/removing/changing a requirement or test just means the
-  generated matrix is re-run; no manual matrix edits.
+- Every **Must**/**Should** requirement is stated with a stable ID in its component
+  chapter, carries a verification contract, and is referenced by ≥ 1 test spec.
+- Every test references the requirement IDs it validates.
+- The matrix, the lifecycle states, and the four gap categories are **computed**,
+  never typed into the FSD. The FSD's V&V chapter references their paths.
+- Evidence records the commit and environment, so staleness is computed rather
+  than guessed.
+- **May**-priority requirements may have coverage; it is not mandatory.
+- In evolve mode, changing a requirement or test re-runs the generation; no manual
+  matrix edits, ever.
+
+Full model, `@fsd` tag rules, evidence fields, the four gap categories, and the
+optional coverage check: **`references/traceability.md`**.
 
 ## 9. Formatting & Style Rules
 
@@ -682,15 +746,38 @@ Rules:
 
 If the user does not specify a target path:
 
-```
-Documents/<project-name-kebab-case>-fsd.md          # WHAT
-Documents/Harness/00-Overview.md                    # HOW  (+ AI-Workflow.md,
-                                                    #       standards/, project/)
-Documents/<project-name-kebab-case>-handbook.md     # OPERATE
+```text
+docs/
+├── <project>-fsd.md              WHAT — requirements + verification contracts
+├── Harness/                      HOW  — 00-Overview, AI-Workflow, standards/, project/
+├── <project>-handbook.md         OPERATE
+├── architecture-decisions.md     approved structural choices
+└── open-issues.md                unresolved product/architecture decisions
+
+verification/                     machine-readable WHAT + verification design
+├── requirements.yaml
+├── states.yaml
+├── interfaces.yaml
+├── configuration.yaml
+├── test-specs/<area>.yaml
+├── traceability.yaml
+├── implementation-handoff.yaml
+└── gaps.md
+
+tests/{host,target,bench}/        executable tests (written by dev skills)
+test-results/<run-id>/            evidence (captured by workbench skills)
+├── manifest.yaml                 commit, build, environment, hardware, timestamp
+├── results.json
+├── logs/
+└── evidence/
 ```
 
-Create the `Documents/` directory if it does not exist. If the project already
-uses `docs/`, follow that instead — match the repo, do not impose a convention.
+`verification/` is not a fourth plane — it is the machine-readable form of the
+WHAT plane, and `test-results/` is evidence, not documentation. Small projects may
+use fewer files; the **information model stays the same**.
+
+Match the repo if it already uses `Documents/` or another convention — do not
+impose one.
 
 **Bind before creating.** If a document already fills a plane's role — a user
 manual, a runbook, an existing spec — bind to it and extend it. Never create a
@@ -748,9 +835,26 @@ After generating or updating an FSD, the skill must verify:
       transition table; every (state × event) pair handled, ignored, or excluded.
 - [ ] **Security profile** (§6.5.1) stated before any security requirement; no
       "encrypted or obfuscated"-style criterion exists.
-- [ ] The V&V chapter declares tiers and acceptance criteria but contains **no
-      test step tables** — those belong to `test-designer` / `create-test-spec`
-      (§6.9).
+- [ ] **Typed** (§6.4 / `requirement-quality.md` §1): every statement is classified,
+      and architecture decisions / implementation recommendations are in the
+      Harness, not stated as functional requirements.
+- [ ] **Verification contract** on every approved Must/Should, including
+      `prohibited_outcomes` — a recovery requirement without them passes when the
+      device recovers by rebooting.
+- [ ] **Test specifications** exist for every applicable clause, in the canonical
+      schema, each with pass criteria, failure criteria, required evidence, and
+      cleanup. Negative, boundary, state-transition, persistence and recovery
+      variants generated where relevant.
+- [ ] Every test is allocated to **host / target / bench** with a stated
+      controllability method; no failure mode was dropped because it was awkward.
+- [ ] **Lifecycle states** are tracked per requirement (seven, not a `covered`
+      flag), and no `@fsd` tag or coverage figure is presented as proof of
+      verification.
+- [ ] **Gaps reported by category** — specification, verification, implementation,
+      execution/evidence — with `pending` and `philosophical` clauses listed
+      separately so they are not mistaken for gaps.
+- [ ] The readable FSD carries requirements and contracts; full test specs live in
+      `verification/test-specs/` and are linked, not inlined.
 - [ ] V&V traceability is a **pointer to the generated matrix/gap report** — no
       hand-filled "Status: Covered / GAP" column in the FSD.
 - [ ] No `<placeholder>` or `TODO` text remains (flag to user if unresolvable).
@@ -763,6 +867,50 @@ After generating or updating an FSD, the skill must verify:
 - [ ] (Evolve mode) Unaffected chapters are identical to the original.
 
 Report any checklist failures to the user before finalizing.
+
+## 13.1 Lifecycle metadata
+
+The FSD carries or links to:
+
+```yaml
+document_status:
+fsd_version:
+repository:
+baseline_commit:
+applicable_firmware_version:
+author:
+reviewers:
+approval_status:
+created:
+last_updated:
+change_history:
+superseded_requirements:
+open_decisions:
+related_test_baseline:
+```
+
+This is the one sanctioned place for dated history — everywhere else the planes
+are present-state. It exists so a historical test result can be tied to the exact
+spec, firmware, and bench that produced it.
+
+## 13.2 Reference index
+
+| File | Covers |
+|------|--------|
+| `references/requirement-quality.md` | Statement types, provenance and status, the 13-check quality gate, the verification contract |
+| `references/system-models.md` | Context, components, state-transition model, interfaces, configuration and data catalogues, security profile |
+| `references/test-design.md` | Clause inventory, tiers, controllability (Drive/Feed/Emulate/Observe/Rig), observability, required test classes, independence and cleanup, test data and secrets |
+| `references/test-spec-schema.md` | The canonical test-specification schema, field by field |
+| `references/test-spec/` | Human-readable test-document format and section templates |
+| `references/traceability.md` | Seven lifecycle states, `@fsd` tags, evidence fields, four gap categories, coverage check |
+| `references/three-planes.md` | WHAT / HOW / OPERATE model, routing rule, retrofit procedure |
+| `references/templates/` | Harness and Handbook templates to instantiate |
+| `references/canonical-fsd-structure.md` | The Parts scheme and chapter skeleton |
+| `references/test-architecture.md` | Layering, tier profiles, component × tier matrix |
+| `references/complexity-scaling.md` | Depth scaling by inferred complexity |
+| `references/evolve-mode.md` | Preserve / update / add / remove rules for deltas |
+| `references/example-output.md` | Worked FSD excerpt |
+| `references/domains/` | Domain packs (ESP32) |
 
 ## 14. Domain Packs
 

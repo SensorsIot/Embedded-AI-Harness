@@ -17,7 +17,7 @@ handling, strategic log messages), then write the operational, testing, and
 appendix chapters into the FSD.
 
 **Prerequisite:** The project must already have an FSD with at least a System
-Overview and Functional Requirements section. Use the `fsd-writer` skill first
+Overview and Functional Requirements section. Use the `fsd-engineer` skill first
 to generate one from a rough description if needed.
 
 The workbench provides the **test infrastructure**. This skill adds both the
@@ -27,8 +27,8 @@ troubleshooting).
 
 ## FSD Document Structure
 
-This skill operates on FSDs produced by the `fsd-writer` skill, which uses the
-**layer-grouped "Parts" scheme** (see `fsd-writer/references/canonical-fsd-structure.md`).
+This skill operates on FSDs produced by the `fsd-engineer` skill, which uses the
+**layer-grouped "Parts" scheme** (see `fsd-engineer/references/canonical-fsd-structure.md`).
 Chapter *numbers* are dynamic, so **locate chapters by role/title, not by a fixed
 number**:
 
@@ -96,7 +96,7 @@ Find the project's FSD path and firmware root directory. Confirm:
 
 ### Step 2: Parse FSD — extract features and build checklist
 
-Read the entire FSD (produced by the `fsd-writer` skill). Extract features from
+Read the entire FSD (produced by the `fsd-engineer` skill). Extract features from
 the **component chapters** (each chapter states the FR/NFR it owns — there is no
 global requirements section), phases from the **Implementation Phases** chapter,
 interfaces from the **Part B (L1 Interfaces)** chapters, and architecture details
