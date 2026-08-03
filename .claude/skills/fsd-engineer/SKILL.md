@@ -53,6 +53,14 @@ threshold, tolerance, security assumption, or failure behaviour.
 traceability, executable tests, evidence, and corrections are ordinary
 version-controlled artefacts. Chat history is not authoritative.
 
+**So the repository exists before the work does.** If the project has none,
+create it as the first act — `git init`, the §10 skeleton, an initial commit —
+and commit each artefact as it is finished rather than in one heap at the end. A
+specification written into a scratch directory is not a deliverable yet, and an
+untracked Harness is unshared and therefore undocumented. Where `gh` cannot
+create the remote, create the local repository, set the `origin` URL, and say
+plainly what is left for the user to do.
+
 ## 1. Scale and reach
 
 Depth scales to inferred complexity. The core is domain-neutral — embedded,
@@ -83,11 +91,11 @@ Seven modes. Pick by what already exists and what the user is asking for.
 | **audit** | `/fsd-engineer audit` | Answers "are we actually done?" — reports the lifecycle state of every requirement and the gaps by category. Expect most requirements to sit below *verified*; that is information, not failure. |
 | **reconcile** | `/fsd-engineer reconcile` | Code, tests, and documents drifted apart. Identifies undocumented behaviour, obsolete tests, stale evidence, contradictions — and **proposes**, never silently adopts. |
 
-Two rules hold across every mode, because violating either quietly destroys trust
-in the document: **never renumber a stable ID** (obsolete items are `deprecated`
-or `superseded`, never deleted, so historical results stay readable), and **never
-silently invent a normative value** (report it; a proposal stays
-`status: proposed` until accepted — `references/requirement-quality.md` §2).
+One rule holds across every mode beyond the three in §0, because violating it
+quietly destroys trust in the document: **never renumber a stable ID.** Obsolete
+items are `deprecated` or `superseded`, never deleted, so historical results stay
+readable. §0's third prohibition applies here too — a value the skill proposed
+stays `status: proposed` until accepted (`references/requirement-quality.md` §2).
 
 Per-mode steps, the `update` search order, and grill discipline:
 `references/authoring.md`.
@@ -342,6 +350,8 @@ Full model, tag rules, evidence fields, gap categories, optional coverage check:
 
 ## 10. Output layout
 
+The repository comes first (§0) — this is the skeleton to create it with.
+
 Three readable planes plus machine-readable verification data:
 
 ```text
@@ -372,84 +382,20 @@ For a complete example FSD snippet (medium-complexity BLE HID Keyboard project) 
 
 When updating an existing FSD, follow strict rules for what to preserve, update, add, and remove. Key principles: never renumber existing IDs, keep the traceability matrix generated (never hand-edited), flag contradictions before overwriting. For the complete evolve mode rules (preserve/update/add/remove/conflict resolution), read `references/evolve-mode.md`.
 
-## 13. Quality checklist
+## 13. Finalisation
 
-Run before finalising; report any failure to the user rather than shipping past it.
+Before delivering anything, run the quality gate and fill the lifecycle metadata
+block: **`references/finalisation.md`**. It is a last check on finished work, so
+it loads at the end of a run rather than the start.
 
-**Requirements**
-- [ ] Every Must/Should has a stable ID in its component chapter and ≥ 1 test.
-- [ ] **Atomic** — nothing joins two verbs, a behaviour and a deadline, or a
-      success and a failure path.
-- [ ] **Falsifiable** — precondition, stimulus, observable response, deadline,
-      tolerance, failure behaviour, tier.
-- [ ] **No weasel words** — grep for *appropriate, graceful, user-friendly, as
-      needed, if possible, reasonable, sufficient, robust, properly, seamless,
-      optimal, acceptable, normal operation, best effort*.
-- [ ] **Typed** — architecture decisions and implementation recommendations are in
-      the Harness, not written as functional requirements.
-- [ ] **Provenance tagged**; nothing a pack proposed was adopted unaccepted;
-      declines recorded in §5. No unbound `{{parameters}}`.
+Report every failed check to the user. A checklist run silently and reported as
+passed is worth nothing.
 
-**Models**
-- [ ] **State model** present if stateful, with a complete transition table —
-      every (state × event) pair handled, ignored, or excluded with a reason.
-- [ ] **Security profile** stated before any security requirement; no
-      "encrypted or obfuscated"-style criterion, which cannot fail.
-- [ ] §2.4 Component Layering (with diagram) and §x.0 Test Architecture present.
-
-**Verification**
-- [ ] **Verification contract** on every approved Must/Should, including
-      `prohibited_outcomes` — without them a recovery requirement passes when the
-      device recovers by rebooting.
-- [ ] **Test specs** for every applicable clause in the canonical schema, each
-      with pass criteria, failure criteria, evidence, and cleanup; negative,
-      boundary, state-transition, persistence and recovery variants where relevant.
-- [ ] Every test allocated to **host / target / bench** with a stated
-      controllability method — no failure mode dropped for being awkward.
-- [ ] **Seven lifecycle states** tracked per requirement; no `@fsd` tag or coverage
-      figure presented as proof. Traceability is a pointer to generated artefacts,
-      never a hand-filled Covered/GAP column.
-- [ ] **Gaps by category** (specification / verification / implementation /
-      evidence), with `pending` and `philosophical` clauses listed separately.
-
-**Document**
-- [ ] **Planes separated** (§6.11): no build conventions, install steps, or history
-      in the FSD. Every fact in exactly one plane; the others link.
-- [ ] Body grouped by layer Parts mirroring §2.4; chapters self-contained.
-- [ ] Full test specs live in `verification/test-specs/`, linked not inlined.
-- [ ] Chapter numbering sequential, heading depth ≤ `####`, phases carry scope,
-      deliverables and exit criteria, no `<placeholder>` or `TODO` left.
-- [ ] Written to the correct path; in update mode, unaffected chapters byte-identical.
-
-## 13.1 Lifecycle metadata
-
-The FSD carries or links to:
-
-```yaml
-document_status:
-fsd_version:
-repository:
-baseline_commit:
-applicable_firmware_version:
-author:
-reviewers:
-approval_status:
-created:
-last_updated:
-change_history:
-superseded_requirements:
-open_decisions:
-related_test_baseline:
-```
-
-This is the one sanctioned place for dated history — everywhere else the planes
-are present-state. It exists so a historical test result can be tied to the exact
-spec, firmware, and bench that produced it.
-
-## 13.2 Reference index
+## 13.1 Reference index
 
 | File | Covers |
 |------|--------|
+| `references/finalisation.md` | The pre-delivery quality checklist and the lifecycle metadata block. Load at the end of a run |
 | `references/requirement-quality.md` | Statement types, provenance and status, the 13-check quality gate, the verification contract |
 | `references/system-models.md` | Context, components, state-transition model, interfaces, configuration and data catalogues, security profile |
 | `references/test-design.md` | Clause inventory, tiers, controllability (Drive/Feed/Emulate/Observe/Rig), observability, required test classes, independence and cleanup, test data and secrets |

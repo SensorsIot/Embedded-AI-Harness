@@ -13,12 +13,15 @@ changed. Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
 
 ## Authority order
 
-1. **Harness (HOW)** — how to build. This directory.
-2. **FSD (WHAT)** — what must be true. `{{FSD_PATH}}`
-3. **Handbook (OPERATE)** — how to run it. `{{HANDBOOK_PATH}}`
+1. **FSD (WHAT)** — what must be true. The contract. `{{FSD_PATH}}`
+2. **Harness (HOW)** — how to build it. This directory. It cannot change the target.
+3. **Handbook (OPERATE)** — the running system as built. `{{HANDBOOK_PATH}}`
 
-The FSD defines the target; the Harness defines the method. Neither carries
-history or rationale — those live in `git log`.
+On conflict the FSD wins on *what must be true* and the Harness wins on *how to
+get there*. If the Handbook disagrees with either it is stale — it describes
+reality, so a disagreement means either reality or the spec moved.
+
+None of the three carries history or rationale narrative; those live in `git log`.
 
 ## What belongs here
 
