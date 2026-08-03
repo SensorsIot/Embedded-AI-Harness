@@ -35,8 +35,20 @@ REG_XTAL_LOAD = 183
 XTAL_FREQ = 25_000_000           # Hz, standard breakout crystal
 PLL_FREQ_MIN = 600_000_000
 PLL_FREQ_MAX = 900_000_000
-OUT_FREQ_MIN = 8_000
-OUT_FREQ_MAX = 160_000_000       # above this needs divide-by-4 mode
+
+# MultiSynth output divider limits. Even integers only, in this driver.
+MS_DIV_MIN = 8
+MS_DIV_MAX = 1800
+
+# Output range this driver can actually synthesise, derived from the two limits
+# above rather than asserted: fmin = VCOmin/MSmax, fmax = VCOmax/MSmin.
+#
+# The *chip* reaches 8 kHz - 160 MHz, but only via the R output divider (low end)
+# and divide-by-4 mode (high end), neither of which this driver programs. Quoting
+# the chip's range here made out-of-reach requests fail with a confusing "No valid
+# VCO" instead of a range error, and it is why 144.64 MHz is rejected.
+OUT_FREQ_MIN = PLL_FREQ_MIN / MS_DIV_MAX      # 333_333.33 Hz
+OUT_FREQ_MAX = PLL_FREQ_MAX / MS_DIV_MIN      # 112_500_000 Hz
 
 # CLK_CONTROL bitfields
 CLK_POWER_DOWN = 0x80
@@ -111,21 +123,26 @@ class Si5351:
                 f"({OUT_FREQ_MIN}..{OUT_FREQ_MAX})")
 
         # Pick an even integer MS divider that keeps VCO in [600, 900] MHz
-        ms_div = max(8, round(PLL_FREQ_MAX / freq_hz))
+        ms_div = max(MS_DIV_MIN, round(PLL_FREQ_MAX / freq_hz))
         if ms_div % 2:
             ms_div += 1
-        if ms_div > 1800:
-            ms_div = 1800
+        ms_div = min(ms_div, MS_DIV_MAX)
         vco = freq_hz * ms_div
-        while vco > PLL_FREQ_MAX and ms_div > 8:
+        while vco > PLL_FREQ_MAX and ms_div > MS_DIV_MIN:
             ms_div -= 2
             vco = freq_hz * ms_div
-        while vco < PLL_FREQ_MIN and ms_div <= 1800:
+        # `ms_div + 2 <= MS_DIV_MAX` rather than `ms_div <= MS_DIV_MAX`: the
+        # latter lets the last iteration leave ms_div at 1802, two above the
+        # hardware maximum. That divider cannot be programmed, so the part would
+        # emit some other frequency while this function reported success.
+        while vco < PLL_FREQ_MIN and ms_div + 2 <= MS_DIV_MAX:
             ms_div += 2
             vco = freq_hz * ms_div
-        if not (PLL_FREQ_MIN <= vco <= PLL_FREQ_MAX):
+        if not (PLL_FREQ_MIN <= vco <= PLL_FREQ_MAX) or ms_div > MS_DIV_MAX:
             raise Si5351Error(
-                f"No valid VCO for {freq_hz} Hz (tried div={ms_div})")
+                f"{freq_hz} Hz is not reachable: it needs MS divider {ms_div} "
+                f"(limit {MS_DIV_MAX}) to land the VCO in "
+                f"{PLL_FREQ_MIN/1e6:.0f}-{PLL_FREQ_MAX/1e6:.0f} MHz")
 
         # PLL multiplier (fractional)
         pll_mult = vco / XTAL_FREQ

@@ -12,12 +12,24 @@ in the FSD is verifiable, and every change ships the evidence that it works.
 
 Use the cheapest tier that can catch the failure.
 
-**Current state, stated honestly:** this project has **no host tier**. All 67
-tests in `pytest/workbench_test.py` drive a live bench over HTTP via
-`WorkbenchDriver`, and `pytest` collects nothing useful without `--wt-url`
-pointing at a real Pi. That makes the suite slow, hardware-gated, and unusable in
-CI — of which there is none, so "green before commit" is currently a convention
-rather than an enforced gate.
+**Current state, stated honestly:** the host tier exists but is thin — 22 tests
+in `pytest/host/`, covering the RF synthesis maths (Si5351 dividers, GPCLK
+frequency set, Morse keying). They run in under a second with nothing plugged in:
+
+```bash
+pytest pytest/host/          # no --wt-url, no hardware
+```
+
+The other 67 tests in `pytest/workbench_test.py` still drive a live bench over
+HTTP and collect nothing useful without `--wt-url` pointing at a real Pi.
+
+The largest remaining gap is `portal.py`: it imports `gpiod`, so it cannot be
+imported on a dev machine at all, and slot-key derivation and phantom-port
+filtering — the identity logic the whole product rests on — are unreachable from
+the host tier until they are extracted or `gpiod` is installable here.
+
+There is still no CI, so "green before commit" remains a convention rather than
+an enforced gate. The host tier is what makes CI possible when it is wanted.
 
 The lever that fixes it is in [`../project/architecture.md`](../project/architecture.md):
 **extract pure cores**. Slot-key derivation from a USB path, flap-window

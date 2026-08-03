@@ -2357,7 +2357,7 @@ auto-selected at runtime, with optional in-line attenuation control.
 
 | Backend | Hardware | Frequency range | Notes |
 |---------|----------|-----------------|-------|
-| `si5351` | Si5351A on I2C1 (GPIO 2 SDA, GPIO 3 SCL), 3 channels (`clk0..clk2`) | ~8 kHz – 160 MHz | Preferred; precise fractional synthesis |
+| `si5351` | Si5351A on I2C1 (GPIO 2 SDA, GPIO 3 SCL), 3 channels (`clk0..clk2`) | 333 kHz – 112.5 MHz | Preferred; precise fractional synthesis. The range is `VCO_min/MS_max`..`VCO_max/MS_min` for the divider path this driver programs; the chip reaches 8 kHz – 160 MHz only via the R divider and divide-by-4 mode, which are not implemented |
 | `gpclk` | BCM2835 GPCLK1 on GPIO 5 (alt GPCLK2 on GPIO 6) | Discrete PLLD/N only (~25–30 kHz steps in 80m band) | Fallback when Si5351 is absent |
 | `auto` | Prefers `si5351` if the chip ACKs on I2C; falls back to `gpclk` | — | Default |
 
@@ -2988,6 +2988,24 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-1303 | Signal generator Morse keying | Signal Generator | No |
 | WT-1304 | Signal generator replaces previous | Signal Generator | No |
 | WT-1909 | RF loopback self-test: bench transmitter (86.784 MHz, 5th harmonic) lifts peak_db at 433.92 MHz by >= 15 dB at fixed gain | RF Path | No |
+| WT-2400 | GPCLK: every listed frequency is exactly PLLD / integer | RF Synthesis (host) | No |
+| WT-2401 | GPCLK: results stay inside the requested range | RF Synthesis (host) | No |
+| WT-2402 | GPCLK: dividers stay within hardware limits | RF Synthesis (host) | No |
+| WT-2403 | GPCLK: a gap with no achievable point returns nothing | RF Synthesis (host) | No |
+| WT-2404 | GPCLK: frequency falls as divider rises | RF Synthesis (host) | No |
+| WT-2410 | Si5351: returns the frequency actually programmed | RF Synthesis (host) | No |
+| WT-2411 | Si5351: 5th harmonic of 86.784 MHz lands on 433.92 MHz (WT-1909's premise) | RF Synthesis (host) | No |
+| WT-2412 | Si5351: VCO stays in 600-900 MHz across the range | RF Synthesis (host) | No |
+| WT-2413 | Si5351: rejects frequencies outside the reachable range | RF Synthesis (host) | No |
+| WT-2414 | Si5351: rejects an invalid channel | RF Synthesis (host) | No |
+| WT-2415 | Si5351: PLL multiplier stays within 15..90 | RF Synthesis (host) | No |
+| WT-2416 | Si5351: never programs an MS divider above the hardware limit | RF Synthesis (host) | No |
+| WT-2417 | Si5351: the declared range is reachable, not aspirational | RF Synthesis (host) | No |
+| WT-2420 | Morse: keys the expected number of elements | RF Synthesis (host) | No |
+| WT-2421 | Morse: key_on and key_off always pair (no stuck carrier) | RF Synthesis (host) | No |
+| WT-2422 | Morse: unknown characters are skipped, not keyed | RF Synthesis (host) | No |
+| WT-2423 | Morse: rejects empty message and out-of-range WPM | RF Synthesis (host) | No |
+| WT-2424 | Morse: code table matches ITU | RF Synthesis (host) | No |
 | WT-2200 | `/api/devices` returns slots with labels and state | Serial Architecture | No |
 | WT-2201 | Present device has `detected_chip` set | Serial Architecture | Yes |
 | WT-2202 | Every present DUT slot has a detected chip | Serial Architecture | Yes |

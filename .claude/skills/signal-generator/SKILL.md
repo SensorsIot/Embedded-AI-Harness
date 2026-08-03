@@ -25,7 +25,7 @@ Before starting a carrier or recommending a backend, **GET `/api/siggen/status`*
 ```
 
 Why this matters:
-- If `hardware.si5351` is `true`, you can hit any frequency exactly (8 kHz – 160 MHz, fractional synthesis). Don't reach for GPCLK.
+- If `hardware.si5351` is `true`, you can hit any frequency exactly (333 kHz – 112.5 MHz, fractional synthesis). Don't reach for GPCLK.
 - If `hardware.si5351` is `false`, you fall back to GPCLK, which only produces PLLD/N integer dividers — ~25–30 kHz frequency steps in the 80m band. Tell the user the actual `freq_hz` returned, not the requested one.
 - If `hardware.pe4302` is `false`, calls to `/api/siggen/atten` will 4xx. Don't promise attenuation control.
 - If `active` is already `true`, starting a new carrier replaces the old one. If the user just wants to retune, use `/api/siggen/freq` instead so the Morse keyer (if any) keeps running.

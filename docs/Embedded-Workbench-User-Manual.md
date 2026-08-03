@@ -667,7 +667,7 @@ curl -X POST http://workbench.local:8080/api/mqtt/stop
 A unified RF source with programmable frequency, attenuation, and optional Morse
 keying. It auto-selects between two backends:
 
-- **Si5351** (I²C on GPIO 2/3) — 8 kHz–160 MHz, three channels (CLK0–CLK2),
+- **Si5351** (I²C on GPIO 2/3) — 333 kHz–112.5 MHz, three channels (CLK0–CLK2),
   fractional synthesis. Preferred when detected.
 - **GPCLK** (BCM hardware clock on GPIO 5/6) — 122 kHz–250 MHz, integer dividers.
   Always available, no extra hardware.
@@ -888,6 +888,9 @@ wt.close()
 ```bash
 cd pytest
 pip install pytest
+
+# Host tier — pure logic, no Pi, no hardware, under a second
+pytest host/
 
 # Tests that need no DUT
 pytest workbench_test.py --wt-url http://workbench.local:8080
