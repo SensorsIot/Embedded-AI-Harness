@@ -222,3 +222,36 @@ verification:
 The contract establishes verification **intent** at requirement level. It does
 not replace the detailed test specification (`test-spec-schema.md`), which adds
 equipment, test data, automation handoff, and failure recovery.
+
+### Two forms — pick per requirement, not per document
+
+Writing the block above ninety times produces a document nobody reads. Both forms
+below satisfy "every Must/Should carries a contract"; what changes is how much
+room the requirement earns.
+
+**Full YAML — where a wrong pass is plausible.** Use it when a broken system could
+accidentally satisfy the success criterion: recovery, rollback, failover,
+reconnection, anything whose happy-path observation is also reachable by the
+failure you are testing for. These are the requirements where naming
+`prohibited_outcomes` at length is the whole value — *the device restarts*,
+*manual reprovisioning is required*, *a stale payload is accepted as evidence*.
+
+**Compact table — everywhere else.** One row per requirement, in the chapter that
+owns it:
+
+```markdown
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-HA-05 | Feed a cycle missing `U2` | No `U2` in the payload | `U2` present as 0 or stale | host |
+```
+
+Add a timing column only where a deadline applies; carrying an empty one on every
+row trains readers to ignore it.
+
+**The `Must NOT happen` column is not optional in either form.** It is the field
+that makes a contract worth having: without it a recovery requirement passes when
+the device recovers by rebooting, which is usually the defect. A compact row that
+drops it is a description, not a contract.
+
+State the split when reporting the run — "8 requirements carry full contracts, 85
+compact" tells a reviewer where the risk was judged to be, and lets them disagree.

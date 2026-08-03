@@ -434,7 +434,12 @@ So: present matched items as a proposal via `AskUserQuestion` with a
 recommendation, write only what is accepted, record declines under *Explicitly out
 of scope* in §5, tag every requirement with its provenance (`[user]`,
 `[derived]`, `[code]`, `[pack:<domain>]`), and bind every `{{parameter}}` the
-accepted items carry — an unbound parameter fails the §13 checklist.
+accepted items carry — an unbound parameter fails the finalisation checklist.
+
+**Run the pack backwards too.** What it detected that the decisions never mention
+is either out of scope or a capability nobody thought of, and the second is where
+a pack earns its keep. Ask it as its own question — the pack's workflow section
+has the shape.
 
 | Pack | Domain |
 |------|--------|

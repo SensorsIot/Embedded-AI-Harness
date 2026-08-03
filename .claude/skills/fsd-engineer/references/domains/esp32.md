@@ -93,16 +93,26 @@ asked for, each of which then demands tests, implementation, and maintenance.
 
 1. Scan the FSD requirements and source code for the detection patterns above.
 2. For each detected feature, read the corresponding `references/domains/esp32/*.md`.
-3. **Present the candidates to the user as a proposal, not as content.** Group them
-   by feature and ask which to adopt. Use `AskUserQuestion` with a recommendation,
-   the way §4.2 requires; for a long list, present the table and ask for exclusions.
-4. Write **only** the accepted items into the FSD, each carrying its provenance
+3. **Ask about depth before asking about content.** A full match across five or six
+   features is 100+ cases, and most of them assert response shape rather than
+   behaviour. Offer the choice as one `AskUserQuestion`, recommending the middle:
+   *curated subset* (only cases that can fail for this product, each traceable to a
+   stated decision) · *full families* · *decisions-only* (no pack cases at all).
+   Asking family-by-family instead produces a long interrogation whose answer is
+   almost always "some of each".
+4. **Then run the pack backwards, as a gap detector.** Ask what the pack flagged
+   that the decisions never mention. A detected feature the user never discussed is
+   either genuinely out of scope or a capability nobody thought about — and the
+   second is where the pack earns its keep. A watchdog on an unattended device is
+   the recurring example: nobody asks for it, and without it any hang costs a site
+   visit. Present these as a separate short question, not buried in the depth one.
+5. Write **only** the accepted items into the FSD, each carrying its provenance
    (below). Record the rejected ones in **§5 Risks, Assumptions & Dependencies**
    under *Explicitly out of scope*, so a later reader can see the choice was made
    rather than overlooked.
-5. Bind every `{{parameter}}` the accepted items carry (next section). An unbound
-   parameter is an incomplete FSD — the §13 quality checklist fails on it.
-6. Place accepted tests in the spec files mirroring their chapters; the generated
+6. Bind every `{{parameter}}` the accepted items carry (next section). An unbound
+   parameter is an incomplete FSD — the finalisation checklist fails on it.
+7. Place accepted tests in the spec files mirroring their chapters; the generated
    traceability matrix picks them up (never hand-edit the matrix).
 
 ### Provenance — every requirement says where it came from

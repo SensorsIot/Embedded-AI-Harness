@@ -20,6 +20,27 @@ Infer complexity from:
 - Domain (SDR, energy systems, medical -> automatically higher complexity)
 - Multi-user or multi-tenant requirements
 
+## Confirm the estimate against the output
+
+Complexity is inferred **before** drafting and confirmed **after**. The estimate
+is a guess made from a description; the document is evidence.
+
+The requirement count is the cheapest check — Low 5–15 FRs, Medium 15–30, High
+30+. If the draft lands outside the band the initial estimate implied, the
+estimate was wrong: reclassify, then check the structure matches the new tier
+(Part dividers used, phase count, chapter depth, whether the V&V chapter carries
+acceptance scenarios).
+
+**Report the correction rather than quietly keeping the original label.** Someone
+planning phases from "Medium" needs to know it produced a High-complexity
+document — the phase count, review effort and test budget all follow from the
+tier, not from the word used at the start.
+
+The signals below are easy to under-weight in combination. A single MCU reads as
+Low until you count four protocols, an external integration, and a domain that
+carries its own bump — energy, medical and SDR are High before anything else is
+considered.
+
 ## Scaling Behavior
 
 | FSD Section | Low | Medium | High |

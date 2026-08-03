@@ -184,8 +184,44 @@ Tiers are **cost-ordered execution environments**; name them per platform:
 |---|---|---|---|
 | Fast / isolated | host (dev machine) | unit | unit |
 | Integrated | target (the device) | integration | instrumented device |
-| Full-system | bench (device + real peers) | staging / e2e | e2e |
+| Full-system | bench (device + peers you control) | staging / e2e | e2e |
+| Deployed *(optional)* | field (device in place) | production canary | production canary |
 | Other | — non-runnable: 3rd-party/CI/review | — | — |
+
+### The full-system tier is defined by control, not by realism
+
+"Device plus **real** peers" is the wrong distinction, and it misleads: on a test
+bench the broker and the access point are perfectly real, while the sensor or
+meter the product exists to read is simply absent.
+
+What separates the last two tiers is **who controls the peers**:
+
+- **bench** — the peers are yours. You can **inject faults**: kill the broker
+  mid-publish, drop the access point for ten minutes, serve an untrusted
+  certificate, corrupt a flash region. Every interesting full-system test works by
+  breaking something on purpose.
+- **field** — the peers are the real ones, in place. You can only **observe**. You
+  cannot ask a utility meter to emit a malformed frame, or a basement to have
+  worse radio coverage.
+
+That is a categorical difference, not a gradient, and it is why fault-injection
+cases belong on the bench and never in the field.
+
+### The field tier is optional, and its size is a design choice
+
+Add it only when something the product depends on **cannot be reproduced in the
+lab** — an instrument with no simulator, a radio environment, a peer you do not
+own. Do not add it because deployment feels like a milestone; a deployment step
+that a bench could have exercised is an operational procedure, not a tier.
+
+Its scope shrinks as simulation improves. A project with no simulator for its
+primary peer carries decode, protocol and environment cases in the field; write a
+simulator and only the genuinely irreproducible remain, typically radio coverage
+and power. Weigh the simulator against the number of field cases it removes —
+field cases are the most expensive kind, often one-shot and rarely repeatable.
+
+Naming it is worth the small cost: it keeps the bench suite honest about what a
+green run does not prove.
 
 Mapping to layers (any profile):
 - **L0 foundation** → exercised **transitively** (never in isolation; empty
