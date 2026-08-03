@@ -41,7 +41,7 @@ one-shot, and vice-versa.
 | GET  | `/api/sdr/status` | Dongle/tool detection + active state |
 | POST | `/api/sdr/capture` | Bounded decode window → decoded records + signal levels |
 | POST | `/api/sdr/analyze` | Bounded pulse-analyzer window (`-A`) → raw pulse timing text |
-| POST | `/api/sdr/power` | Narrowband `rtl_power` → `{peak_db, peak_freq_hz, mean_db}` |
+| POST | `/api/sdr/power` | Narrowband `rtl_power` → `{peak_db, peak_freq_hz, mean_db}`. Takes `gain` and `notch_hz` |
 | POST | `/api/sdr/acquire` | Phased guided receive: locate→level→decode→classify |
 | POST | `/api/sdr/live/start` | Start the persistent live `rtl_433` console |
 | POST | `/api/sdr/live/stop` | Stop the live console, release the dongle |
@@ -56,6 +56,21 @@ one-shot, and vice-versa.
 Common body fields: `freq_hz` (default 433.92 MHz), `duration_s`, `gain`
 (number dB, or omit for AGC), `sample_rate` (default 250 kHz — keep low, it's a
 Pi Zero 2 W), `flex` (an `-X` spec).
+
+**A dongle plugged in after boot is picked up automatically** — status re-probes
+while the SDR is idle, so there is no need to restart the portal. If `device`
+stays `false`, the dongle really is absent or not enumerating.
+
+**Pin `gain` on anything you will compare.** On AGC the tuner rescales from
+whatever it saw recently, so the same quiet band reads tens of dB apart between
+calls and a strong carrier compresses instead of standing clear. This bites
+hardest on `power`, where the whole point is comparing numbers.
+
+**Is the dongle working at all?** `pytest pytest/ -k wt1909` transmits on
+86.784 MHz (5th harmonic = 433.92 MHz) and requires the dongle to see a ≥15 dB
+lift, then a drop. It needs no DUT and no operator. Run it before debugging a
+"nothing decodes" complaint — it separates a dead receive path from a signal
+problem in one step.
 
 ---
 

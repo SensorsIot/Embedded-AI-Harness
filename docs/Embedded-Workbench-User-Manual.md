@@ -713,6 +713,22 @@ Always check the dongle is detected first:
 curl http://workbench.local:8080/api/sdr/status
 ```
 
+A dongle plugged in after the Pi booted is picked up automatically — no restart
+needed. Status re-probes for it while the SDR is idle, so `device` flips to
+`true` within a few seconds of plugging in.
+
+**Is the receiver actually working?** One test answers that end to end, with
+nothing plugged in but the dongle:
+
+```bash
+pytest pytest/ -k wt1909 --wt-url http://workbench.local:8080
+```
+
+It transmits on 86.784 MHz (whose 5th harmonic lands on 433.92 MHz) and requires
+the dongle to see a ≥15 dB lift, then a drop when the carrier stops. If that
+fails, the dongle, antenna or receive path is broken — fix it before debugging
+anything else about the SDR.
+
 **One-shot captures**
 
 ```bash
@@ -724,9 +740,12 @@ curl -X POST http://workbench.local:8080/api/sdr/capture \
 curl -X POST http://workbench.local:8080/api/sdr/analyze \
   -H 'Content-Type: application/json' -d '{"freq_hz":433920000,"duration_s":12}'
 
-# Narrowband power sweep -> peak_db, peak_freq_hz, mean_db
+# Narrowband power sweep -> peak_db, peak_freq_hz, mean_db.
+# Pin `gain` whenever you will compare the number to anything; `notch_hz`
+# drops the dongle's DC spike at the tuner centre.
 curl -X POST http://workbench.local:8080/api/sdr/power \
-  -H 'Content-Type: application/json' -d '{"freq_hz":433920000,"span_hz":500000}'
+  -H 'Content-Type: application/json' \
+  -d '{"freq_hz":433920000,"span_hz":500000,"gain":20,"notch_hz":40000}'
 
 # Phased guided receive: locate -> level -> decode -> classify
 curl -X POST http://workbench.local:8080/api/sdr/acquire \
@@ -760,6 +779,14 @@ Reverse-engineered remotes are named by flex decoders in
 
 > **One dongle, one user.** One-shot captures and the live console are mutually
 > exclusive — the API returns "SDR busy" rather than fighting over the device.
+> `POST /api/sdr/stop` cancels a one-shot capture; stopping the live console is
+> `POST /api/sdr/live/stop`.
+
+**Levels are only comparable at a fixed gain.** On AGC the tuner rescales itself
+from whatever it saw recently, so the same quiet band can read tens of dB apart
+between calls and a strong carrier gets compressed rather than standing out. Pass
+`gain` on `capture`, `analyze` and `power` for any measurement you intend to
+compare or threshold.
 
 If the dongle wedges, `POST /api/sdr/reset` USB-resets it.
 
@@ -1082,7 +1109,9 @@ automatically.
 | `workbench-test-handling` | Run the walkthrough below as a tracked session | Steps appear on the Pi display; all pass |
 
 `signal-generator` and `sdr-receiver` aren't exercised by this firmware — they
-drive the bench's own RF hardware, not the DUT.
+drive the bench's own RF hardware, not the DUT. They do verify each other,
+though: **WT-1909** points the generator at the dongle and needs no firmware at
+all (see [§12](#12-sdr-receiver)).
 
 ### 16.3 Walkthrough
 

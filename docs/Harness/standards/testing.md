@@ -12,11 +12,12 @@ in the FSD is verifiable, and every change ships the evidence that it works.
 
 Use the cheapest tier that can catch the failure.
 
-**Current state, stated honestly:** this project has **no host tier**. Every test
-in `pytest/workbench_test.py` drives a live bench over HTTP via
+**Current state, stated honestly:** this project has **no host tier**. All 67
+tests in `pytest/workbench_test.py` drive a live bench over HTTP via
 `WorkbenchDriver`, and `pytest` collects nothing useful without `--wt-url`
 pointing at a real Pi. That makes the suite slow, hardware-gated, and unusable in
-CI.
+CI — of which there is none, so "green before commit" is currently a convention
+rather than an enforced gate.
 
 The lever that fixes it is in [`../project/architecture.md`](../project/architecture.md):
 **extract pure cores**. Slot-key derivation from a USB path, flap-window

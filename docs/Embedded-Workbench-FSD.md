@@ -1611,10 +1611,16 @@ provisioned network path.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /api/mqtt/status | `{running, port}` |
-| POST | /api/mqtt/start | Start the broker (idempotent); returns `{port}` |
+| POST | /api/mqtt/start | Start the broker (idempotent); returns `{port}`. Fails with the listener named if port 1883 is held by a broker this service did not start |
 | POST | /api/mqtt/stop | Stop the broker |
 
 The broker is a portal-managed subprocess and stops when the portal restarts.
+
+Start reclaims the port from a **previous test broker** left behind by a portal
+restart, matching only processes launched with this service's own config path.
+It does not kill brokers it did not start: if port 1883 is held by anything
+else — a system `mosquitto.service`, another user's broker — start fails and
+names the listener rather than taking down infrastructure it does not own.
 
 ---
 
@@ -2474,8 +2480,14 @@ captures are single-instance and serialized.
 
 Tool and dongle presence are detected at start-up and reported in
 `GET /api/sdr/status`. When either is missing the service loads but every
-capture returns a clean error; if a dongle is hot-plugged after boot the
-next capture re-probes and picks it up.
+capture returns a clean error.
+
+A dongle hot-plugged after boot is picked up without restarting the portal:
+both the next capture and `GET /api/sdr/status` re-probe when no device is
+known. Status re-probes only while nothing is using the dongle — `rtl_test`
+opens the device — and no more than once every 5 s, since the web UI polls
+status continuously and the probe costs up to 6 s. Once a device is found the
+result is cached until it disappears.
 
 #### 28.2 Capture Modes
 
@@ -2498,7 +2510,7 @@ terminates an active capture early.
 | POST | /api/sdr/analyze | `{freq_hz?, duration_s?, gain?}` | Pulse-analyzer capture for recapturing a remote |
 | POST | /api/sdr/power | `{freq_hz?, duration_s?, span_hz?, bin_hz?, notch_hz?, gain?}` | Narrowband RF power (rtl_power) → `{peak_db, peak_freq_hz, mean_db}`. `notch_hz` excludes bins within that distance of the tuner centre, where the dongle's DC spike sits |
 | POST | /api/sdr/acquire | `{freq_hz?, span_hz?, bin_hz?, gains?, dwell_s?, decode_s?, flex?, wait_s?}` | Phased guided receive → per-phase report + `summary` |
-| POST | /api/sdr/stop | — | Terminate an in-progress capture |
+| POST | /api/sdr/stop | — | Terminate an in-progress **one-shot** capture. Does not stop the live console (that is `/api/sdr/live/stop`) and never blocks on it |
 
 `POST /api/sdr/power` runs `rtl_power` over a small span centred on `freq_hz`
 and returns the peak/mean power (dB). Unlike decode-based detection, a raw
@@ -2508,6 +2520,13 @@ frequency of the strongest bin, locating a carrier of unknown frequency across
 a wide sweep. Centre the span off the target frequency so the carrier does not
 sit on the dongle's DC spike, or set `notch_hz` to drop bins around the tuner
 centre where the DC spike sits.
+
+**Pin `gain` for any reading that will be compared** — against a threshold, or
+against another reading. Left on AGC the tuner rescales from whatever it saw
+recently, so the same quiet band reads tens of dB apart between calls and a
+strong carrier is compressed instead of standing clear. WT-1909 measures a
+~20 dB on/off difference at fixed gain; on AGC the same measurement collapsed
+to under 4 dB.
 
 `POST /api/sdr/acquire` runs a four-phase guided receive as one call and returns
 a report keyed by phase plus a human-readable `summary` and an `ok_phase`
