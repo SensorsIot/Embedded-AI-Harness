@@ -17,11 +17,30 @@ Standard test cases for ESP32 Non-Volatile Storage functionality (configuration 
 
 ### 1.2 Credential Storage
 
-| ID | Requirement | Priority |
-|----|-------------|----------|
-| NVS-010 | WiFi credentials SHALL be stored encrypted in NVS | Must |
-| NVS-011 | API keys and tokens SHALL be stored encrypted in NVS | Must |
-| NVS-012 | Credentials SHALL NOT appear in serial logs or debug output | Must |
+**Select by security profile — do not import these unconditionally.** Whether
+credentials must be encrypted at rest depends on the threat model, not on
+habit. The FSD must declare a profile before any row below is adopted; on an
+ESP32, "encrypted NVS" is not a flag you tick — it requires flash encryption and
+`nvs_flash_secure_init()` with a keys partition, which in turn changes the
+flashing, OTA, and RMA story.
+
+| Profile | Assumed attacker | Credential rule |
+|---------|------------------|-----------------|
+| **P0 — Controlled** | None with physical access (lab bench, sealed enclosure in a locked plant) | Plaintext NVS acceptable. The FSD states plainly that confidentiality at rest is **not** claimed. |
+| **P1 — Consumer** | May possess the device, will not open it or read flash | Plaintext NVS acceptable; credentials must not leave via logs or API. Record plaintext-at-rest as an accepted risk in §5 Risks. |
+| **P2 — Exposed** | Can desolder or read the flash (field-deployed, high-value, or regulated) | Flash encryption **and** `nvs_flash_secure_init()` required. |
+
+| ID | Requirement | Priority | Applies to |
+|----|-------------|----------|------------|
+| NVS-010 | WiFi credentials SHALL be stored in an NVS partition initialised with `nvs_flash_secure_init()` on a device with flash encryption enabled | Must | P2 only |
+| NVS-011 | API keys and tokens SHALL be stored under the same scheme as NVS-010 | Must | P2 only |
+| NVS-012 | Credentials SHALL NOT appear in serial logs, debug output, or any API response | Must | all profiles |
+| NVS-013 | The FSD SHALL state which profile applies and, for P0/P1, record plaintext-at-rest as an accepted risk | Must | all profiles |
+
+> **Obfuscation is not encryption.** Do not accept base64, XOR, or a scrambled
+> key name as satisfying NVS-010. If the profile does not justify real
+> encryption, choose P0/P1 and say so — a false claim of confidentiality is worse
+> than an honest absence of it.
 
 ### 1.3 Factory Reset
 
@@ -115,7 +134,10 @@ Standard test cases for ESP32 Non-Volatile Storage functionality (configuration 
 | 6 | Reconfigure via portal | New config saved |
 | 7 | Reboot | Normal operation restored |
 
-**Pass Criteria**: No crash on corrupt NVS, graceful fallback to defaults.
+**Pass Criteria**: `nvs_flash_init()` returns `ESP_ERR_NVS_NO_FREE_PAGES` or
+`ESP_ERR_NVS_NEW_VERSION_FOUND`, the device erases and re-initialises rather than
+rebooting, every configuration value reads back as its documented default, and
+the device reaches provisioning mode within {{boot_deadline_s}} s of reset.
 
 ### EC-NVS-201: NVS Full / Storage Exhaustion
 
@@ -124,7 +146,7 @@ Standard test cases for ESP32 Non-Volatile Storage functionality (configuration 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
 | 1 | Write many large entries to NVS | NVS fills up |
-| 2 | Attempt to write configuration | Write fails gracefully |
+| 2 | Attempt to write configuration | `nvs_set_*` returns `ESP_ERR_NVS_NOT_ENOUGH_SPACE`; the device keeps running (uptime continuous) |
 | 3 | Error logged | "NVS full" or similar |
 | 4 | Existing configuration still readable | Previous data intact |
 | 5 | Erase NVS and reconfigure | Normal operation restored |
@@ -147,17 +169,28 @@ Standard test cases for ESP32 Non-Volatile Storage functionality (configuration 
 
 ### EC-NVS-203: Credential Security Verification
 
-**Objective**: Verify credentials are not exposed in logs or debug output.
+**Objective**: Verify credentials are not exposed through any output channel
+(NVS-012), and — on a P2 device only — not readable from flash (NVS-010).
 
-| Step | Action | Expected Result |
+Use a credential that cannot occur by chance, so a match is unambiguous and
+`grep` alone decides the result. Below, `PW="Xq7-secret123-Zk2"`.
+
+| Step | Action | Expected result |
 |------|--------|-----------------|
-| 1 | Configure WiFi with password "secret123" | Credentials saved |
-| 2 | Monitor all serial output during boot | No plaintext password |
-| 3 | Monitor serial during WiFi connect | No plaintext password |
-| 4 | Query status endpoint | No credentials in response |
-| 5 | Read NVS raw bytes (esptool) | Encrypted or obfuscated |
+| 1 | Configure WiFi with password `$PW` | Credentials saved; device connects |
+| 2 | Capture all serial output from reset to `STA got IP` | `grep -c "$PW"` returns 0 |
+| 3 | Capture serial across a reconnect cycle | `grep -c "$PW"` returns 0 |
+| 4 | `GET /status` and every other API route that returns config | `grep -c "$PW"` returns 0 in each body |
+| 5 | Dump the NVS partition: `esptool read-flash <nvs_off> <nvs_size> nvs.bin` | **P0/P1:** step not applicable — record the plaintext hit as the accepted risk. **P2:** `grep -c "$PW" nvs.bin` returns 0 |
 
-**Pass Criteria**: Credentials never appear in plaintext in any output.
+**Pass Criteria**: steps 2–4 each return zero matches. On P2, step 5 also returns
+zero matches; on P0/P1, step 5 is reported as *not applicable* and the FSD's §5
+Risks entry for plaintext-at-rest is confirmed present.
+
+**Failure interpretation**: a hit in steps 2–4 is a defect on every profile. A hit
+in step 5 is a defect **only** on P2 — on P0/P1 it is the documented, accepted
+behaviour, and a *zero* result there should prompt you to check the device really
+is the one under test.
 
 ### EC-NVS-204: Configuration Update While Running
 

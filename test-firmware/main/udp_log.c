@@ -63,7 +63,15 @@ esp_err_t udp_log_init(const char *host, uint16_t port)
     memset(&s_dest_addr, 0, sizeof(s_dest_addr));
     s_dest_addr.sin_family = AF_INET;
     s_dest_addr.sin_port = htons(port);
-    inet_aton(host, &s_dest_addr.sin_addr);
+    /* inet_aton() takes a dotted quad only — it does not resolve names. On
+       failure it leaves the address at 0.0.0.0 and every log line goes nowhere,
+       so fail loudly here rather than debugging silence later. */
+    if (inet_aton(host, &s_dest_addr.sin_addr) == 0) {
+        ESP_LOGE(TAG, "udp_log_init: '%s' is not an IPv4 address", host);
+        vMessageBufferDelete(s_msg_buf);
+        s_msg_buf = NULL;
+        return ESP_ERR_INVALID_ARG;
+    }
 
     xTaskCreate(udp_sender_task, "udp_log", 3072, NULL, 1, NULL);
 

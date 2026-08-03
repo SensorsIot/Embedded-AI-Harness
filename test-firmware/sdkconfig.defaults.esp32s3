@@ -1,6 +1,5 @@
 # Target
 CONFIG_IDF_TARGET="esp32s3"
 
-# Flash size — default 4MB (use partitions-4mb.csv)
-# Override to 8MB+ only when the actual chip flash is known to be larger
-CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+# Flash size comes from sdkconfig.defaults (4MB, matching partitions-4mb.csv).
+# Override to 8MB+ here only when the actual chip flash is known to be larger.

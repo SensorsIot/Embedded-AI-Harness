@@ -75,9 +75,17 @@ Keep the ownership rule across all profiles.
 
 The §2.4 layering is not just a diagram — the **implementation's source layout
 should mirror it**, so code, FSD, test specs, and the coverage matrix share one
-spine. The FSD states this as guidance for whoever implements it (the FSD advises
-how to code, not just what to build). The rule is platform-independent; only the
-word "module" varies (a source file, a package, a class, a service):
+spine.
+
+> **These rules are HOW, so they live in the Harness plane** —
+> `[HARNESS]/project/architecture.md` — not in the FSD. None of them is
+> observable from outside a running system, and none would survive a rewrite in
+> another language, which is the test for WHAT-vs-HOW (see
+> `three-planes.md`). §2.4 of the FSD states the layering and links here; the
+> Harness carries the rules themselves.
+
+The rule is platform-independent; only the word "module" varies (a source file, a
+package, a class, a service):
 
 - **One module per component.** Each L1 interface and each L2 feature is its own
   module, named for the component. **Don't fold an interface into the consumer

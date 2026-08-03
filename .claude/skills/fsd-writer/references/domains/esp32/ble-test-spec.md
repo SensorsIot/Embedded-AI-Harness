@@ -13,7 +13,7 @@ Standard test cases for ESP32 Bluetooth Low Energy functionality. Copy relevant 
 | BLE-001 | Device SHALL advertise with a discoverable name | Must |
 | BLE-002 | Device SHALL accept BLE connections from authorized clients | Must |
 | BLE-003 | Device SHALL support at least one simultaneous BLE connection | Must |
-| BLE-004 | Device SHALL disconnect gracefully on timeout or client request | Must |
+| BLE-004 | On a client disconnect request, or after {{ble_idle_timeout_s}} s with no GATT operation, the device SHALL close the connection, free the GATT session, and resume advertising within 2 s | Must |
 | BLE-005 | Device SHALL resume advertising after disconnection | Must |
 | BLE-006 | Device SHALL log BLE connection and disconnection events | Should |
 
@@ -24,7 +24,7 @@ Standard test cases for ESP32 Bluetooth Low Energy functionality. Copy relevant 
 | BLE-010 | Device SHALL expose GATT services matching its functional role | Must |
 | BLE-011 | GATT characteristics SHALL support read/write/notify as specified | Must |
 | BLE-012 | Notifications SHALL be sent within 100 ms of data change | Should |
-| BLE-013 | Device SHALL handle invalid GATT writes with appropriate error codes | Must |
+| BLE-013 | A GATT write whose length or value is out of range SHALL be rejected with ATT error `0x0D` (Invalid Attribute Value Length) or `0x13` (Out Of Range), and SHALL leave the characteristic's value unchanged | Must |
 
 ### 1.3 Nordic UART Service (NUS)
 
@@ -112,7 +112,8 @@ Standard test cases for ESP32 Bluetooth Low Energy functionality. Copy relevant 
 
 ### EC-BLE-200: BLE Disconnect During Data Transfer
 
-**Objective**: Verify system handles mid-transfer disconnection gracefully.
+**Objective**: Verify a mid-transfer disconnect leaves no partial state and that
+the device returns to advertising.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
@@ -147,11 +148,13 @@ Standard test cases for ESP32 Bluetooth Low Energy functionality. Copy relevant 
 |------|--------|-----------------|
 | 1 | Connected at 1 m | Stable connection |
 | 2 | Move to 5 m | Connection maintained |
-| 3 | Move to 10 m | Possible packet loss |
+| 3 | Send 200 notifications at 10 m | >= 190 acknowledged (<= 5 % loss); link stays up |
 | 4 | Move to 15+ m | Connection may drop |
 | 5 | Return to 1 m | Reconnects automatically |
 
-**Pass Criteria**: Graceful degradation, automatic recovery when in range.
+**Pass Criteria**: loss stays <= 5 % at 10 m; if the link drops beyond range the
+device resumes advertising within 2 s; on return to 1 m a client reconnects
+within 10 s with no device reset.
 
 ### EC-BLE-203: Concurrent BLE and WiFi Operation
 

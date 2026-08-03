@@ -11,7 +11,7 @@ Standard test cases for ESP32 WiFi STA functionality. Copy relevant sections int
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | WIFI-001 | System SHALL connect to configured WiFi network in STA mode | Must |
-| WIFI-002 | WiFi credentials SHALL be stored encrypted in NVS | Must |
+| WIFI-002 | WiFi credentials SHALL be stored per the project's security profile — see NVS-010..013 in `nvs-test-spec.md`, which owns this requirement | Must |
 | WIFI-003 | System SHALL automatically reconnect on WiFi disconnect | Must |
 | WIFI-004 | System SHALL log WiFi connection status changes | Should |
 | WIFI-005 | System SHALL support WPA2/WPA3 authentication | Must |
@@ -32,18 +32,22 @@ Standard test cases for ESP32 WiFi STA functionality. Copy relevant sections int
 
 ### EC-100: Network Disconnect During Active Session
 
-**Objective**: Verify system handles network interruption gracefully.
+**Objective**: Verify the device survives a network outage and resumes
+publishing without losing buffered telemetry.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
 | 1 | Active session running | Data publishing |
 | 2 | Disconnect network cable/WiFi | Connection lost |
-| 3 | Session continues locally | Local operation maintained |
-| 4 | Wait 30 seconds | Reconnection attempts logged |
+| 3 | Session continues locally | Uptime counter keeps incrementing; no reboot line in serial |
+| 4 | Wait 30 s | >= 2 reconnect attempts logged, each with a timestamp |
 | 5 | Restore network | Reconnects |
-| 6 | Session state restored | Operation continues |
+| 6 | Session state restored | Publishing resumes within {{reconnect_deadline_s}} s of link-up |
 
-**Pass Criteria**: Automatic recovery, no data loss.
+**Pass Criteria**: publishing resumes within {{reconnect_deadline_s}} s of the
+link returning; every sample generated during the outage, up to the buffer depth
+the FSD declares ({{offline_buffer_depth}}), reaches the subscriber in order; the
+uptime counter is continuous (no reboot).
 
 ### EC-101: WiFi Disconnect During Operation
 
@@ -62,18 +66,20 @@ Standard test cases for ESP32 WiFi STA functionality. Copy relevant sections int
 
 ### EC-110: WiFi Signal Strength Degradation
 
-**Objective**: Verify system handles weak WiFi signal gracefully.
+**Objective**: Verify link degradation is bounded and recovery automatic as RSSI falls.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
 | 1 | Normal operation | RSSI > -60 dBm |
 | 2 | Increase distance to AP | RSSI decreases |
 | 3 | Monitor at -70 dBm | Connection maintained |
-| 4 | Monitor at -80 dBm | Possible packet loss |
+| 4 | Publish 200 messages at -80 dBm | >= 190 delivered (<= 5 % loss); link stays associated |
 | 5 | Monitor at -85 dBm | Reconnection attempts |
 | 6 | Return to normal range | Connection stabilizes |
 
-**Pass Criteria**: No crash, graceful degradation, automatic recovery.
+**Pass Criteria**: no reboot at any RSSI step; loss stays <= 5 % down to -80 dBm;
+after returning to range the device is associated and publishing within
+{{reconnect_deadline_s}} s without manual action.
 
 ### EC-111: WiFi AP Channel Congestion
 
@@ -82,12 +88,13 @@ Standard test cases for ESP32 WiFi STA functionality. Copy relevant sections int
 | Step | Action | Expected Result |
 |------|--------|-----------------|
 | 1 | Connect to AP on channel 6 | Normal operation |
-| 2 | Enable multiple interfering APs | Increased latency |
-| 3 | Monitor message delivery | Messages delivered (slower) |
-| 4 | Monitor reconnection behavior | May reconnect occasionally |
-| 5 | Disable interfering APs | Performance returns to normal |
+| 2 | Enable multiple interfering APs on the same channel | Round-trip latency rises above baseline |
+| 3 | Publish 200 messages and count them at the subscriber | All 200 arrive, though slower than baseline |
+| 4 | Monitor reconnection behaviour | Any reconnect completes without operator action |
+| 5 | Disable interfering APs | Latency returns to within 20 % of baseline |
 
-**Pass Criteria**: No data loss, eventual delivery of all messages.
+**Pass Criteria**: all 200 published messages reach the subscriber within 120 s
+of publication; at QoS 1 no message is redelivered more than once; no reboot.
 
 ### EC-115: DHCP Lease Expiry
 
@@ -99,7 +106,7 @@ Standard test cases for ESP32 WiFi STA functionality. Copy relevant sections int
 | 2 | Wait for lease expiry | Renewal attempt |
 | 3 | Verify IP maintained | Same or new IP |
 | 4 | Verify application connection | Reconnects if IP changed |
-| 5 | Normal operation continues | No user intervention needed |
+| 5 | Publish 10 messages after renewal | All 10 delivered; no operator action performed |
 
 **Pass Criteria**: Automatic lease renewal, connection recovery.
 

@@ -36,7 +36,7 @@ Standard test cases for ESP32 logging and debug output functionality (serial, UD
 | LOG-023 | Device SHALL log OTA progress (start, %, complete, error) | Must |
 | LOG-024 | Device SHALL log watchdog health check status | Should |
 | LOG-025 | Device SHALL log free heap at boot and periodically | Should |
-| LOG-026 | Device SHALL log error conditions with sufficient context for diagnosis | Must |
+| LOG-026 | Every `ESP_LOGE` call site SHALL emit the subsystem tag, the `esp_err_t` name (via `esp_err_to_name()`), and the operation attempted | Must |
 
 ---
 

@@ -22,8 +22,13 @@
 | C | [Implementation Tasks & Deliverables](#appendix-c-implementation-tasks--deliverables) | |
 | D | [HTTP API & MCP Reference](#appendix-d-http-api--mcp-reference) | **Complete endpoint and tool reference** |
 
-Operating instructions — building the Pi, wiring, and driving each service —
-are in the [User Manual](Embedded-Workbench-User-Manual.md).
+This document is the **WHAT** plane: what must be true of the bench. Two companion
+documents answer the other questions, and nothing here duplicates them —
+
+- **HOW** it is built and changed: [`Harness/`](Harness/00-Overview.md) — the
+  build contract, source layout, conventions, and testing standard.
+- **OPERATE** — building the Pi, wiring, and driving each service:
+  [User Manual](Embedded-Workbench-User-Manual.md).
 
 ---
 

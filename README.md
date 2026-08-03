@@ -192,12 +192,13 @@ curl -X POST .../api/sdr/capture   -d '{"freq_hz":433920000,"duration_s":10}'
 
 ## 📚 Documentation
 
-Two documents, and everything is in one of them:
+Three documents, one per question, and everything is in one of them:
 
-| Document | Read it for |
-|----------|-------------|
-| **[User Manual](docs/Embedded-Workbench-User-Manual.md)** | Building the Pi, wiring, and driving every service — install, serial, flashing, debug, WiFi, RF, test automation, troubleshooting. |
-| **[Functional Specification](docs/Embedded-Workbench-FSD.md)** | What the bench does, clause by clause. [Appendix D](docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference) is the complete HTTP API and MCP tool reference. |
+| Question | Document | Read it for |
+|----------|----------|-------------|
+| **How do I run it?** | **[User Manual](docs/Embedded-Workbench-User-Manual.md)** | Building the Pi, wiring, and driving every service — install, serial, flashing, debug, WiFi, RF, test automation, troubleshooting. |
+| **What must be true?** | **[Functional Specification](docs/Embedded-Workbench-FSD.md)** | What the bench does, clause by clause. [Appendix D](docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference) is the complete HTTP API and MCP tool reference. |
+| **How is it built?** | **[Harness](docs/Harness/00-Overview.md)** | The build contract for contributors and AI agents — [workflow](docs/Harness/AI-Workflow.md), [architecture](docs/Harness/project/architecture.md), conventions, testing standard. |
 
 ## 🙏 Attributions
 

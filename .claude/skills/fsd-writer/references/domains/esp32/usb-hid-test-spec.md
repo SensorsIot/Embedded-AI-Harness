@@ -167,11 +167,13 @@ Standard test cases for ESP32 USB Human Interface Device functionality (keyboard
 |------|--------|-----------------|
 | 1 | BLE connected, USB connected | Both active |
 | 2 | Send text via BLE NUS | Appears as HID on host |
-| 3 | Send rapid BLE commands | All processed in order |
-| 4 | Disconnect BLE mid-string | Partial string delivered, no crash |
+| 3 | Send 500 characters over BLE NUS as fast as the link allows | All 500 appear on the host in the order sent, no duplicates |
+| 4 | Disconnect BLE mid-string | Host receives a prefix of the string; no partial HID report; uptime continuous |
 | 5 | Reconnect BLE, send more | Continues working |
 
-**Pass Criteria**: Clean pipeline, no corruption, handles BLE drops gracefully.
+**Pass Criteria**: the 500-character burst arrives complete and in order; a
+mid-string disconnect delivers only whole HID reports and does not reset the
+device; after reconnect the next burst also arrives complete.
 
 ---
 

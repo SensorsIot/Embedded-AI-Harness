@@ -132,12 +132,15 @@ Standard test cases for ESP32 Over-The-Air firmware update functionality. Copy r
 |------|--------|-----------------|
 | 1 | Device actively processing data | Normal operation |
 | 2 | Trigger OTA download in background | Download starts |
-| 3 | Monitor main application | Continues operating |
-| 4 | Check for increased latency | Acceptable degradation |
+| 3 | Monitor the main application | Its periodic task keeps running; no missed cycle exceeds {{ota_max_stall_ms}} ms |
+| 4 | Measure task latency during download | Stays within {{ota_max_stall_ms}} ms of the pre-OTA baseline |
 | 5 | Download completes | Device reboots |
 | 6 | New firmware running | Operation resumes |
 
-**Pass Criteria**: No data loss during download phase, acceptable performance impact.
+**Pass Criteria**: no application cycle is missed during the download; worst-case
+added latency stays within {{ota_max_stall_ms}} ms of baseline; every message
+generated during the download is delivered; the device reboots only when the
+download completes.
 
 ### EC-OTA-204: Repeated OTA Updates
 

@@ -21,7 +21,7 @@ Standard test cases for ESP32 MQTT client functionality. Copy relevant sections 
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | MQTT-010 | Device SHALL publish data to configured topics | Must |
-| MQTT-011 | Device SHALL use appropriate QoS level per message type | Should |
+| MQTT-011 | Device SHALL publish telemetry at QoS 0 and commands/acknowledgements at QoS 1, and the FSD SHALL state the QoS for every topic it defines | Should |
 | MQTT-012 | Device SHALL buffer messages during broker disconnect | Should |
 | MQTT-013 | Buffered messages SHALL be sent on reconnect (in order) | Should |
 | MQTT-014 | Device SHALL publish status/availability on connect and disconnect (LWT) | Should |
@@ -33,7 +33,7 @@ Standard test cases for ESP32 MQTT client functionality. Copy relevant sections 
 | MQTT-020 | Device SHALL subscribe to command topics on connect | Must |
 | MQTT-021 | Device SHALL process incoming commands within 1 second | Should |
 | MQTT-022 | Device SHALL acknowledge commands via response topic | Should |
-| MQTT-023 | Device SHALL reject malformed command payloads gracefully | Must |
+| MQTT-023 | On a command payload that is not valid JSON or is missing a required field, the device SHALL discard it, log `mqtt: bad command` with the topic, and continue processing later messages without rebooting or unsubscribing | Must |
 
 ### 1.4 MQTT Security
 
@@ -121,7 +121,10 @@ Standard test cases for ESP32 MQTT client functionality. Copy relevant sections 
 | 6 | Buffered messages sent | Catch-up published |
 | 7 | Normal publishing resumes | Interval messages continue |
 
-**Pass Criteria**: Automatic reconnection, buffered messages delivered, no data loss.
+**Pass Criteria**: a new MQTT session is established within
+{{reconnect_deadline_s}} s of the broker returning; every message buffered during
+the outage, up to {{offline_buffer_depth}}, is delivered in publication order;
+periodic publishing resumes at the configured interval; no reboot.
 
 ### EC-MQTT-201: Broker Unreachable at Boot
 
@@ -160,11 +163,13 @@ Standard test cases for ESP32 MQTT client functionality. Copy relevant sections 
 |------|--------|-----------------|
 | 1 | Publish normal payload (100 bytes) | Success |
 | 2 | Publish large payload (1 KB) | Success |
-| 3 | Publish payload at buffer limit | Success or graceful rejection |
-| 4 | Publish oversized payload | Rejected, error logged |
+| 3 | Publish a payload of exactly `CONFIG_MQTT_BUFFER_SIZE` bytes | `esp_mqtt_client_publish()` returns >= 0; subscriber receives it intact |
+| 4 | Publish `CONFIG_MQTT_BUFFER_SIZE + 1` bytes | `esp_mqtt_client_publish()` returns -1 and an error is logged |
 | 5 | Normal publishing continues | No disruption |
 
-**Pass Criteria**: Large payloads handled, oversized rejected gracefully.
+**Pass Criteria**: payloads up to `CONFIG_MQTT_BUFFER_SIZE` publish and arrive
+byte-identical; one byte over returns -1; the client stays connected throughout
+and step 5 still succeeds.
 
 ### EC-MQTT-204: WiFi Loss While MQTT Connected
 

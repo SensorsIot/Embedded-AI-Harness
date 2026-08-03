@@ -4,12 +4,17 @@ How to build, wire, and operate the Embedded Workbench: a Raspberry Pi that turn
 into a complete remote test instrument for ESP32 devices — serial, debug, WiFi,
 BLE, GPIO, MQTT, RF signal generation, and SDR receive — all over one HTTP API.
 
-**This manual is the operator's guide: how to do things.** What the bench *does*,
-clause by clause, is specified in
-[`Embedded-Workbench-FSD.md`](Embedded-Workbench-FSD.md); its
-**[Appendix D](Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)** is
-the complete HTTP API and MCP tool reference. When this manual shows a call, the
-FSD defines its exact contract.
+**This manual is the operator's guide — the OPERATE plane: how to run the bench.**
+It is one of three documents, each answering a different question:
+
+| Plane | Question | Document |
+|-------|----------|----------|
+| WHAT | What must be true of the bench? | [`Embedded-Workbench-FSD.md`](Embedded-Workbench-FSD.md) — **[Appendix D](Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)** is the complete HTTP API and MCP tool reference |
+| HOW | How is it built and changed? | [`Harness/`](Harness/00-Overview.md) |
+| **OPERATE** | **How do I run it?** | **this manual** |
+
+When this manual shows a call, the FSD defines its exact contract. If the two
+disagree, this manual is stale — it describes the system as built.
 
 Throughout, the bench is reachable at `workbench.local` (substitute its IP if
 mDNS doesn't resolve on your network) and the API lives on port **8080**.
@@ -1024,7 +1029,11 @@ still works after changing the portal or the skills.
 
 ### 16.1 Build and flash it
 
-Requires ESP-IDF v5.x (tested with 5.1+).
+Requires ESP-IDF **6.x** (verified against v6.0.2 for `esp32`, `esp32s3`, and
+`esp32c3`). Two things changed with ESP-IDF 6 and are already handled in the
+project files: CMake 3.22 is the minimum, and cJSON is no longer bundled — it is
+pulled from the component registry via `main/idf_component.yml`, so the first
+build needs network access.
 
 ```bash
 cd test-firmware

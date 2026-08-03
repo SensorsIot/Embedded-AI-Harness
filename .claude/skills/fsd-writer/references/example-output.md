@@ -52,7 +52,7 @@ FreeRTOS tasks: BLE rx, HID tx, WiFi/OTA. Config + layout in NVS.
 | BLE drop mid-entry | Low | Medium | Reconnect + buffering |
 
 **Assumptions:** host provides 500 mA USB bus power (assumed); iOS primary, Android deferred (assumed).
-**Dependencies:** ESP-IDF v5.x TinyUSB; NimBLE.
+**Dependencies:** ESP-IDF v6.x TinyUSB; NimBLE.
 
 # Part A — Application Logic (L2)
 

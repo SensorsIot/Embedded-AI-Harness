@@ -1,108 +1,52 @@
 # Universal Embedded Workbench
 
-Raspberry Pi-based test instrument for ESP32 firmware: serial proxy (RFC2217), WiFi AP/STA, GPIO control, HTTP relay, all via REST API.
+Raspberry Pi-based test instrument for ESP32 firmware: serial proxy (RFC2217), WiFi AP/STA, BLE, MQTT, GPIO, RF signal generation, SDR receive, GDB debug — all via one REST API on `:8080`.
 
-## Tech Stack
+## Start here
 
-- **Runtime**: Python 3.9+ (Pi), Python 3.11 (devcontainer)
-- **Frameworks**: Flask-like HTTP server (portal.py), pyserial (RFC2217), hostapd/dnsmasq (WiFi)
-- **Testing**: pytest, ruff, mypy
-- **Hardware**: Raspberry Pi Zero W (eth0 + wlan0), USB hub for serial slots
+**Read [`docs/Harness/AI-Workflow.md`](docs/Harness/AI-Workflow.md) before making any change.** It is the build contract: how to find the rule a change serves, how to verify it, and how to keep the documentation in sync.
 
-## Project Structure
+This file is assistant configuration, not project documentation. It holds no rules of its own — everything below is a pointer.
+
+## The three planes
+
+| Plane | Question | Document |
+|-------|----------|----------|
+| **WHAT** | What must be true of the bench? | [`docs/Embedded-Workbench-FSD.md`](docs/Embedded-Workbench-FSD.md) — FRs by subsystem; **Appendix D** is the complete HTTP API + MCP tool reference |
+| **HOW** | How is it built and changed? | [`docs/Harness/`](docs/Harness/) — [workflow](docs/Harness/AI-Workflow.md), [architecture](docs/Harness/project/architecture.md), [conventions](docs/Harness/project/conventions.md), [standards](docs/Harness/standards/) |
+| **OPERATE** | How do I run it? | [`docs/Embedded-Workbench-User-Manual.md`](docs/Embedded-Workbench-User-Manual.md) |
+
+Route every sentence you write to exactly one plane. Externally observable ⇒ FSD. Constrains how code is written ⇒ Harness. Tells a human how to run it ⇒ Handbook. Don't add a fourth document, and don't restate a fact that already lives in one of them — link to it.
+
+`README.md` is the GitHub landing page only.
+
+## Layout
 
 ```
-pi/
-  portal.py                   # Web portal + API + proxy supervisor (main entry)
-  wifi_controller.py          # WiFi instrument (AP, STA, scan, relay)
-  plain_rfc2217_server.py     # RFC2217 server with DTR/RTS passthrough
-  install.sh                  # Pi installer
-  config/signalgen.json       # Signal generator config (Si5351 I2C, PE4302 pins)
-  udev/                       # udev rules for hotplug
-  signal_generator.py         # Unified RF source: Si5351 (I2C) with GPCLK fallback + optional PE4302 attenuator
-  sdr_controller.py           # RTL-SDR receiver: rtl_433 decode + pulse-analyzer recapture (receive-side of signal_generator)
-  si5351.py                   # Si5351A I2C clock generator driver
-  pe4302.py                   # PE4302 3-wire serial step attenuator driver
-  gpclk.py                    # BCM2835/7 GPCLK hardware clock (GPIO 5/6)
-  morse.py                    # Backend-agnostic Morse keyer
-  bcm_gpio.py                 # Shared /dev/mem GPIO primitives
-  systemd/                    # systemd service unit
-pytest/
-  workbench_driver.py   # WorkbenchDriver class for test scripts
-  conftest.py                 # pytest fixtures
-  workbench_test.py           # End-to-end workbench tests
-docs/
-  Embedded-Workbench-FSD.md          # WHAT the bench does (Appendix D = API/MCP reference)
-  Embedded-Workbench-User-Manual.md  # HOW to build, wire, and drive it
-mcp/
-  workbench_mcp.py            # MCP stdio proxy: one tool per HTTP endpoint (stdlib only)
-  manifest.json               # Claude Desktop .mcpb bundle manifest
-container/                    # Alternate devcontainer config
-.claude/skills/               # Claude Code skills (one dir per instrument/workflow)
+pi/            Portal + one controller module per instrument   (see Harness → architecture)
+pytest/        WorkbenchDriver + the bench-tier test suite
+mcp/           MCP server (70 tools) + Claude Desktop .mcpb
+test-firmware/ ESP-IDF firmware that exercises the whole bench
+.claude/       skills/ (one per instrument or workflow) + agents/
+docs/          FSD · Harness/ · User Manual
 ```
-
-Skills live in `.claude/skills/` and are grouped by what they drive: the instruments
-(`signal-generator`, `sdr-receiver`, `workbench-wifi`, `workbench-mqtt`, `workbench-ble`,
-`workbench-logging`, `workbench-debug`), the build/flash toolchains (`esp-idf-handling`,
-`esp-pio-handling`), and the test/spec workflows (`esp32-test-harness`,
-`workbench-test-handling`, `workbench-integration`, `fsd-writer`, `test-designer`).
-Each wraps `/api/` calls — when an endpoint's contract changes, update the skills that
-name it and Appendix D of the FSD together.
 
 ## Commands
 
 ```bash
-# Install on Pi
-cd pi && bash install.sh
-
-# Discover USB slot keys
-rfc2217-learn-slots
-
-# Run portal manually
-python3 pi/portal.py
-
-# Run tests
-pip install -r requirements-dev.txt
-pytest pytest/
-
-# Lint
-ruff check .
-mypy --strict .
+cd pi && bash install.sh                                    # install on the Pi
+rfc2217-learn-slots                                         # discover USB slot keys
+pytest pytest/ --wt-url http://workbench.local:8080         # bench tests (needs a live Pi)
+ruff check . && mypy --strict .                             # neither is clean — see Harness → conventions
 ```
 
-## Code Style
+## Non-negotiables
 
-- Python: ruff for linting, mypy strict, format with ruff
-- `snake_case` for functions and variables
-- REST API endpoints under `/api/` namespace
-- Slot-based identity: TCP ports tied to physical USB connectors, not devices
+- **Never SSH into the Pi to operate the bench.** Every operation has an HTTP endpoint; `pytest/workbench_driver.py` wraps them all. SSH is only for deploying code — see [AI-Workflow](docs/Harness/AI-Workflow.md#deploying-a-change-to-the-bench).
+- **The service runs from `/usr/local/bin/`, not the git checkout.** Editing the repo on the Pi changes nothing until you copy and restart.
+- **Always release GPIO pins after use**: `gpio_set(pin, "z")`. A pin left LOW stops the DUT booting.
+- `SERIAL_PI=192.168.0.87` is set in the devcontainer.
 
-## Documentation
+## Host access
 
-The project has exactly **two** documents. Everything user-facing belongs in one
-of them -- don't add a third, and don't start per-directory READMEs.
-
-- `docs/Embedded-Workbench-FSD.md` -- WHAT the bench does: FRs grouped by
-  subsystem, plus Appendix D, the complete HTTP API + MCP tool reference.
-- `docs/Embedded-Workbench-User-Manual.md` -- HOW to operate it: build the Pi,
-  wire it, drive each service, validate, troubleshoot.
-
-Root `README.md` is the GitHub landing page only -- overview, features, install,
-and links into the two docs. Keep it short; put detail in the manual.
-
-## Key Conventions
-
-- Always release GPIO pins after use: `gpio_set(pin, "z")`
-- Environment variable `SERIAL_PI=192.168.0.87` set in devcontainer
-- Deploy portal to Pi: `scp pi/portal.py pi@192.168.0.87:/tmp/portal.py && ssh pi@192.168.0.87 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'`
-- Deploy debug_controller: `scp pi/debug_controller.py pi@192.168.0.87:/tmp/ && ssh pi@192.168.0.87 'sudo cp /tmp/debug_controller.py /usr/local/bin/debug_controller.py && sudo systemctl restart rfc2217-portal'`
-
-All functional behavior (slot auto-detect, flashing, GPIO API, signal generator, WiFi modes, GDB debug, RFC2217 semantics, etc.) is specified in `docs/Embedded-Workbench-FSD.md`. Don't restate it here.
-
-## Gotchas / Do Not
-
-- Do NOT SSH into the Pi to interact with the workbench -- always use the HTTP API at :8080. The `WorkbenchDriver` in `pytest/workbench_driver.py` wraps all API calls. SSH is only for deploying code updates to `/usr/local/bin/rfc2217-portal`.
-
-## Host Access
-
-See `remote-connections` skill for SSH, InfluxDB, Grafana, and Docker details.
+See the `remote-connections` skill for SSH, InfluxDB, Grafana, and Docker details.

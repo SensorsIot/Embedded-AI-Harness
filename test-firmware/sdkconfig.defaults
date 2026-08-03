@@ -3,6 +3,10 @@
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-4mb.csv"
 
+# Flash size must match the partition table above. esp32 and esp32c3 default to
+# 2MB, which the 4MB table does not fit — set it here so every target agrees.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
 # NimBLE
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y

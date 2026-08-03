@@ -13,3 +13,7 @@ __pycache__/
 build/
 sdkconfig
 sdkconfig.old
+
+# Fetched by the ESP-IDF component manager from idf_component.yml.
+# dependencies.lock IS committed, so builds are reproducible.
+managed_components/

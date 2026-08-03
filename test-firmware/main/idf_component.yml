@@ -1,0 +1,6 @@
+## Managed component dependencies.
+##
+## cJSON shipped inside ESP-IDF as the `json` component up to v5.x. ESP-IDF 6
+## removed it from the tree, so it is now pulled from the component registry.
+dependencies:
+  espressif/cjson: "^1.7.18"

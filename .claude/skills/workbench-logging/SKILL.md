@@ -120,10 +120,32 @@ Response format: `{"ok": true, "lines": [{"ts": 1700000001.23, "source": "192.16
 The workbench listens on UDP port **5555**. ESP32 firmware sends plain text lines:
 
 ```c
+/* inet_aton() parses dotted-quad only — it does NOT resolve names, and on
+   failure it leaves the address at 0.0.0.0, so the logs vanish silently.
+   Always check the return value. */
 struct sockaddr_in workbench = { .sin_family = AF_INET, .sin_port = htons(5555) };
-inet_aton("workbench.local", &workbench.sin_addr);
+if (inet_aton("192.168.0.87", &workbench.sin_addr) == 0) {
+    ESP_LOGE(TAG, "bad workbench address");
+    return ESP_ERR_INVALID_ARG;
+}
 sendto(sock, msg, strlen(msg), 0, (struct sockaddr *)&workbench, sizeof(workbench));
 ```
+
+To use a **name** such as `workbench.local` instead of an IP, resolve it first —
+`inet_aton` will not do it for you:
+
+```c
+struct addrinfo hints = { .ai_family = AF_INET, .ai_socktype = SOCK_DGRAM };
+struct addrinfo *res;
+if (getaddrinfo("workbench", "5555", &hints, &res) == 0) {
+    sendto(sock, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen);
+    freeaddrinfo(res);
+}
+```
+
+Resolving the `.local` form needs mDNS, which is **not** bundled in ESP-IDF 6 —
+add the `espressif/mdns` managed component if you want it. Passing an IP literal
+avoids the dependency entirely, which is why the test firmware does that.
 
 ## Activity Log
 

@@ -134,11 +134,13 @@ Standard test cases for ESP32 WiFi Access Point and captive portal provisioning.
 | Step | Action | Expected Result |
 |------|--------|-----------------|
 | 1 | Open portal WiFi page | Form displayed |
-| 2 | Submit empty SSID | Validation error |
-| 3 | Submit password < 8 chars | Validation error |
+| 2 | Submit empty SSID | HTTP 200 with the form redisplayed; body contains a message naming the SSID field; no credentials written to NVS |
+| 3 | Submit a 7-character password | HTTP 200 with the form redisplayed; body states the 8-character minimum; no credentials written to NVS |
 | 4 | Submit valid credentials | Accepted |
 
-**Pass Criteria**: Invalid input rejected with user-friendly messages.
+**Pass Criteria**: neither invalid submission writes to NVS (verify by reboot --
+the device returns to provisioning); each rejection names the offending field and
+the rule it broke; the valid submission is accepted and persists across a reboot.
 
 ### EC-CP-204: Multiple Clients on AP
 
