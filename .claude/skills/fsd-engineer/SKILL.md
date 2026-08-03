@@ -29,11 +29,10 @@ whoever implements and executes.
 
 ## 0. Scope — what this skill does and does not do
 
-**It does not:** implement production code · write executable tests · execute
-tests · operate the workbench · claim a requirement is verified because code or a
-test merely exists · turn recommendations into approved requirements silently ·
-invent normative thresholds, tolerances, security assumptions, or failure
-behaviour.
+**Three things it must never do**, none of which the table below can express:
+claim a requirement is verified because code or a test merely exists; turn a
+recommendation into an approved requirement silently; invent a normative
+threshold, tolerance, security assumption, or failure behaviour.
 
 | Activity | This skill | Development skills | Workbench skills |
 |---|:--:|:--:|:--:|
@@ -56,64 +55,67 @@ version-controlled artefacts. Chat history is not authoritative.
 
 ## 1. Scale and reach
 
-Depth scales to inferred complexity. The skill covers embedded systems,
-networking, SDR, IoT, cloud back-ends, mobile apps, multi-service
-orchestrations, and hybrid hardware/software projects — the core is
-domain-neutral, with optional packs (§14) for domains that have recurring shapes.
+Depth scales to inferred complexity. The core is domain-neutral — embedded,
+networking, SDR, IoT, cloud, mobile, hybrid — with optional packs (§14) for
+domains that have recurring shapes.
 
 ## 2. Invocation
+
+**The path to a new FSD is three steps, and this skill is the third:** sketch the
+rough idea → `/grill-me` it until the design tree is resolved → `/fsd-engineer`
+writes it up.
+
+Grilling sits outside this skill because the person being interviewed is the
+right judge of when it is done; a skill deciding that for itself either stops
+early and assumes, or asks past the point of value. Step 2 must end with the
+decisions **written down** — a decision living only in a transcript is re-assumed
+next session.
 
 Seven modes. Pick by what already exists and what the user is asking for.
 
 | Mode | Invoke | Use when |
 |------|--------|----------|
-| **create** | `/fsd-engineer` + description | No FSD yet. Ask 1–3 clarifying questions per round, infer aggressively, generate. |
+| **create** | `/fsd-engineer` + description | No FSD yet. **Harvest first** (§4), then ask only what is still open — 1–3 questions per round — and generate. |
 | **update** | `/fsd-engineer update <path>` + delta | An FSD exists. Apply the delta surgically — never regenerate the whole file, never renumber a stable ID. |
-| **grill** | `/fsd-engineer --grill` + description | The input is too thin to infer architecture safely (under ~3 sentences, no codebase, no clarity on protocol/platform/operator). One question at a time, depth-first, each with a recommended answer. |
+| **grill** | `/fsd-engineer --grill` + description | **Cold start only** — invoked with no prior conversation and no decisions file, on a brief too thin to infer architecture from. If step 2 above already happened, use `create` instead. One question at a time, depth-first, each with a recommended answer. |
 | **planes** | `/fsd-engineer --planes [path]` | Write the Harness and Handbook, or retrofit an existing doc set into the three planes. Preview the move plan and get confirmation **before** moving anything. |
 | **tests** | `/fsd-engineer tests <path>` | The FSD is stable but its verification is not. Runs clause inventory → tier allocation → controllability → required test classes, emitting specs plus an updated matrix. |
 | **audit** | `/fsd-engineer audit` | Answers "are we actually done?" — reports the lifecycle state of every requirement and the gaps by category. Expect most requirements to sit below *verified*; that is information, not failure. |
 | **reconcile** | `/fsd-engineer reconcile` | Code, tests, and documents drifted apart. Identifies undocumented behaviour, obsolete tests, stale evidence, contradictions — and **proposes**, never silently adopts. |
 
-Two rules that apply across every mode, because violating either quietly destroys
-trust in the document:
+Two rules hold across every mode, because violating either quietly destroys trust
+in the document: **never renumber a stable ID** (obsolete items are `deprecated`
+or `superseded`, never deleted, so historical results stay readable), and **never
+silently invent a normative value** (report it; a proposal stays
+`status: proposed` until accepted — `references/requirement-quality.md` §2).
 
-- **Never renumber a stable ID.** Obsolete items are marked `deprecated` or
-  `superseded`, never deleted — historical test results must stay readable.
-- **Never silently invent a normative value.** A missing timeout, tolerance,
-  limit, default, or security assumption is reported. You may propose one, marked
-  `source: proposed-by-skill, status: proposed`, and it stays proposed until
-  accepted.
+Per-mode steps, the `update` search order, and grill discipline:
+`references/authoring.md`.
 
-Per-mode behaviour steps, the FSD search order for `update`, and the grill
-question discipline: `references/authoring.md`.
+## 3. Tools
 
-## 3. Tool Usage
-
-This skill uses the following Claude Code tools:
-
-| Tool | When |
-|------|------|
-| **Read** | Read existing FSD (evolve mode), read project files for context |
-| **Glob** | Find existing FSD files, scan project structure for architecture clues |
-| **Grep** | Search for protocols, frameworks, dependencies in project source |
-| **Write** | Create new FSD file (initial mode) or full rewrite |
-| **Edit** | Surgical updates to existing FSD sections (evolve mode) |
-| **AskUserQuestion** | Clarifying questions when critical info is missing |
-| **Task** (Explore) | Deep codebase exploration when the project has existing source code |
+Standard Claude Code tooling. Two notes that matter: use **Edit** rather than
+**Write** in `update` mode so unaffected chapters stay byte-identical, and use
+**AskUserQuestion** for clarifications so each one carries its recommended answer.
 
 Context-gathering order and evolve-mode diff discipline: `references/authoring.md`.
 
 ## 4. Clarifying questions
 
-Ask only when the missing information affects architecture, protocol choice,
+**Harvest before asking.** Most answers already exist by the time this skill
+runs. Look in order: decisions settled earlier in the conversation (a
+`/grill-me` session), a `decisions.md` / `open-issues.md`, a prior FSD, then the
+repo itself — config files, protocol usage, `README.md`, `CLAUDE.md`. Treat what
+they settle as settled, and tag each harvested decision `[user]` so it is never
+later mistaken for something the skill assumed.
+
+Re-asking a question the user has already answered is the fastest way to make a
+spec feel like a form to fill in — and it earns a shorter answer the second time.
+
+Then ask only when what is *still* missing affects architecture, protocol choice,
 interface definition, safety or regulatory constraints, phase decomposition,
 platform, or an external integration. Everything else is inferred and marked
 `(assumed)`.
-
-**Explore before asking.** A question whose answer sits in the repo wastes the
-user's attention and signals you did not look. Read the config files, grep for
-the protocols, read `README.md` and `CLAUDE.md` first.
 
 **Every question carries a recommended answer**, so the user can accept with one
 word. A bare list of options pushes the work back onto them.
@@ -224,10 +226,8 @@ Two artefacts, two levels of detail:
    `references/test-spec-schema.md`
 
 The readable FSD carries requirements and contracts; full specs live under
-`verification/test-specs/` and are linked, not inlined.
-
-This skill designs and documents. Development skills write executable tests;
-workbench skills operate hardware and capture evidence (§0).
+`verification/test-specs/` and are linked, not inlined. This skill designs them;
+who implements and runs them is in §0.
 
 #### 6.9.1 State model — mandatory for stateful systems
 
