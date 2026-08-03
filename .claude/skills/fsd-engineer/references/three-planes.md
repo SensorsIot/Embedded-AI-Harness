@@ -9,16 +9,16 @@ itself within a release.
 |-------|----------|----------|--------|
 | **WHAT** | What must be true of this system? | **FSD** | Anyone judging whether the system is correct — reviewer, tester, auditor, future maintainer |
 | **HOW** | How is this system built and changed? | **Harness** | Whoever writes the next change — a person or an AI agent |
-| **OPERATE** | How do I run it? | **Handbook** (user manual, runbook) | Whoever installs, drives, or recovers the running system |
+| **OPERATE** | How do I run it? | **User documentation** (`docs/UserDocumentation/`) | Whoever installs, drives, or recovers the running system |
 
 ## Authority order
 
 1. **FSD (WHAT)** defines the target. It is the contract.
 2. **Harness (HOW)** defines the method. It cannot change the target.
-3. **Handbook (OPERATE)** describes the running system as built.
+3. **User documentation (OPERATE)** describes the running system as built.
 
 On conflict: the FSD wins on *what must be true*; the Harness wins on *how to get
-there*. If the Handbook disagrees with either, the Handbook is stale — it
+there*. If the user documentation disagrees with either, it is stale — it
 describes reality, so a disagreement means either reality or the spec moved.
 
 None of the three carries history, rationale narrative, or temporal comparison.
@@ -36,7 +36,7 @@ Ask in order; the first "yes" wins:
    being observable from outside? → **Harness**. ("One module per component."
    "Lower layers never import higher ones." "Every change ships its test.")
 3. Does it tell a human **how to run, install, or recover** the system? →
-   **Handbook**. ("Flash the SD card." "If the dongle wedges, POST /api/sdr/reset.")
+   **UserDocumentation**. ("Flash the SD card." "If the dongle wedges, POST /api/sdr/reset.")
 4. Is it about **how to collaborate with the AI assistant** rather than about the
    project? → `CLAUDE.md`, which is *not* project documentation and is not a
    plane.
@@ -67,7 +67,7 @@ the tier a requirement is verified at; it does not contain test steps.
 - `project/` — this project's bindings: layer definitions, source layout, module
   boundaries, dependency direction, prohibitions, tool and credential pointers.
 
-**Handbook (OPERATE)** — installation, wiring, day-to-day procedures, diagnostics,
+**User documentation (OPERATE)** — installation, wiring, day-to-day procedures, diagnostics,
 recovery. Step-by-step detail lives here and nowhere else.
 
 ## Topology
@@ -77,9 +77,9 @@ has rather than forcing new files:
 
 | Role | Typical binding |
 |------|-----------------|
-| `[SPEC]` | `docs/<project>-fsd.md`, or a set of per-component FSDs |
+| `[SPEC]` | `docs/Functionality/` — the FSD, or a set of per-component FSDs |
 | `[HARNESS]` | `docs/Harness/` (must be committed — an untracked harness is unshared, therefore undocumented) |
-| `[HANDBOOK]` | `docs/<project>-user-manual.md`, `docs/Handbook.md`, or an existing runbook |
+| `[OPERATE]` | `docs/UserDocumentation/` — created from the first commit, even when empty |
 
 The WHAT plane may be a single FSD or a set of per-component FSDs; the other two
 planes are shared either way. If the project already has a document filling a

@@ -206,10 +206,11 @@ If the user does not specify a target path:
 
 ```text
 docs/
-├── <project>-fsd.md              WHAT — requirements + verification contracts
+├── Functionality/                WHAT — the FSD + the interface specs it cites
 ├── Harness/                      HOW  — 00-Overview, AI-Workflow, standards/, project/
-├── <project>-handbook.md         OPERATE
-├── architecture-decisions.md     approved structural choices
+├── UserDocumentation/            OPERATE — 00-Overview from the first commit,
+│                                 even when nothing is deployable yet
+├── decisions.md                  settled decisions with provenance — not a plane
 └── open-issues.md                unresolved product/architecture decisions
 
 verification/                     machine-readable WHAT + verification design
@@ -336,7 +337,7 @@ Mode B (evolve) for incremental changes.
 
 ### 2.4 Mode D — Planes (write or retrofit HOW / OPERATE)
 
-Create the Harness and Handbook alongside the FSD, or split an existing document
+Create the Harness and UserDocumentation alongside the FSD, or split an existing document
 set into the three planes (§6.11).
 
 ```
@@ -347,9 +348,9 @@ Behaviour:
 
 1. **Inventory.** List every existing document and the plane role it currently
    fills. A single "spec" almost always fills two or three at once.
-2. **Bind roles to files.** `[SPEC]`, `[HARNESS]`, `[HANDBOOK]` — bind to what
+2. **Bind roles to files.** `[SPEC]`, `[HARNESS]`, `[OPERATE]` — bind to what
    already exists before proposing new files. An existing user manual *is* the
-   Handbook; do not create a second one beside it.
+   OPERATE plane; do not create a second one beside it.
 3. **Triage each section** with the §6.11 routing rule. Produce a move plan:
    every `from → to`, every new file, every section to be present-state-scrubbed.
 4. **Preview the plan and get confirmation before moving anything.** This step is
@@ -361,8 +362,11 @@ Behaviour:
    non-blank lines before and after — only headings should differ. Report the
    result.
 
-A project may legitimately want only two planes (a library with no operators
-needs no Handbook). Do not manufacture a plane that has no reader.
+A project may legitimately have little to say in a plane — a library with no
+operators has a thin OPERATE plane. Create the directory anyway with an honest
+status line: an unwritten plane that exists is a visible gap, while one that was
+never created is invisible. What you must not do is manufacture *content* for a
+plane that has no reader.
 
 ### 2.5 Mode E — Tests (design or refresh test specifications)
 

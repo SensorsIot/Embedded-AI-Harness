@@ -3,7 +3,7 @@ name: fsd-engineer
 description: >
   Engineers a system's specification and its verification together — what the
   system must do, and how compliance will be demonstrated. Writes and evolves the
-  FSD, the Harness (build contract) and the Handbook (operations); turns vague
+  FSD, the Harness (build contract) and the user documentation (operations); turns vague
   intent into atomic, falsifiable, provenance-tagged requirements with state
   models, interface and configuration catalogues, a security profile, complete
   test specifications, host/target/bench tiers, and traceability that never
@@ -86,7 +86,7 @@ Seven modes. Pick by what already exists and what the user is asking for.
 | **create** | `/fsd-engineer` + description | No FSD yet. **Harvest first** (§4), then ask only what is still open — 1–3 questions per round — and generate. |
 | **update** | `/fsd-engineer update <path>` + delta | An FSD exists. Apply the delta surgically — never regenerate the whole file, never renumber a stable ID. |
 | **grill** | `/fsd-engineer --grill` + description | **Cold start only** — invoked with no prior conversation and no decisions file, on a brief too thin to infer architecture from. If step 2 above already happened, use `create` instead. One question at a time, depth-first, each with a recommended answer. |
-| **planes** | `/fsd-engineer --planes [path]` | Write the Harness and Handbook, or retrofit an existing doc set into the three planes. Preview the move plan and get confirmation **before** moving anything. |
+| **planes** | `/fsd-engineer --planes [path]` | Write the Harness and UserDocumentation, or retrofit an existing doc set into the three planes. Preview the move plan and get confirmation **before** moving anything. |
 | **tests** | `/fsd-engineer tests <path>` | The FSD is stable but its verification is not. Runs clause inventory → tier allocation → controllability → required test classes, emitting specs plus an updated matrix. |
 | **audit** | `/fsd-engineer audit` | Answers "are we actually done?" — reports the lifecycle state of every requirement and the gaps by category. Expect most requirements to sit below *verified*; that is information, not failure. |
 | **reconcile** | `/fsd-engineer reconcile` | Code, tests, and documents drifted apart. Identifies undocumented behaviour, obsolete tests, stale evidence, contradictions — and **proposes**, never silently adopts. |
@@ -284,13 +284,13 @@ specs rot. Route every sentence to exactly one:
 
 | Plane | Question | Document |
 |-------|----------|----------|
-| **WHAT** | What must be true? | FSD |
-| **HOW** | How is it built and changed? | Harness |
-| **OPERATE** | How do I run it? | Handbook |
+| **WHAT** | What must be true? | `docs/Functionality/` |
+| **HOW** | How is it built and changed? | `docs/Harness/` |
+| **OPERATE** | How do I run it? | `docs/UserDocumentation/` |
 
 Ask in order, first yes wins: externally observable ⇒ **FSD**; constrains how
 code is written or verified ⇒ **Harness**; tells a human how to run or recover it
-⇒ **Handbook**; about collaborating with the assistant ⇒ `CLAUDE.md`, which is not
+⇒ **UserDocumentation**; about collaborating with the assistant ⇒ `CLAUDE.md`, which is not
 a plane; why a past decision was made ⇒ commit message or ADR.
 
 Two questions settle the hard cases: *could a black-box tester verify it?* (yes ⇒
@@ -352,16 +352,27 @@ Full model, tag rules, evidence fields, gap categories, optional coverage check:
 
 The repository comes first (§0) — this is the skeleton to create it with.
 
-Three readable planes plus machine-readable verification data:
+**One directory per plane, all three created up front:**
 
 ```text
-docs/    <project>-fsd.md · Harness/ · <project>-handbook.md
-         architecture-decisions.md · open-issues.md
+docs/Functionality/       WHAT   — the FSD, plus the interface specs it cites
+docs/Harness/             HOW    — 00-Overview · AI-Workflow · standards/ · project/
+docs/UserDocumentation/   OPERATE— 00-Overview, even when nothing is deployable yet
+docs/decisions.md · docs/open-issues.md      inputs and rationale — not planes
+
 verification/   requirements · states · interfaces · configuration ·
                 test-specs/ · traceability · implementation-handoff · gaps
 tests/{host,target,bench}/      executable tests (written by dev skills)
 test-results/<run-id>/          evidence (captured by workbench skills)
 ```
+
+**Create all three plane directories on the first commit, including the empty
+one.** A plane that was never created is invisible — nobody misses a directory
+that does not exist, and the first person to install the system finds there are no
+instructions exactly when they need them. `UserDocumentation/00-Overview.md`
+therefore ships from the start carrying an honest status line; instantiate it from
+`references/templates/user-documentation/`. Git cannot track an empty directory,
+so the stub is what makes the plane real.
 
 `verification/` is **not** a fourth plane — it is the machine-readable form of
 WHAT; `test-results/` is evidence, not documentation. Small projects may use
@@ -403,7 +414,7 @@ passed is worth nothing.
 | `references/test-spec/` | Human-readable test-document format and section templates |
 | `references/traceability.md` | Seven lifecycle states, `@fsd` tags, evidence fields, four gap categories, coverage check |
 | `references/three-planes.md` | WHAT / HOW / OPERATE model, routing rule, retrofit procedure |
-| `references/templates/` | Harness and Handbook templates to instantiate |
+| `references/templates/` | `00-Overview` (the plane map, at `docs/` root) plus Harness and UserDocumentation templates |
 | `references/canonical-fsd-structure.md` | The Parts scheme and chapter skeleton |
 | `references/test-architecture.md` | Layering, tier profiles, component × tier matrix |
 | `references/complexity-scaling.md` | Depth scaling by inferred complexity |

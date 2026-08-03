@@ -26,7 +26,7 @@ nothing.
 - The **FSD** absorbs new or changed behaviour — *verify, don't transcribe*. If
   the code deviates from the intended spec, fix the code; do not enshrine the
   defect as a requirement.
-- The **Handbook** absorbs anything an operator would notice.
+- The **user documentation** absorbs anything an operator would notice.
 - The **Harness stays put** unless the change taught a rule that is *universally*
   true for this project, not just for this change.
 - All present-state. No "now uses", no "previously".

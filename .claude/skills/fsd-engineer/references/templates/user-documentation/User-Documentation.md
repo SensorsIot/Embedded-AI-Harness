@@ -1,8 +1,19 @@
-# {{PROJECT}} — Handbook (OPERATE)
+# {{PROJECT}} — User Documentation (OPERATE)
 
 How to run {{PROJECT}}. Human procedures, present-state. Step-by-step operational
 detail lives here and nowhere else — the FSD says what the system does, this says
 how you make it do it.
+
+**Status: <nothing is deployable yet / partial / complete>.**
+
+Keep that line honest and current. This plane exists from the first commit even
+when there is nothing to operate yet, because an absent OPERATE plane is
+invisible: nobody notices a directory that was never created, and the first person
+to install the system discovers there are no instructions at the moment they need
+them. A directory that says "nothing is deployable yet" is a promise with a due
+date; an empty `docs/` is an oversight nobody can see.
+
+Delete this paragraph and the status line once the sections below are real.
 
 ## Access and prerequisites
 
