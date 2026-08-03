@@ -2968,14 +2968,6 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-1302 | Signal generator frequency list (gpclk) | Signal Generator | No |
 | WT-1303 | Signal generator Morse keying | Signal Generator | No |
 | WT-1304 | Signal generator replaces previous | Signal Generator | No |
-| WT-1900 | SDR status reports tool/dongle detection | SDR Receiver | No |
-| WT-1901 | SDR capture returns decoded events | SDR Receiver | Yes |
-| WT-1902 | SDR capture with protocol filter | SDR Receiver | Yes |
-| WT-1903 | SDR analyze returns pulse timing | SDR Receiver | Yes |
-| WT-1904 | SDR capture rejects concurrent request | SDR Receiver | Yes |
-| WT-1905 | SDR capture clean error when dongle absent | SDR Receiver | No |
-| WT-1906 | SDR flex decoder returns custom-protocol packets | SDR Receiver | Needs a transmitter emitting that protocol — no automated test; covered by WT-1908 or a manual capture with the remote in hand |
-| WT-1907 | SDR reports rssi/snr; strong-gate separates signal from noise | SDR Receiver | Yes |
 | WT-1908 | SDR RF path: DUT-transmit window has higher SNR than quiet baseline | RF Path | Yes |
 | WT-1909 | RF loopback self-test: bench transmitter (86.784 MHz, 5th harmonic) lifts peak_db at 433.92 MHz by >= 15 dB at fixed gain | RF Path | No |
 | WT-2200 | `/api/devices` returns slots with labels and state | Serial Architecture | No |
