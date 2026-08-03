@@ -1,5 +1,32 @@
 # Embedded Workbench — Functional Specification Document
 
+## Contents
+
+| § | Section | Covers |
+|---|---------|--------|
+| 1 | [Overview](#1-overview) | Purpose, architecture, hardware, modes, components, state model |
+| 2 | [Definitions](#2-definitions) | Terms and the slot-based identity principle |
+| 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery |
+| 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
+| 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository |
+| 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
+| 7 | [Debug Services](#7-debug-services) | FR-024 – FR-026: USB JTAG, dual-USB, ESP-Prog |
+| 8 | [RF Instruments](#8-rf-instruments) | FR-027, FR-028: signal generator, SDR receiver |
+| 9 | [Client Interfaces](#9-client-interfaces) | MCP server |
+| 10 | [Web Portal](#10-web-portal) | Single-page UI |
+| 11 | [Non-Functional Requirements](#11-non-functional-requirements) | Performance, reliability, constraints |
+| 12 | [Test Cases](#12-test-cases) | Verification |
+| 13 | [Revision History](#13-revision-history) | |
+| A | [Technical Details](#appendix-a-technical-details) | Implementation notes |
+| B | [Slot Learning Workflow](#appendix-b-slot-learning-workflow) | |
+| C | [Implementation Tasks & Deliverables](#appendix-c-implementation-tasks--deliverables) | |
+| D | [HTTP API & MCP Reference](#appendix-d-http-api--mcp-reference) | **Complete endpoint and tool reference** |
+
+Operating instructions — building the Pi, wiring, and driving each service —
+are in the [User Manual](Embedded-Workbench-User-Manual.md).
+
+---
+
 ## 1. Overview
 
 ### 1.1 Purpose
@@ -21,8 +48,8 @@ and reporting station events — all controlled over the same HTTP API.
        │                                               │
        ▼                                               ▼
 ┌─────────────────────────┐              ┌─────────────────────────────────┐
-│  Serial Portal Pi       │              │  VM Host (192.168.0.160)        │
-│  workbench.local           │              │                                 │
+│  Embedded Workbench     │              │  VM Host (192.168.0.160)        │
+│  workbench.local        │              │                                 │
 │                         │              │  ┌─────────────────────┐        │
 │  ┌───────────┐          │              │  │ Container A         │        │
 │  │ SLOT1     │──────────┼─ :4001 ──────┼──│ rfc2217://:4001     │        │
@@ -106,7 +133,7 @@ Mode is switched via `POST /api/wifi/mode` or the web UI toggle.
 | workbench.json | /etc/rfc2217/workbench.json | Hardware config (GPIO pins, debug probes) — optional |
 | workbench_driver.py | pytest/ | HTTP test driver for the WiFi instrument |
 | conftest.py | pytest/ | Pytest fixtures and CLI options |
-| test_instrument.py | pytest/ | WiFi workbench self-tests (WT-xxx) |
+| workbench_test.py | pytest/ | Workbench self-tests |
 | signal_generator.py | /usr/local/bin/signal_generator.py | Unified RF source — Si5351 + PE4302 attenuator, GPCLK fallback, Morse keyer |
 | si5351.py | /usr/local/bin/si5351.py | Si5351A I²C clock-generator driver |
 | pe4302.py | /usr/local/bin/pe4302.py | PE4302 3-wire serial step-attenuator driver |
@@ -627,39 +654,6 @@ ser.open()
 **Never** use `serial.Serial('rfc2217://...')` directly — it opens the port
 immediately and the RFC2217 negotiation may toggle DTR/RTS.
 
-#### 6.9 MCP Interface
-
-An MCP (Model Context Protocol) server (`mcp/workbench_mcp.py`) exposes the HTTP
-API as MCP tools, so an MCP client (Claude Desktop, Claude Code, …) can drive the
-bench directly. It is a thin **stdio proxy** — 60 tools, one per endpoint, held
-in a single `SPECS` table that mirrors the API: `GET` args become query params,
-`POST` args a JSON body, and `flash`/`ota` upload local firmware files. Adding an
-API endpoint is one row in `SPECS`.
-
-The server runs on the **client** machine (not the Pi) and reaches the workbench
-via the `WORKBENCH_URL` env var (default `http://<host>:8080`). It uses only the
-Python standard library (stdio JSON-RPC + `urllib`), so it needs **no dependency
-install** — only Python 3. It ships two ways, both in `mcp/README.md`:
-
-- **`mcp/universal-embedded-workbench.mcpb`** — a Claude Desktop extension (built
-  from `mcp/manifest.json` + the server via `npx @anthropic-ai/mcpb pack`).
-  Installed by drag-and-drop; the `workbench_url` user-config field prompts for
-  `WORKBENCH_URL` at install.
-- **manual registration** — `claude mcp add` (Claude Code) or a
-  `claude_desktop_config.json` entry.
-
-**Verified with Claude Code:**
-
-```bash
-claude mcp add workbench --env WORKBENCH_URL=http://<host>:8080 \
-  -- python3 /abs/path/to/mcp/workbench_mcp.py
-claude mcp list      # → workbench … ✔ Connected
-```
-
-The health check completes the MCP handshake and enumerates all ~60 tools; live
-tool calls (`sdr_status`, `workbench_devices`, `mqtt_status`, …) return real
-bench data. Tools surface to the client as `mcp__workbench__<name>`.
-
 ### FR-008 — Serial Reset
 
 Reset a device via DTR/RTS signals, providing a clean boot cycle without
@@ -1094,6 +1088,12 @@ WiFi side of the network:
 - While in serial-interface mode, workbench endpoints (`ap_start`, `ap_stop`,
   `sta_join`, `sta_leave`, `scan`, `http`) return a guard error
 
+## 5. Device Control & Test Support
+
+Services a test script drives to manipulate the DUT and report on its own
+progress: GPIO lines, operator prompts, session tracking, log capture, and
+the firmware repository.
+
 ### FR-017 — Human Interaction Request
 
 Some test steps require physical actions that cannot be automated — pressing a
@@ -1433,6 +1433,10 @@ client on the LAN.
 - Binary serving uses chunked reads (8 KB blocks) to avoid loading large
   files into memory
 
+## 6. Peripheral Bridges
+
+Radios and services the Pi lends to a DUT that cannot reach them itself.
+
 ### FR-022 — BLE Proxy
 
 The Pi's onboard Bluetooth radio acts as a BLE Central (client) that can
@@ -1589,6 +1593,30 @@ wt.ble_disconnect()
 - Scan results are ephemeral (not cached)
 - Only one BLE connection at a time (Raspberry Pi hardware limitation
   with single radio)
+
+### FR-029 — MQTT Broker
+
+An on-demand mosquitto broker for testing DUT MQTT clients, backed by
+`mqtt_controller.py`. The broker is open (anonymous, no auth) and listens on
+all interfaces at port 1883, so it is reachable both from the workbench AP
+(`192.168.4.1:1883`) and from the Pi's LAN address (`192.168.0.x:1883`) — a
+DUT on a NAT-bridged AP (FR-011) reaching the LAN address exercises the full
+provisioned network path.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/mqtt/status | `{running, port}` |
+| POST | /api/mqtt/start | Start the broker (idempotent); returns `{port}` |
+| POST | /api/mqtt/stop | Stop the broker |
+
+The broker is a portal-managed subprocess and stops when the portal restarts.
+
+---
+
+## 7. Debug Services
+
+Remote GDB via OpenOCD, in three variants selected by what the board
+physically exposes.
 
 ### FR-024 — GDB Debug: USB JTAG (ESP32-C3/S3 Single-Port)
 
@@ -2304,6 +2332,10 @@ wt.debug_stop("SLOT1")
 All alternatives use the same portal API — only the OpenOCD interface config
 changes.
 
+## 8. RF Instruments
+
+The bench's own transmit and receive hardware, independent of any DUT.
+
 ### FR-027 — Signal Generator (RF Source + Step Attenuator)
 
 Unified RF-source service that emits a continuous carrier, optionally
@@ -2593,26 +2625,49 @@ wt.sdr_stop()
 
 ---
 
-### FR-029 — MQTT Broker
+## 9. Client Interfaces
 
-An on-demand mosquitto broker for testing DUT MQTT clients, backed by
-`mqtt_controller.py`. The broker is open (anonymous, no auth) and listens on
-all interfaces at port 1883, so it is reachable both from the workbench AP
-(`192.168.4.1:1883`) and from the Pi's LAN address (`192.168.0.x:1883`) — a
-DUT on a NAT-bridged AP (FR-011) reaching the LAN address exercises the full
-provisioned network path.
+How clients other than raw HTTP reach the API.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/mqtt/status | `{running, port}` |
-| POST | /api/mqtt/start | Start the broker (idempotent); returns `{port}` |
-| POST | /api/mqtt/stop | Stop the broker |
+### 9.1 MCP Interface
 
-The broker is a portal-managed subprocess and stops when the portal restarts.
+An MCP (Model Context Protocol) server (`mcp/workbench_mcp.py`) exposes the HTTP
+API as MCP tools, so an MCP client (Claude Desktop, Claude Code, …) can drive the
+bench directly. It is a thin **stdio proxy** — 70 tools, one per endpoint, held
+in a single `SPECS` table that mirrors the API: `GET` args become query params,
+`POST`/`DELETE` args a JSON body, and `flash`/`ota`/`firmware_upload` upload local
+files. Adding an API endpoint is one row in `SPECS`. The two udev callbacks
+(`/api/hotplug`, `/api/wifi/lease_event`) are deliberately not exposed — they are
+fired on the Pi itself, not client-callable.
+
+The server runs on the **client** machine (not the Pi) and reaches the workbench
+via the `WORKBENCH_URL` env var (default `http://<host>:8080`). It uses only the
+Python standard library (stdio JSON-RPC + `urllib`), so it needs **no dependency
+install** — only Python 3. It ships two ways, both covered in the
+[User Manual §15.2](Embedded-Workbench-User-Manual.md#152-mcp-server):
+
+- **`mcp/universal-embedded-workbench.mcpb`** — a Claude Desktop extension (built
+  from `mcp/manifest.json` + the server via `npx @anthropic-ai/mcpb pack`).
+  Installed by drag-and-drop; the `workbench_url` user-config field prompts for
+  `WORKBENCH_URL` at install.
+- **manual registration** — `claude mcp add` (Claude Code) or a
+  `claude_desktop_config.json` entry.
+
+**Verified with Claude Code:**
+
+```bash
+claude mcp add workbench --env WORKBENCH_URL=http://<host>:8080 \
+  -- python3 /abs/path/to/mcp/workbench_mcp.py
+claude mcp list      # → workbench … ✔ Connected
+```
+
+The health check completes the MCP handshake and enumerates all 70 tools; live
+tool calls (`sdr_status`, `workbench_devices`, `mqtt_status`, …) return real
+bench data. Tools surface to the client as `mcp__workbench__<name>`.
 
 ---
 
-## 5. Web Portal
+## 10. Web Portal
 
 The portal serves a single-page HTML UI at `GET /` (port 8080):
 
@@ -2639,11 +2694,11 @@ The portal serves a single-page HTML UI at `GET /` (port 8080):
 - **Auto-refresh** — every 2 seconds via `setInterval`, fetches
   `/api/devices`, `/api/wifi/mode`, `/api/wifi/ap_status`, `/api/log`,
   `/api/human/status`, and `/api/test/progress`
-- **Title** — shows `{hostname} — Serial Portal` when hostname is available
+- **Title** — `RFC2217 Embedded Workbench`
 
 ---
 
-## 6. Non-Functional Requirements
+## 11. Non-Functional Requirements
 
 ### 6.1 Must Tolerate
 
@@ -2809,7 +2864,7 @@ Step 2: Try USB DTR/RTS reset (fallback)
 
 ---
 
-## 7. Test Cases
+## 12. Test Cases
 
 ### 7.1 Serial Tests
 
@@ -2826,9 +2881,9 @@ Step 2: Try USB DTR/RTS reset (fallback)
 
 ### 7.2 WiFi Workbench Tests
 
-Tests are implemented in `pytest/test_instrument.py` and run via:
+Tests are implemented in `pytest/workbench_test.py` and run via:
 ```
-pytest test_instrument.py --wt-url http://<pi-ip>:8080
+pytest workbench_test.py --wt-url http://<pi-ip>:8080
 ```
 
 Add `--run-dut` to include tests that require a WiFi device under test.
@@ -2962,7 +3017,7 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 
 ---
 
-## 8. Revision History
+## 13. Revision History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
@@ -2991,6 +3046,8 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | 9.2 | 2026-07-05 | Claude | SDR receiver (FR-028): RTL-SDR + `rtl_433` receive-side service, counterpart to the transmit-only signal generator. `decode` mode returns decoded records (remotes/sensors/TPMS); `analyze` mode returns raw pulse timing for recapturing OOK remotes. Single-instance, bounded captures. New `sdr_controller.py`; 4 API endpoints `/api/sdr/{status,capture,analyze,stop}`; driver methods `sdr_*`; WT-1900–1905 test cases. |
 | 9.3 | 2026-07-05 | Claude | Captive-portal provisioning + LAN bridge, verified against the LoRa32 awning (WiFiManager DUT). `enter-portal` parameterized for arbitrary portal forms (WiFiManager `/wifisave`, `s`/`p` + `extra` MQTT fields) with an `internet` option; AP mode gains NAT bridging to `eth0` (`ap_start internet=true`, FR-011) so a provisioned DUT reaches the LAN/internet; MQTT broker wired to the API (FR-029, `/api/mqtt/*`, `mqtt_controller.py`). SDR (FR-028) gains a `flex` `-X` custom-decoder param and `-M level` rssi/snr signal-vs-noise reporting. Test cases WT-1906–1908 (SDR flex/RSSI, RF path), WT-2000–2002 (broker), WT-2100–2102 (captive-portal provisioning). |
 | 9.4 | 2026-07-05 | Claude | SDR (FR-028) gains: fixed-gain (`-g`) + `peak_freq_hz`/`notch_hz` on power; phased `acquire` (locate→level→decode→classify) with `tools/sdr_acquire.py` CLI and live activity-log prompts; the interactive **live console** (persistent `rtl_433`, ring-buffer fast-poll `/api/sdr/live*`, RSSI meter, presets, `-A` in every mode so the signal meter is decode-independent); **AI Sherlock** session log (`/api/sdr/log*`) for AI reverse-engineering of unknown remotes; USB self-heal + `/api/sdr/reset`; and an `rtl_433` device database (`pi/config/rtl_433.conf`) shipping the Euromot Awning remote. New skill `sdr-receiver`. |
+| 9.5 | 2026-08-03 | Claude | MCP surface completed to 70 tools — added `firmware_upload/delete`, `udplog_get/clear`, `debug_group`, `test_update`, `wifi_events`, `human_interaction/done/cancel`; `DELETE` added as a transport method. Only the two udev callbacks (`/api/hotplug`, `/api/wifi/lease_event`) remain unexposed. |
+| 10.0 | 2026-08-03 | Claude | Documentation consolidated to two documents: this FSD (WHAT) and the User Manual (HOW). The separate user manual, WiFi HTTP manual, skill-testing guide, and the `pi/` and `mcp/` READMEs merged into `Embedded-Workbench-User-Manual.md`; root `README.md` reduced to a landing page. FSD sections regrouped by subsystem — FR-017–FR-021 out of "WiFi Service" into §5, BLE + MQTT into §6, the three GDB specs into §7, signal generator + SDR into §8, and the MCP interface promoted out of FR-006 into §9. FR numbers and clause text unchanged. |
 
 ---
 
@@ -3389,7 +3446,7 @@ Add this to /etc/rfc2217/workbench.json:
 | `gpclk.py` | BCM2835/7 GPCLK hardware clock primitive (GPIO 5/6) |
 | `morse.py` | Backend-agnostic Morse keyer used by `signal_generator` |
 | `debug_controller.py` | GDB debug manager — OpenOCD lifecycle, probe allocation, slot state coordination |
-| `mcp/workbench_mcp.py` | MCP server exposing the whole HTTP API as 60 MCP tools (stdio proxy, `WORKBENCH_URL`, stdlib-only) |
+| `mcp/workbench_mcp.py` | MCP server exposing the whole HTTP API as 70 MCP tools (stdio proxy, `WORKBENCH_URL`, stdlib-only) |
 | `mcp/manifest.json`, `mcp/*.mcpb` | Claude Desktop extension manifest + packed bundle for one-click install |
 | `scripts/espota.py` | ArduinoOTA push tool used by `POST /api/ota` |
 
@@ -3544,15 +3601,16 @@ RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 
 ### D.15 MCP Interface
 
-`mcp/workbench_mcp.py` exposes this entire API as **60 MCP tools** (one per
+`mcp/workbench_mcp.py` exposes this entire API as **70 MCP tools** (one per
 endpoint, from a single `SPECS` table) for MCP clients such as Claude Desktop and
 Claude Code. It is a thin **stdio proxy** that runs on the client machine and
-reaches the bench via `WORKBENCH_URL`: `GET` args become query params, `POST`
-args a JSON body, and `flash`/`ota` upload local firmware files. Adding an
+reaches the bench via `WORKBENCH_URL`: `GET` args become query params, `POST`/`DELETE`
+args a JSON body, and `flash`/`ota`/`firmware_upload` upload local files. Adding an
 endpoint above is one row in `SPECS`. The server is standard-library only (no
 `pip install`); it ships as a one-click Claude Desktop `.mcpb` extension
 (`mcp/manifest.json`) or via manual `claude mcp add` / `claude_desktop_config.json`.
-Install and client setup: `mcp/README.md`. Verified with Claude Code
+Install and client setup: [User Manual §15.2](Embedded-Workbench-User-Manual.md#152-mcp-server).
+Verified with Claude Code
 (`claude mcp add` → `claude mcp list` → ✔ Connected).
 
 ---

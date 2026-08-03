@@ -168,12 +168,15 @@ Standard test cases for ESP32 WiFi Access Point and captive portal provisioning.
 ### Workbench Commands
 
 ```bash
-# Enter captive portal via workbench
-curl -X POST http://workbench.local:8080/api/wifi/enter-portal \
-  -H 'Content-Type: application/json' -d '{"slot": "slot-1"}'
+# Trigger the DUT into captive-portal mode (double-reset on its slot)
+curl -X POST http://workbench.local:8080/api/enter-portal \
+  -H 'Content-Type: application/json' -d '{"slot": "SLOT1", "resets": 2}'
 
-# Provision WiFi via workbench
-curl -X POST http://workbench.local:8080/api/wifi/provision \
+# Provision the DUT through its portal: the workbench joins the DUT's AP,
+# submits the WiFiManager form, then hosts the target network itself.
+curl -X POST http://workbench.local:8080/api/enter-portal \
   -H 'Content-Type: application/json' \
-  -d '{"ssid": "TestNetwork", "password": "testpass123"}'
+  -d '{"portal_ssid": "ESP32-Setup", "ssid": "TestNetwork", "password": "testpass123",
+       "save_path": "/wifisave", "field_ssid": "s", "field_password": "p",
+       "method": "POST", "internet": true}'
 ```

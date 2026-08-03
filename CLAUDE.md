@@ -32,11 +32,22 @@ pytest/
   conftest.py                 # pytest fixtures
   workbench_test.py           # End-to-end workbench tests
 docs/
-  Embedded-Workbench-FSD.md  # Full functional specification
+  Embedded-Workbench-FSD.md          # WHAT the bench does (Appendix D = API/MCP reference)
+  Embedded-Workbench-User-Manual.md  # HOW to build, wire, and drive it
+mcp/
+  workbench_mcp.py            # MCP stdio proxy: one tool per HTTP endpoint (stdlib only)
+  manifest.json               # Claude Desktop .mcpb bundle manifest
 container/                    # Alternate devcontainer config
-skills/esp32-test-harness/    # Claude Code skill
-skills/signal-generator/      # Signal generator skill (Si5351 + PE4302, GPCLK fallback, optional Morse keying)
+.claude/skills/               # Claude Code skills (one dir per instrument/workflow)
 ```
+
+Skills live in `.claude/skills/` and are grouped by what they drive: the instruments
+(`signal-generator`, `sdr-receiver`, `workbench-wifi`, `workbench-mqtt`, `workbench-ble`,
+`workbench-logging`, `workbench-debug`), the build/flash toolchains (`esp-idf-handling`,
+`esp-pio-handling`), and the test/spec workflows (`esp32-test-harness`,
+`workbench-test-handling`, `workbench-integration`, `fsd-writer`, `test-designer`).
+Each wraps `/api/` calls — when an endpoint's contract changes, update the skills that
+name it and Appendix D of the FSD together.
 
 ## Commands
 
@@ -66,9 +77,18 @@ mypy --strict .
 - REST API endpoints under `/api/` namespace
 - Slot-based identity: TCP ports tied to physical USB connectors, not devices
 
-## Specifications
+## Documentation
 
-- `docs/Embedded-Workbench-FSD.md` -- Full functional specification (Embedded Workbench)
+The project has exactly **two** documents. Everything user-facing belongs in one
+of them -- don't add a third, and don't start per-directory READMEs.
+
+- `docs/Embedded-Workbench-FSD.md` -- WHAT the bench does: FRs grouped by
+  subsystem, plus Appendix D, the complete HTTP API + MCP tool reference.
+- `docs/Embedded-Workbench-User-Manual.md` -- HOW to operate it: build the Pi,
+  wire it, drive each service, validate, troubleshoot.
+
+Root `README.md` is the GitHub landing page only -- overview, features, install,
+and links into the two docs. Keep it short; put detail in the manual.
 
 ## Key Conventions
 

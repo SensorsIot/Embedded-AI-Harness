@@ -1,7 +1,7 @@
 """Pytest fixtures for the Embedded Workbench (HTTP-only, Pi backend).
 
 Usage:
-    pytest test_instrument.py --wt-url http://<pi-ip>:8080
+    pytest workbench_test.py --wt-url http://<pi-ip>:8080
 """
 
 import os

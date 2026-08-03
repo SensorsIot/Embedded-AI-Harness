@@ -31,8 +31,10 @@ def p(**props):
     return props
 
 
-# name -> spec. GET => args become query params; POST => JSON body;
-# UPLOAD => the multipart file endpoints (flash/ota), handled specially.
+# name -> spec. GET => args become query params; POST/DELETE => JSON body;
+# UPLOAD => the multipart file endpoints (flash/ota/firmware_upload), handled specially.
+# /api/hotplug and /api/wifi/lease_event are deliberately absent: they are udev
+# callbacks fired on the Pi itself, not client-callable operations.
 SPECS = [
     dict(name="workbench_devices", method="GET", path="/api/devices",
          desc="List USB slots and connected devices (topology, ports, chip, state)."),
@@ -58,6 +60,15 @@ SPECS = [
                  port=dict(**S_INT, default=3232), auth=dict(**S_STR, default="")),
          required=["target", "firmware_path"], timeout=220),
     dict(name="firmware_list", method="GET", path="/api/firmware/list", desc="List stored firmware images."),
+    dict(name="firmware_upload", method="UPLOAD", path="/api/firmware/upload",
+         desc="Store a firmware image on the Pi's firmware server (for ESP32 HTTP OTA pulls). "
+              "Reads firmware_path locally and files it under `project`.",
+         props=p(project=dict(**S_STR, description="project folder name"),
+                 firmware_path=dict(**S_STR, description="local path to the image")),
+         required=["project", "firmware_path"], timeout=120),
+    dict(name="firmware_delete", method="DELETE", path="/api/firmware/delete",
+         desc="Delete a stored firmware image.",
+         props=p(project=S_STR, filename=S_STR), required=["project", "filename"]),
 
     dict(name="serial_reset", method="POST", path="/api/serial/reset",
          desc="Reboot the DUT on a slot (DTR/RTS) and capture boot output.",
@@ -73,6 +84,12 @@ SPECS = [
          desc="Trigger manual flap recovery on a slot.", props=p(slot=S_STR), required=["slot"]),
     dict(name="serial_release", method="POST", path="/api/serial/release",
          desc="Release GPIO after flashing and reboot the slot.", props=p(slot=S_STR), required=["slot"]),
+    dict(name="udplog_get", method="GET", path="/api/udplog",
+         desc="Read UDP debug-log lines pushed by DUTs (port 5555) — use when USB serial is "
+              "occupied. Poll incrementally with `since` (timestamp from the previous call).",
+         props=p(since=dict(**S_NUM, default=0), source=dict(**S_STR, description="filter by sender IP"),
+                 limit=dict(**S_INT, default=200))),
+    dict(name="udplog_clear", method="DELETE", path="/api/udplog", desc="Clear the UDP log buffer."),
 
     dict(name="sdr_status", method="GET", path="/api/sdr/status", desc="RTL-SDR dongle + tool detection, active state."),
     dict(name="sdr_capture", method="POST", path="/api/sdr/capture",
@@ -133,6 +150,10 @@ SPECS = [
          props=p(method=dict(**S_STR, default="GET"), url=S_STR, timeout=dict(**S_INT, default=10)),
          required=["url"], timeout=40),
     dict(name="wifi_ping", method="GET", path="/api/wifi/ping", desc="WiFi reachability check."),
+    dict(name="wifi_events", method="GET", path="/api/wifi/events",
+         desc="Long-poll station join/leave events on the SoftAP (DHCP leases). "
+              "`timeout` s to wait for the next event; 0 returns immediately.",
+         props=p(timeout=dict(**S_NUM, default=0)), timeout=90),
     dict(name="enter_portal", method="POST", path="/api/enter-portal",
          desc="Provision a captive-portal DUT onto the workbench AP (WiFiManager: pass "
               "portal_ssid, ssid, password, save_path=/wifisave, field_ssid=s, field_password=p, "
@@ -161,9 +182,28 @@ SPECS = [
     dict(name="debug_probes", method="GET", path="/api/debug/probes", desc="List attached debug probes."),
     dict(name="debug_start", method="POST", path="/api/debug/start", desc="Start OpenOCD for a slot.", props=p(slot=S_STR), required=["slot"], timeout=40),
     dict(name="debug_stop", method="POST", path="/api/debug/stop", desc="Stop OpenOCD for a slot.", props=p(slot=S_STR), required=["slot"]),
+    dict(name="debug_group", method="GET", path="/api/debug/group",
+         desc="Slot groups by role (jtag/uart/app) with their TCP and GDB ports — "
+              "use to find which slots belong to the same physical board."),
 
     dict(name="test_progress", method="GET", path="/api/test/progress", desc="Test-session progress."),
+    dict(name="test_update", method="POST", path="/api/test/update",
+         desc="Drive the Pi display's test panel. Start a session by passing `spec` (with "
+              "`phase`/`total`); then `current` to show the running step, `result` to record a "
+              "finished one, `end`:true to close the session.",
+         props=p(spec=dict(**S_STR, description="test spec name — starts a new session"),
+                 phase=S_STR, total=S_INT,
+                 current=dict(**S_STR, description="step now running"),
+                 result={"type": "object", "description": "finished step, e.g. {name, status}"},
+                 end=dict(**S_BOOL, description="end the session"))),
     dict(name="human_status", method="GET", path="/api/human/status", desc="Pending operator-interaction request."),
+    dict(name="human_interaction", method="POST", path="/api/human-interaction",
+         desc="Ask the operator to do something physical (press a button, swap a cable) and BLOCK "
+              "until they click Done/Cancel on the Pi display, or `timeout` s elapse. "
+              "Returns {confirmed: bool}.",
+         props=p(message=S_STR, timeout=dict(**S_NUM, default=120)), required=["message"], timeout=300),
+    dict(name="human_done", method="POST", path="/api/human/done", desc="Confirm the pending operator request (as if Done was clicked)."),
+    dict(name="human_cancel", method="POST", path="/api/human/cancel", desc="Cancel the pending operator request."),
 
     dict(name="proxy_start", method="POST", path="/api/start", desc="Start the RFC2217 proxy for a slot.", props=p(slot_key=S_STR, devnode=S_STR)),
     dict(name="proxy_stop", method="POST", path="/api/stop", desc="Stop the RFC2217 proxy for a slot.", props=p(slot_key=S_STR)),
@@ -195,6 +235,10 @@ def _upload_parts(spec, args):
         if args.get("auth"):
             fields["auth"] = args["auth"]
         return fields, [("firmware", "firmware.bin", fw)]
+    if spec["name"] == "firmware_upload":
+        path = args["firmware_path"]
+        with open(path, "rb") as f:
+            return {"project": args["project"]}, [("file", os.path.basename(path), f.read())]
     if spec["name"] == "flash":
         fields = {"slot": args["slot"], "chip": args.get("chip", "esp32"), "baud": args.get("baud", "921600")}
         if args.get("erase"):
@@ -216,9 +260,9 @@ def _http(spec, args):
         if q:
             url += "?" + urllib.parse.urlencode(q)
         req = urllib.request.Request(url, method="GET")
-    elif method == "POST":
+    elif method in ("POST", "DELETE"):
         body = json.dumps({k: v for k, v in args.items() if v is not None}).encode()
-        req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json"})
+        req = urllib.request.Request(url, data=body, method=method, headers={"Content-Type": "application/json"})
     elif method == "UPLOAD":
         fields, files = _upload_parts(spec, args)
         boundary = "----wbmcp" + os.urandom(8).hex()

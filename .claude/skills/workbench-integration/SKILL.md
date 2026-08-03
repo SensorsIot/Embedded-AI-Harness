@@ -139,7 +139,7 @@ Also check:
 ### Step 4: Add missing modules (Enforce Contract 2)
 
 Follow this decision tree. For each missing module, copy from
-`workbench-test/main/` and customize. These templates implement the exact process
+`test-firmware/main/` and customize. These templates implement the exact process
 flows required by the **Workbench Compatibility Contract** (Contract 2) — WiFi
 captive portal, BLE NUS command protocol, OTA via HTTP endpoint, and the
 canonical boot sequence:
@@ -149,26 +149,26 @@ Does the project use WiFi? --NO--> Skip WiFi, UDP, OTA
   |YES
   v
 Has udp_log.c? --YES--> Check log message exists
-  |NO --> Copy from workbench-test
+  |NO --> Copy from test-firmware
   v
 Has wifi_prov.c? --YES--> Check AP_SSID, check wifi_prov_reset()
-  |NO --> Copy from workbench-test, customize AP_SSID
+  |NO --> Copy from test-firmware, customize AP_SSID
   v
 Needs OTA? --NO--> Skip
   |YES
   v
 Has ota.c? --YES--> Check OTA_DEFAULT_URL, check log messages
-  |NO --> Copy from workbench-test, customize URL
+  |NO --> Copy from test-firmware, customize URL
          Ensure partitions.csv has OTA slots
   v
 Uses BLE? --NO--> Skip BLE modules
   |YES
   v
 Has ble_nus.c? --YES--> Check device name
-  |NO --> Copy from workbench-test, customize name
+  |NO --> Copy from test-firmware, customize name
   v
 Has cmd_handler.c? --YES--> Check CMD_OTA + CMD_WIFI_RESET exist
-  |NO --> Copy from workbench-test, add project-specific opcodes
+  |NO --> Copy from test-firmware, add project-specific opcodes
   v
 Has heartbeat task? --YES--> Check "alive" pattern
   |NO --> Add to app_main.c
@@ -178,7 +178,7 @@ Has "Init complete"? --YES--> Done
 ```
 
 When copying files:
-- Read the template source from workbench-test
+- Read the template source from test-firmware
 - Customize project-specific values (AP_SSID, BLE name, OTA URL, NVS namespace)
 - Add or remove project-specific opcodes in cmd_handler
 - Write the customized file to the project
@@ -210,7 +210,7 @@ Update the project's build configuration:
 
 **sdkconfig.defaults** — verify required options are set (NimBLE, partition table, flash size, etc.). See `esp-idf-handling` skill for flash size defaults.
 
-**dns_server component** — copy `workbench-test/components/dns_server/` if project needs captive portal but doesn't have it
+**dns_server component** — copy `test-firmware/components/dns_server/` if project needs captive portal but doesn't have it
 
 ### Step 7: Update app_main.c
 
@@ -255,7 +255,7 @@ Fix any compilation errors. Common issues:
 ### Step 12: Summary report
 
 List what was added/changed:
-- New files copied from workbench-test (with customizations noted)
+- New files copied from test-firmware (with customizations noted)
 - Modified files (what changed)
 - Build result
 - Any issues found and fixed
