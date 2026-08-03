@@ -561,17 +561,31 @@ class WorkbenchDriver:
 
     def sdr_power(self, freq_hz: Optional[int] = None,
                   duration_s: Optional[int] = None,
-                  span_hz: int = 40000, bin_hz: int = 2000) -> dict:
+                  span_hz: int = 40000, bin_hz: int = 2000,
+                  notch_hz: int = 0,
+                  gain: Optional[float] = None) -> dict:
         """Narrowband RF power (rtl_power) around freq_hz → {peak_db, mean_db}.
 
         A carrier at the frequency lifts peak_db above the noise floor, which
         detects a transmitter that decode-based methods miss in band noise.
+
+        Pass a fixed ``gain`` (dB) whenever the number will be compared against a
+        threshold or another reading. Left on AGC the tuner rescales itself from
+        whatever it saw recently, so the same quiet band can read 15 dB apart
+        minutes apart and a strong carrier is compressed instead of standing out.
+
+        ``notch_hz`` excludes bins within that distance of the tuner centre,
+        where the dongle's DC spike always sits.
         """
         body: dict = {"span_hz": span_hz, "bin_hz": bin_hz}
         if freq_hz is not None:
             body["freq_hz"] = freq_hz
         if duration_s is not None:
             body["duration_s"] = duration_s
+        if notch_hz:
+            body["notch_hz"] = notch_hz
+        if gain is not None:
+            body["gain"] = gain
         return self._api_post("/api/sdr/power", body, timeout=150)
 
     def sdr_acquire(self, freq_hz: Optional[int] = None,

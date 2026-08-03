@@ -107,7 +107,9 @@ SPECS = [
          props=p(freq_hz=dict(**S_INT, default=433920000), duration_s=dict(**S_INT, default=5),
                  span_hz=dict(**S_INT, default=500000), bin_hz=dict(**S_INT, default=10000),
                  notch_hz=dict(**S_INT, description="exclude bins within this distance of "
-                               "the tuner centre, where the dongle's DC spike sits")), timeout=60),
+                               "the tuner centre, where the dongle's DC spike sits"),
+                 gain=dict(**S_NUM, description="fixed tuner gain dB; pin it for any "
+                           "reading compared against a threshold (AGC rescales)")), timeout=60),
     dict(name="sdr_acquire", method="POST", path="/api/sdr/acquire",
          desc="Phased guided receive: locate -> level -> decode -> classify.",
          props=p(freq_hz=dict(**S_INT, default=433920000)), timeout=120),

@@ -2496,7 +2496,7 @@ terminates an active capture early.
 | GET | /api/sdr/status | — | Tool/dongle detection + active-capture state |
 | POST | /api/sdr/capture | `{freq_hz?, duration_s?, protocols?, sample_rate?, flex?, gain?}` | Decode RF for a window; returns decoded records + signal levels |
 | POST | /api/sdr/analyze | `{freq_hz?, duration_s?, gain?}` | Pulse-analyzer capture for recapturing a remote |
-| POST | /api/sdr/power | `{freq_hz?, duration_s?, span_hz?, bin_hz?, notch_hz?}` | Narrowband RF power (rtl_power) → `{peak_db, peak_freq_hz, mean_db}`. `notch_hz` excludes bins within that distance of the tuner centre, where the dongle's DC spike sits |
+| POST | /api/sdr/power | `{freq_hz?, duration_s?, span_hz?, bin_hz?, notch_hz?, gain?}` | Narrowband RF power (rtl_power) → `{peak_db, peak_freq_hz, mean_db}`. `notch_hz` excludes bins within that distance of the tuner centre, where the dongle's DC spike sits |
 | POST | /api/sdr/acquire | `{freq_hz?, span_hz?, bin_hz?, gains?, dwell_s?, decode_s?, flex?, wait_s?}` | Phased guided receive → per-phase report + `summary` |
 | POST | /api/sdr/stop | — | Terminate an in-progress capture |
 
@@ -2977,6 +2977,15 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-1906 | SDR flex decoder returns custom-protocol packets | SDR Receiver | Yes |
 | WT-1907 | SDR reports rssi/snr; strong-gate separates signal from noise | SDR Receiver | Yes |
 | WT-1908 | SDR RF path: DUT-transmit window has higher SNR than quiet baseline | RF Path | Yes |
+| WT-1909 | RF loopback self-test: bench transmitter (86.784 MHz, 5th harmonic) lifts peak_db at 433.92 MHz by >= 15 dB at fixed gain | RF Path | No |
+| WT-2200 | `/api/devices` returns slots with labels and state | Serial Architecture | No |
+| WT-2201 | Present device has `detected_chip` set | Serial Architecture | Yes |
+| WT-2202 | Every present DUT slot has a detected chip | Serial Architecture | Yes |
+| WT-2203 | `GET /api/serial/output` returns buffered lines | Serial Architecture | Yes |
+| WT-2204 | `serial_output` respects the `since` timestamp filter | Serial Architecture | Yes |
+| WT-2205 | `serial_monitor` reads from the buffer, not hardware | Serial Architecture | Yes |
+| WT-2206 | `serial_monitor` matches a pattern from the buffer | Serial Architecture | Yes |
+| WT-2207 | Multiple slots independently detect their chips | Serial Architecture | Yes |
 | WT-2000 | MQTT broker start reports running + port 1883 | MQTT Broker | No |
 | WT-2001 | MQTT broker status when stopped | MQTT Broker | No |
 | WT-2002 | MQTT broker start is idempotent | MQTT Broker | No |
@@ -3563,7 +3572,7 @@ RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 | GET | `/api/sdr/status` | Dongle + tool detection, active state |
 | POST | `/api/sdr/capture` | Decode window `{freq_hz, duration_s, gain?, sample_rate?, flex?}` |
 | POST | `/api/sdr/analyze` | Pulse-analyzer window (raw timing + RSSI) |
-| POST | `/api/sdr/power` | `rtl_power` sweep `{freq_hz, span_hz, bin_hz, notch_hz?}` |
+| POST | `/api/sdr/power` | `rtl_power` sweep `{freq_hz, span_hz, bin_hz, notch_hz?, gain?}`. Pin `gain` for any reading compared against a threshold — on AGC the tuner rescales from recent history |
 | POST | `/api/sdr/acquire` | Phased locate → level → decode → classify |
 | POST | `/api/sdr/live/start` · `/stop` | Live rtl_433 console |
 | GET | `/api/sdr/live` · `/live/status` | Poll ring buffer `?since=` · console state |

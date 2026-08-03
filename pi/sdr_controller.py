@@ -255,7 +255,8 @@ class SdrReceiver:
 
     def power(self, freq_hz: int | None = None, duration_s: int | None = None,
               span_hz: int = 40000, bin_hz: int = 2000,
-              notch_hz: int = 0) -> dict[str, Any]:
+              notch_hz: int = 0,
+              gain: float | str | None = None) -> dict[str, Any]:
         """Measure narrowband RF power around ``freq_hz`` with rtl_power.
 
         Returns `{peak_db, mean_db}` over a small span centred on the target —
@@ -269,8 +270,16 @@ class SdrReceiver:
         duration_s = self._clamp_duration(duration_s)
         lo = freq_hz - span_hz // 2
         hi = freq_hz + span_hz // 2
+        # Without -g the tuner runs AGC, so the reported level depends on
+        # whatever the dongle saw recently: the same quiet band read -21 dB and
+        # -6 dB minutes apart on the reference bench, and a strong carrier gets
+        # compressed rather than standing clear. Any measurement compared against
+        # a threshold, or against another measurement, needs a fixed gain.
+        gain_args = []
+        if gain is not None and str(gain).strip().lower() != "auto":
+            gain_args = ["-g", str(gain)]
         cmd = [self._config["rtl_power_bin"], "-f", f"{lo}:{hi}:{bin_hz}",
-               "-i", str(duration_s), "-1", "-"]
+               "-i", str(duration_s), *gain_args, "-1", "-"]
         stdout, _ = self._run(cmd, duration_s, mode="power", freq_hz=freq_hz)
         dbs: list[float] = []
         peak_db: float | None = None

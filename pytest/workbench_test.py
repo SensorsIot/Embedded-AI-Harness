@@ -559,8 +559,79 @@ class TestSdr:
 
 
 # =====================================================================
-# WT-19xx  RF Path (DUT transmit -> SDR receive)
+# WT-19xx  RF Path
+#   WT-1909  bench transmitter -> own SDR  (no DUT, no operator)
+#   WT-1908  DUT transmit      -> SDR      (requires the awning on SLOT3)
 # =====================================================================
+
+
+class TestRfLoopback:
+    """WT-1909: the bench transmits to its own dongle — no DUT, no operator.
+
+    The signal generator tops out at 160 MHz, so it cannot reach 433.92 MHz
+    directly. It emits a square wave, though, whose odd harmonics are strong:
+    driving 86.784 MHz puts the **5th harmonic exactly on 433.92 MHz**, and the
+    dongle sees it ~20 dB above ambient. Measured on the reference bench:
+    -21.7 dBm quiet, +2.7 dBm transmitting.
+
+    That makes this the bench's RF **self-test**. Every other SDR test assumes
+    the dongle, antenna and receive path work; this is the only one that proves
+    it, and it needs nothing plugged in. If it fails, treat every other SDR
+    result as unreliable rather than debugging them individually.
+
+    Deliberately *not* asserted here: RSSI versus PE4302 attenuation. Measured
+    flat across 0–31.5 dB at both 433.92 MHz and the 86.784 MHz fundamental —
+    the attenuator is not in the path that reaches the dongle, so the coupling
+    is board-level leakage. A monotonicity test would need a deliberate coax
+    from the attenuator output to the dongle input; until that exists such a
+    test would assert something the hardware cannot do.
+    """
+
+    FUNDAMENTAL_HZ = 86_784_000      # 5th harmonic = 433.920 MHz
+    TARGET_HZ = 433_920_000
+    GAIN_DB = 20.0                   # fixed: AGC rescales and destroys the delta
+    MIN_LIFT_DB = 15.0               # measured ~24 dB at fixed gain
+
+    def _peak(self, workbench) -> float:
+        # A fixed gain is not optional here. On AGC the tuner rescales from
+        # whatever it saw recently, so the quiet floor wandered 16 dB between
+        # runs on the reference bench and the carrier was compressed to a 3.7 dB
+        # lift — the comparison this test makes is meaningless without it.
+        r = workbench.sdr_power(freq_hz=self.TARGET_HZ, duration_s=3,
+                                span_hz=200_000, bin_hz=5_000,
+                                gain=self.GAIN_DB)
+        return float(r["peak_db"])
+
+    def test_wt1909_bench_transmitter_reaches_own_receiver(self, workbench):
+        """WT-1909: siggen ON lifts peak_db at 433.92 MHz well clear of quiet."""
+        if not _sdr_available(workbench):
+            pytest.skip("no RTL-SDR dongle available")
+        hw = workbench.siggen_status().get("hardware", {})
+        if not hw.get("si5351"):
+            pytest.skip("no Si5351 signal generator present")
+
+        workbench.siggen_stop()
+        time.sleep(1)
+        quiet = self._peak(workbench)
+        try:
+            workbench.siggen_start(freq_hz=self.FUNDAMENTAL_HZ)
+            time.sleep(2)
+            transmitting = self._peak(workbench)
+        finally:
+            # Leave no carrier on air even if an assertion fails.
+            workbench.siggen_stop()
+
+        lift = transmitting - quiet
+        assert lift >= self.MIN_LIFT_DB, (
+            f"transmitting {transmitting:.1f} dB vs quiet {quiet:.1f} dB is only "
+            f"{lift:.1f} dB of lift (need {self.MIN_LIFT_DB}). Either the "
+            f"receive path is broken or the generator is not radiating.")
+
+        time.sleep(2)
+        after = self._peak(workbench)
+        assert transmitting - after >= self.MIN_LIFT_DB, (
+            f"level stayed at {after:.1f} dB after the carrier stopped — the "
+            "reading is not tracking the transmitter")
 
 
 @pytest.mark.requires_dut
@@ -1324,8 +1395,8 @@ class TestEndToEnd:
 class TestSerialArchitecture:
     """WT-19xx: Serial reader buffer, passive output, and multi-slot detection."""
 
-    def test_wt1900_devices_have_slots(self, workbench):
-        """WT-1900: /api/devices returns slots with labels and state."""
+    def test_wt2200_devices_have_slots(self, workbench):
+        """WT-2200: /api/devices returns slots with labels and state."""
         devices = workbench.get_devices()
         assert len(devices) > 0, "No slots configured"
         for d in devices:
@@ -1337,8 +1408,8 @@ class TestSerialArchitecture:
             )
 
     @requires_dut
-    def test_wt1901_present_device_detected(self, workbench):
-        """WT-1901: Present device has detected_chip set."""
+    def test_wt2201_present_device_detected(self, workbench):
+        """WT-2201: Present device has detected_chip set."""
         dev = _find_present_device(workbench)
         assert dev, "No device connected"
         chip = dev.get("detected_chip") or dev.get("debug_chip")
@@ -1352,8 +1423,8 @@ class TestSerialArchitecture:
         ), f"Unexpected chip: {chip}"
 
     @requires_dut
-    def test_wt1902_all_present_devices_detected(self, workbench):
-        """WT-1902: Every present DUT slot has a detected chip."""
+    def test_wt2202_all_present_devices_detected(self, workbench):
+        """WT-2202: Every present DUT slot has a detected chip."""
         devices = workbench.get_devices()
         duts = [d for d in devices
                 if d.get("present") and not d.get("is_probe")]
@@ -1366,8 +1437,8 @@ class TestSerialArchitecture:
             )
 
     @requires_dut
-    def test_wt1903_serial_output_buffer(self, workbench):
-        """WT-1903: GET /api/serial/output returns buffered lines."""
+    def test_wt2203_serial_output_buffer(self, workbench):
+        """WT-2203: GET /api/serial/output returns buffered lines."""
         dev = _find_present_device(workbench)
         assert dev, "No device connected"
         slot = dev["label"]
@@ -1387,8 +1458,8 @@ class TestSerialArchitecture:
             assert isinstance(entry["text"], str)
 
     @requires_dut
-    def test_wt1904_serial_output_since_filter(self, workbench):
-        """WT-1904: serial_output respects 'since' timestamp filter."""
+    def test_wt2204_serial_output_since_filter(self, workbench):
+        """WT-2204: serial_output respects 'since' timestamp filter."""
         dev = _find_present_device(workbench)
         assert dev, "No device connected"
         slot = dev["label"]
@@ -1415,8 +1486,8 @@ class TestSerialArchitecture:
             assert entry["ts"] > since_ts
 
     @requires_dut
-    def test_wt1905_serial_monitor_from_buffer(self, workbench):
-        """WT-1905: serial_monitor reads from buffer, not hardware."""
+    def test_wt2205_serial_monitor_from_buffer(self, workbench):
+        """WT-2205: serial_monitor reads from buffer, not hardware."""
         dev = _find_present_device(workbench)
         assert dev, "No device connected"
         slot = dev["label"]
@@ -1427,8 +1498,8 @@ class TestSerialArchitecture:
         assert isinstance(result.get("output"), list)
 
     @requires_dut
-    def test_wt1906_serial_monitor_pattern_match(self, workbench):
-        """WT-1906: serial_monitor matches pattern from buffer."""
+    def test_wt2206_serial_monitor_pattern_match(self, workbench):
+        """WT-2206: serial_monitor matches pattern from buffer."""
         dev = _find_present_device(workbench)
         assert dev, "No device connected"
         slot = dev["label"]
@@ -1443,8 +1514,8 @@ class TestSerialArchitecture:
         assert len(result.get("output", [])) >= 0
 
     @requires_dut
-    def test_wt1907_multi_slot_detection(self, workbench):
-        """WT-1907: Multiple slots independently detect their chips."""
+    def test_wt2207_multi_slot_detection(self, workbench):
+        """WT-2207: Multiple slots independently detect their chips."""
         devices = workbench.get_devices()
         duts = [d for d in devices
                 if d.get("present") and not d.get("is_probe")]

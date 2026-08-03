@@ -3606,7 +3606,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 duration_s=body.get("duration_s"),
                 span_hz=int(body.get("span_hz", 40000)),
                 bin_hz=int(body.get("bin_hz", 2000)),
-                notch_hz=int(body.get("notch_hz", 0)))
+                notch_hz=int(body.get("notch_hz", 0)),
+                gain=body.get("gain"))
         except Exception as exc:
             return self._send_json({"ok": False, "error": str(exc)}, 400)
         self._send_json({"ok": True, **result})
