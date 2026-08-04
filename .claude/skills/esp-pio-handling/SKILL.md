@@ -122,20 +122,21 @@ python3 <skill>/workbench-flash.py \
 ```
 
 It gathers `bootloader.bin`, `partitions.bin`, `boot_app0.bin`, and `firmware.bin`
-from `.pio/build/<env>/` and POSTs them as multipart (part name = hex offset). Or call
-the endpoint directly:
+from `.pio/build/<env>/` and POSTs them as multipart. Or call the endpoint
+directly, with the same `bin@<offset>` part names as above:
 
 ```bash
 curl -X POST http://workbench.local:8080/api/flash \
-  -F slot=SLOT3 -F chip=esp32 -F baud=460800 \
-  -F '0x1000=@.pio/build/<env>/bootloader.bin' \
-  -F '0x8000=@.pio/build/<env>/partitions.bin' \
-  -F '0xe000=@<framework>/tools/partitions/boot_app0.bin' \
-  -F '0x10000=@.pio/build/<env>/firmware.bin'
+  -F slot=SLOT3 -F chip=esp32 \
+  -F 'bin@0x1000=@.pio/build/<env>/bootloader.bin' \
+  -F 'bin@0x8000=@.pio/build/<env>/partitions.bin' \
+  -F 'bin@0xe000=@<framework>/tools/partitions/boot_app0.bin' \
+  -F 'bin@0x10000=@.pio/build/<env>/firmware.bin'
 ```
 
-Response: `{"ok": bool, "returncode": int, "log": "..."}`. No `/api/serial/reset` needed
-— esptool hard-resets into the new firmware. Refused if a debug session is active.
+Field defaults and the response shape: [FSD Appendix D.9](../../../docs/Embedded-Workbench-FSD.md#d9-flashing-usb-ota).
+No `/api/serial/reset` needed — the portal hard-resets into the new firmware.
+Refused if a debug session is active.
 
 ## Step 4: Monitor
 

@@ -47,20 +47,11 @@ curl -X POST http://workbench.local:8080/api/wifi/mode \
 
 ## Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/wifi/ap_start` | Start WiFi AP (for DUT to connect to) |
-| POST | `/api/wifi/ap_stop` | Stop WiFi AP |
-| GET | `/api/wifi/ap_status` | Current AP state and connected clients |
-| POST | `/api/wifi/sta_join` | Join an existing WiFi network as station |
-| POST | `/api/wifi/sta_leave` | Disconnect from WiFi network |
-| GET | `/api/wifi/scan` | Scan for nearby WiFi networks |
-| POST | `/api/wifi/http` | HTTP relay — make HTTP requests via workbench's network |
-| GET | `/api/wifi/events` | Long-poll for STA_CONNECT / STA_DISCONNECT events |
-| POST | `/api/enter-portal` | Ensure device is on workbench AP — provision via captive portal if needed |
-| GET | `/api/wifi/ping` | Quick connectivity check |
-| POST | `/api/wifi/mode` | Set mode: `wifi-testing` or `serial-interface` |
-| GET | `/api/wifi/mode` | Get current mode |
+Request and response shapes: [FSD Appendix D.4](../../../docs/Embedded-Workbench-FSD.md#d4-wifi-instrument), plus
+`/api/enter-portal` in [D.2](../../../docs/Embedded-Workbench-FSD.md#d2-serial-management).
+
+**AP and STA are mutually exclusive** — one radio. Starting the AP drops any STA
+association and vice versa, so a test that needs both must sequence them.
 
 ## WiFi AP (Access Point)
 

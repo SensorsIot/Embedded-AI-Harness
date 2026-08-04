@@ -25,11 +25,7 @@ The workbench can run an MQTT broker (mosquitto) for testing ESP32 devices that 
 
 ## Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/mqtt/start` | Start the MQTT broker |
-| POST | `/api/mqtt/stop` | Stop the MQTT broker |
-| GET | `/api/mqtt/status` | Check broker status |
+Request and response shapes: [FSD Appendix D.12](../../../docs/Embedded-Workbench-FSD.md#d12-mqtt-test-broker).
 
 ## Examples
 

@@ -23,15 +23,10 @@ sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
 
 ## Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/ble/scan` | Scan for BLE devices (optional name filter) |
-| POST | `/api/ble/connect` | Connect to a device by MAC address |
-| POST | `/api/ble/write` | Write hex data to a GATT characteristic |
-| POST | `/api/ble/disconnect` | Disconnect current device |
-| GET | `/api/ble/status` | Connection state and device info |
+Request and response shapes: [FSD Appendix D.5](../../../docs/Embedded-Workbench-FSD.md#d5-ble-proxy).
 
-One BLE connection at a time.
+**One BLE connection at a time** — connect to a second peripheral without
+disconnecting the first and the call fails rather than switching.
 
 ## Examples
 

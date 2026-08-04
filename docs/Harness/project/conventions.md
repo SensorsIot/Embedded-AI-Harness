@@ -46,7 +46,22 @@ There is no ruff or mypy configuration file; both run on defaults.
 
 ## Skills
 
-Skills under `.claude/skills/` are part of the product, not scratch notes. When an
-endpoint's contract changes, update the skills that name it in the same change as
-the FSD — a skill quoting a dead endpoint is a defect. The full skill list is in
-`CLAUDE.md`; the FSD and Handbook describe what each drives.
+Skills under `.claude/skills/` are part of the product, not scratch notes. They
+belong to this plane: a skill constrains how the bench is driven, which is a HOW
+question, and the same rules apply to it as to any Harness document.
+
+**A skill links to Appendix D; it never restates it.** Endpoint lists, request
+and response shapes, field defaults and state tables are the FSD's to state. What
+belongs in a skill is the judgment that cannot be derived from the contract —
+which call to reach for, in what order, what breaks, and what the failure looks
+like. That split is not tidiness: a restated table has nothing tying it to the
+code, so it drifts silently, and a skill and the FSD each end up authoritative
+where the other is wrong.
+
+When an endpoint's contract changes, update the skills that name it in the same
+change as the FSD — a skill quoting a dead endpoint is a defect. Scripts shipped
+beside a skill are code and are wrong in the same way a skill is: check them
+against the handler, not against the skill's prose.
+
+The full skill list is in `CLAUDE.md`; the FSD and Handbook describe what each
+drives.

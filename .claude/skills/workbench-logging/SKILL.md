@@ -34,13 +34,13 @@ Two logging methods are available. Choose based on your situation:
 
 ## Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/serial/monitor` | Read serial output with optional pattern matching |
-| POST | `/api/serial/reset` | Hardware reset via DTR/RTS, returns boot output |
-| GET | `/api/udplog` | Retrieve UDP log lines (filter by source, since, limit) |
-| DELETE | `/api/udplog` | Clear the UDP log buffer |
-| GET | `/api/log` | Workbench activity log (portal actions, not device logs) |
+Request and response shapes: serial in [FSD Appendix D.2](../../../docs/Embedded-Workbench-FSD.md#d2-serial-management),
+UDP log in [D.7](../../../docs/Embedded-Workbench-FSD.md#d7-udp-log), the portal's own activity log in
+[D.14](../../../docs/Embedded-Workbench-FSD.md#d14-activity-log).
+
+Three different logs, and picking the wrong one wastes a test run: `/api/serial/*`
+is what the device printed over USB, `/api/udplog` is what it sent over the
+network, and `/api/log` is what the *portal* did — never device output.
 
 ## Serial Monitor
 
@@ -50,12 +50,12 @@ Reads serial output via RFC2217 proxy. Optionally waits for a regex pattern.
 # Wait up to 10s for a pattern match
 curl -X POST http://workbench.local:8080/api/serial/monitor \
   -H 'Content-Type: application/json' \
-  -d '{"slot": "slot-1", "pattern": "WiFi connected", "timeout": 10}'
+  -d '{"slot": "SLOT1", "pattern": "WiFi connected", "timeout": 10}'
 
 # Just capture output for 5s (no pattern)
 curl -X POST http://workbench.local:8080/api/serial/monitor \
   -H 'Content-Type: application/json' \
-  -d '{"slot": "slot-1", "timeout": 5}'
+  -d '{"slot": "SLOT1", "timeout": 5}'
 ```
 
 Response: `{"ok": true, "matched": true, "line": "WiFi connected to MyAP", "output": [...]}`

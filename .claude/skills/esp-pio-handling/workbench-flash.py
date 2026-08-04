@@ -79,7 +79,11 @@ def main():
         if not os.path.exists(path):
             sys.exit(f"missing image: {path}")
         with open(path, "rb") as f:
-            files[off] = (os.path.basename(path), f.read())
+            # The part name must be "bin@<offset>" — the portal only treats a
+            # part as a flash image when it carries that prefix. A bare offset
+            # is stored and ignored, and the request fails with
+            # "no binaries to flash". FSD Appendix D.9.
+            files[f"bin@{off}"] = (os.path.basename(path), f.read())
 
     body, boundary = multipart({"slot": args.slot, "chip": args.chip, "baud": args.baud}, files)
     url = f"http://{args.host}/api/flash"

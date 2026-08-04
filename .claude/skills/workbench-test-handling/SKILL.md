@@ -27,10 +27,7 @@ Test scripts can push live progress updates to the workbench web UI so operators
 
 ### Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/test/update` | Push session start, step, result, or end |
-| GET | `/api/test/progress` | Poll current test session state |
+Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbench-FSD.md#d13-test-progress-human-interaction).
 
 ### Session Lifecycle
 
@@ -74,12 +71,11 @@ Some test steps require physical actions that cannot be automated — pressing a
 
 ### Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/human-interaction` | Block until operator confirms (or timeout) |
-| GET | `/api/human/status` | Check if a request is pending |
-| POST | `/api/human/done` | Operator confirms action complete |
-| POST | `/api/human/cancel` | Operator cancels request |
+Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbench-FSD.md#d13-test-progress-human-interaction).
+
+`/api/human-interaction` **blocks the caller** until Done, Cancel or timeout — so
+give it a timeout shorter than the client's own, or the client gives up first and
+leaves the modal on screen with nothing waiting for it.
 
 ### Examples
 
@@ -122,9 +118,7 @@ Timestamped log of all workbench operations — hotplug events, WiFi operations,
 
 ### Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/log` | Get activity log entries |
+Request and response shapes: [FSD Appendix D.14](../../../docs/Embedded-Workbench-FSD.md#d14-activity-log).
 
 ```bash
 # Get all entries

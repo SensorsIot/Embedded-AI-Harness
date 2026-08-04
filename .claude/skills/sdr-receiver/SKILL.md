@@ -36,22 +36,12 @@ one-shot, and vice-versa.
 
 ## API summary
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET  | `/api/sdr/status` | Dongle/tool detection + active state |
-| POST | `/api/sdr/capture` | Bounded decode window → decoded records + signal levels |
-| POST | `/api/sdr/analyze` | Bounded pulse-analyzer window (`-A`) → raw pulse timing text |
-| POST | `/api/sdr/power` | Narrowband `rtl_power` → `{peak_db, peak_freq_hz, mean_db}`. Takes `gain` and `notch_hz` |
-| POST | `/api/sdr/acquire` | Phased guided receive: locate→level→decode→classify |
-| POST | `/api/sdr/live/start` | Start the persistent live `rtl_433` console |
-| POST | `/api/sdr/live/stop` | Stop the live console, release the dongle |
-| GET  | `/api/sdr/live/status` | Live console running state + config |
-| GET  | `/api/sdr/live?since=<seq>` | Poll the ring buffer since a sequence number |
-| POST | `/api/sdr/log/start` | Begin recording the live stream (AI Sherlock) |
-| POST | `/api/sdr/log/stop` | Stop recording; returns line count |
-| GET  | `/api/sdr/log` | Retrieve the recorded session lines |
-| POST | `/api/sdr/reset` | USB-reset a wedged dongle (operator recovery) |
-| POST | `/api/sdr/stop` | Terminate an in-progress one-shot capture |
+Every endpoint, with its request and response shape:
+[FSD Appendix D.10](../../../docs/Embedded-Workbench-FSD.md#d10-sdr-receiver).
+
+Only the choice between them is this skill's: `capture` decodes, `analyze` gives
+raw pulse timing when nothing decodes, `power` measures a level, and `acquire`
+runs all three in sequence when you do not yet know what is on the air.
 
 Common body fields: `freq_hz` (default 433.92 MHz), `duration_s`, `gain`
 (number dB, or omit for AGC), `sample_rate` (default 250 kHz — keep low, it's a

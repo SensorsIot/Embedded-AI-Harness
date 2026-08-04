@@ -296,11 +296,16 @@ After completing all steps, verify:
 
 ## Workbench Skills Reference
 
-| Skill | Key endpoints | What it enables |
-|-------|-------------|-----------------|
-| `esp32-tester-serial` | `GET /api/devices`, `POST /api/serial/reset` | Device discovery, remote flashing (esptool via RFC2217), GPIO download mode, crash-loop recovery |
-| `esp32-tester-udplog` | `POST /api/serial/monitor`, `GET /api/udplog` | Serial monitor with pattern matching, UDP log collection, boot/crash capture |
-| `esp32-tester-wifi` | `POST /api/enter-portal`, `GET /api/wifi/ap_status`, `GET /api/wifi/scan`, `POST /api/wifi/http`, `GET /api/wifi/events` | Captive portal provisioning, AP control, WiFi on/off testing, HTTP relay, event monitoring |
-| `esp32-tester-gpio` | `POST /api/gpio/set`, `GET /api/gpio/status` | Boot mode control, hardware reset, button simulation, GPIO probe |
-| `esp32-tester-ota` | `POST /api/firmware/upload`, `GET /api/firmware/list`, `POST /api/wifi/http` | Firmware upload/serve, OTA trigger via HTTP relay |
-| `esp32-tester-ble` | `POST /api/ble/scan`, `POST /api/ble/connect`, `POST /api/ble/write`, `POST /api/ble/disconnect` | BLE scan, connect, GATT write, remote BLE testing |
+Every endpoint these skills drive is specified in
+[FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api-mcp-reference).
+
+| Skill | Covers |
+|-------|--------|
+| `esp-idf-handling` | Build, flash (USB, `/api/flash`, OTA), GPIO download mode, crash-loop and flapping recovery |
+| `workbench-logging` | Serial monitor with pattern matching, UDP logs, boot and crash capture |
+| `workbench-wifi` | SoftAP, station join, captive-portal provisioning, HTTP relay, station events |
+| `workbench-ble` | Scan, connect, GATT write |
+| `workbench-mqtt` | Test broker lifecycle |
+| `workbench-debug` | OpenOCD and GDB over USB JTAG or ESP-Prog |
+| `workbench-test-handling` | Test-session progress and blocking operator prompts |
+| `sdr-receiver` · `signal-generator` | RF receive and transmit |

@@ -36,14 +36,11 @@ Skipping the status check is the most common failure mode of this skill — pick
 
 ## API summary
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET    | `/api/siggen/status` | Hardware + active state |
-| POST   | `/api/siggen/start` | Start carrier (continuous or Morse-keyed) |
-| POST   | `/api/siggen/stop` | Stop carrier |
-| POST   | `/api/siggen/freq` | Retune active carrier without restarting the keyer |
-| POST   | `/api/siggen/atten` | Set PE4302 attenuation (dB) |
-| GET    | `/api/siggen/frequencies` | List achievable frequencies in a range |
+Every endpoint, with its request and response shape:
+[FSD Appendix D.11](../../../docs/Embedded-Workbench-FSD.md#d11-signal-generator).
+
+`freq` retunes an active carrier without restarting the Morse keyer — use it
+rather than stop/start when a test must not lose keying state.
 
 ### `POST /api/siggen/start`
 

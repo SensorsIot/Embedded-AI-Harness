@@ -82,7 +82,7 @@ echo "reset halt" | nc workbench.local 4446
 ```bash
 # Uses JTAG reset when debug session is active, DTR/RTS otherwise
 curl -X POST http://workbench.local:8080/api/serial/reset \
-  -H "Content-Type: application/json" -d '{"slot": "slot-1"}'
+  -H "Content-Type: application/json" -d '{"slot": "SLOT1"}'
 ```
 
 **Availability:**
@@ -306,18 +306,9 @@ debug_port = workbench.local:3333
 
 ---
 
-## API Endpoints (when implemented)
+## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/debug/start | Start OpenOCD `{"slot", "chip?", "probe?"}` |
-| POST | /api/debug/stop | Stop OpenOCD `{"slot"}` |
-| GET | /api/debug/status | Debug state for all slots |
-| GET | /api/debug/group | Slot groups (dual-USB) |
-| GET | /api/debug/probes | Available ESP-Prog probes |
-
-These endpoints are specified in the FSD (FR-024/025/026) but not yet
-implemented in portal.py.
+Request and response shapes: [FSD Appendix D.3](../../../docs/Embedded-Workbench-FSD.md#d3-gdb-debug).
 
 **Note:** `POST /api/debug/start` and `POST /api/debug/stop` are optional overrides -- OpenOCD starts automatically when a device is plugged in. No API call is needed for normal use. All parameters are optional; the workbench auto-detects slot, chip, and probe.
 

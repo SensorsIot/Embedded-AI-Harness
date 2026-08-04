@@ -3551,6 +3551,8 @@ AP and STA modes are mutually exclusive.
 | GET | `/api/wifi/scan` | Scan nearby WiFi networks |
 | POST | `/api/wifi/http` | HTTP relay through wlan0 `{"method", "url", "headers?", "body?"}` |
 | GET | `/api/wifi/events` | Long-poll station events `?timeout=` |
+| GET | `/api/wifi/ping` | Version and uptime. Answers in either mode, so it is the reachability probe |
+| POST | `/api/wifi/lease_event` | dnsmasq lease hook `{"action", "mac", "ip", "hostname"}` — called by the Pi, not by clients |
 
 ### D.5 BLE Proxy
 
