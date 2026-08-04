@@ -357,11 +357,29 @@ Request and response shapes: [FSD Appendix D.3](../../../docs/Embedded-Workbench
 
 ---
 
+## You cannot capture a coredump while the debugger is attached
+
+If you induce a panic to test coredump capture — jumping PC to `abort()` /
+`esp_system_abort`, or to an illegal address — while OpenOCD is attached, **no
+coredump is written**. ESP-IDF is OCD-aware (`CONFIG_ESP_DEBUG_OCDAWARE`,
+default on): the panic handler checks `esp_cpu_dbgr_is_attached()` and, finding
+a debugger, executes `ebreak` to hand control to it **instead of** writing the
+coredump to flash and rebooting. You will see the core halted at
+`esp_system_abort` with `debug_reason=1` (Illegal Instruction) — that halt *is*
+the OCD-aware break, not your crash reaching flash.
+
+So a "panic → coredump in flash → decode against the .elf" test is **not doable
+over JTAG**. Trigger the panic with the debugger detached — a test-build-only
+crash command, or a test tier built with `CONFIG_ESP_DEBUG_OCDAWARE=n` so an
+induced panic still dumps and reboots. (Reading an *existing* coredump back over
+JTAG is fine: `flash read_bank 0 <file> <part-offset> <len>` while halted.)
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `could not find or open device!` | Wrong config (C3 vs S3) or device not connected | Check `lsusb -d 303a:1001` |
+| Induced panic never writes a coredump | OpenOCD attached → OCD-aware break to debugger | Detach debugger; crash from a test build (`OCDAWARE=n`) — see above |
 | `JTAG scan chain interrogation failed: all ones` | JTAG cable not connected (ESP-Prog) | Wire TCK/TDI/TDO/TMS + GND |
 | `UNEXPECTED: 0x00005c25` with S3 config | Device is actually a C3 | Use `esp32c3-builtin.cfg` |
 | `UNEXPECTED: 0x120034e5` with C3 config | Device is actually an S3 | Use `esp32s3-builtin.cfg` |

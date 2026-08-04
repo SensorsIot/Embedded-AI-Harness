@@ -105,6 +105,33 @@ fired one by reading the retained value — to prove a will *fired*, seed a
 sentinel first (`mosquitto_pub -t <id>/LWT -r -m sentinel`), then confirm the
 broker overwrites it with `offline` once the keepalive expires.
 
+## A retained status read mid-outage is a stale corpse
+
+`mosquitto_sub -C 1` on a retained status/telemetry topic returns the **last
+published value**, which during (and right after) an outage is the copy from
+*before* the device dropped — its counters are frozen. Reading it to judge
+recovery gives a false negative: e.g. `mqtt_disconnects` still shows the
+pre-outage number because the device has not reconnected and republished yet.
+
+Judge recovery by the device **resuming live publishing**, not by the retained
+value. Subscribe for longer than the publish cadence and require ≥2 arrivals
+(the immediate retained copy, then at least one fresh publish); only then read
+counters. An MQTT reconnect does **not** reset uptime, so "small uptime" cannot
+stand in for "fresh" — only a live arrival can.
+
+## Don't over-specify long black-hole durations
+
+A spec that says "cut MQTT for 30 minutes" is usually testing "the device never
+restarts on MQTT loss." Unlike WiFi (which often has a restart-after-N-minutes
+rule), **MQTT loss typically has no restart timer at all** — so a few minutes
+proves "never restarts" exactly as well as 30, and the extra 25 just confirm the
+same nothing. Reserve long windows for behaviour actually gated on a long timer
+(a WiFi restart rule, a WireGuard rekey/handshake expiry). Also: a
+telemetry-drop counter can only grow if the device is **publishing telemetry**
+that overflows — with no sensor/meter attached there is no stream, so that
+sub-criterion is N/A on a bare bench and needs a data source (a fake-data build
+or real hardware).
+
 ## Troubleshooting
 
 | Problem | Fix |
