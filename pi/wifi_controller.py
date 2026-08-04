@@ -183,7 +183,24 @@ def _kill_existing(name):
 
 def _release_wlan():
     """Ensure wlan0 is not managed by NetworkManager or wpa_supplicant."""
-    # Kill any existing wpa_supplicant on wlan0
+    # Debian's own wpa_supplicant is D-Bus activated and runs as
+    #   /usr/sbin/wpa_supplicant -u -s -O DIR=/run/wpa_supplicant GROUP=netdev
+    # with no interface on its command line, so the pattern below never matched
+    # it. It adopts wlan0 anyway and registers nl80211 frame matches, and
+    # hostapd then fails with "nl80211: kernel reports: Match already
+    # configured" — an error that names neither wpa_supplicant nor the cause.
+    #
+    # The socket must go too: stopping only the service lets D-Bus start it
+    # again on the next request.
+    for unit in ("wpa_supplicant.socket", "wpa_supplicant.service"):
+        try:
+            subprocess.run(["systemctl", "stop", unit],
+                           capture_output=True, timeout=10, check=False)
+        except Exception:
+            pass
+
+    # Any remaining instance started with an explicit interface — including the
+    # one this module starts for station mode.
     try:
         subprocess.run(
             ["pkill", "-f", f"wpa_supplicant.*{WLAN_IF}"],

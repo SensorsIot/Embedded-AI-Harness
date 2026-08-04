@@ -74,6 +74,11 @@ if [ "$UPDATE_ONLY" = false ]; then
     systemctl mask hostapd 2>/dev/null || true
     systemctl disable --now dnsmasq 2>/dev/null || true
     systemctl disable --now mosquitto 2>/dev/null || true
+    # wpa_supplicant is D-Bus activated: the socket restarts it, so both units
+    # go. It claims wlan0 and blocks hostapd; the portal starts its own instance
+    # when it needs station mode.
+    systemctl disable --now wpa_supplicant.socket 2>/dev/null || true
+    systemctl disable --now wpa_supplicant.service 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------
