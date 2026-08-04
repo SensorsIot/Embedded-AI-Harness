@@ -103,15 +103,50 @@ strings /tmp/fw/coldflash/firmware.bin | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+'
 
 ## Flash Size and Partition Tables
 
-> **Flash size defaults to 4MB.** Use `CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y` in
-> `sdkconfig.defaults` and `--flash_size 4MB` with esptool. Only use a
-> different size when the actual flash is known (e.g. `esptool.py flash_id`
-> or from the datasheet).
+**Measure the flash; never assume it.** There is no universal default — ESP-IDF
+picks one per target, and it is often smaller than expected (an ESP32-C3 build
+with nothing set comes out at 2 MB). Whatever it picks is written into the image
+header, and the bootloader then *prints that value back at you*, so a boot log
+saying `SPI Flash Size : 2MB` is only repeating the config. It is not evidence
+about the chip, and reading it as such is an easy way to design a partition
+layout around a number nobody checked.
 
-| File | Flash size | App partition size | Use when |
-|------|-----------|-------------------|----------|
-| `partitions-4mb.csv` | 4MB (default) | 1216K | Unknown or 4MB flash |
-| `partitions.csv` | 8MB+ | 1536K | Flash confirmed > 4MB |
+Getting it wrong is not loud. Configure more than the part has and the partition
+table extends past the end of flash: the build succeeds, the flash succeeds, and
+the failure arrives later as corruption at whatever offset first exceeds the
+physical device — usually OTA or NVS, rarely the app.
+
+Three ways to learn the truth, in order of preference:
+
+```bash
+# 1. The chip itself, over a local USB port
+esptool --port /dev/ttyACM0 flash_id     # prints "Detected flash size: ..."
+
+# 2. On a workbench slot there is no endpoint for this — the portal only
+#    writes flash. Run it on the Pi against the devnode instead (see the
+#    remote-connections skill for access):
+ssh pi@workbench.local "python3 -m esptool --port /dev/ttyACM1 flash_id"
+```
+
+```c
+/* 3. From the firmware, which is the only way that survives a board swap */
+uint32_t size = 0;
+esp_flash_get_physical_size(NULL, &size);
+ESP_LOGI(TAG, "flash %lu MB", (unsigned long)(size / (1024 * 1024)));
+```
+
+Then set `CONFIG_ESPTOOLPY_FLASHSIZE_<n>MB=y` in `sdkconfig.defaults` to the
+measured value and size the partition table to fit it. Setting
+`CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE=y` additionally lets esptool correct
+the header from the detected size at flash time — useful when one image serves
+boards that differ, but it does not resize the partition table, so it is a
+safety net rather than a substitute for measuring.
+
+**Check OTA fits before writing OTA code.** Two app partitions plus NVS, PHY
+and the bootloader is the constraint that decides whether an OTA design is
+possible at all, and it is cheapest to discover before the firmware exists.
+`test-firmware/` carries a worked pair — `partitions-4mb.csv` (1216K app) and
+`partitions.csv` for 8MB+ (1536K app).
 
 ## Step 4a: Flash — Local USB
 
