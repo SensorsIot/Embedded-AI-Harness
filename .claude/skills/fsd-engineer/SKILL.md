@@ -357,7 +357,7 @@ The repository comes first (§0) — this is the skeleton to create it with.
 ```text
 docs/Functionality/       WHAT   — the FSD, plus the interface specs it cites
 docs/Harness/             HOW    — 00-Overview · AI-Workflow · standards/ · project/
-docs/UserDocumentation/   OPERATE— 00-Overview, even when nothing is deployable yet
+docs/UserDocumentation/   OPERATE— one user manual with chapters, from day one
 docs/decisions.md · docs/open-issues.md      inputs and rationale — not planes
 
 verification/   requirements · states · interfaces · configuration ·
@@ -369,10 +369,16 @@ test-results/<run-id>/          evidence (captured by workbench skills)
 **Create all three plane directories on the first commit, including the empty
 one.** A plane that was never created is invisible — nobody misses a directory
 that does not exist, and the first person to install the system finds there are no
-instructions exactly when they need them. `UserDocumentation/00-Overview.md`
-therefore ships from the start carrying an honest status line; instantiate it from
+instructions exactly when they need them. The user manual therefore ships from the
+start carrying an honest status line; instantiate it from
 `references/templates/user-documentation/`. Git cannot track an empty directory,
 so the stub is what makes the plane real.
+
+**The OPERATE plane is one manual with chapters, not a directory of documents.**
+Installation, configuration, each routine task, diagnostics and recovery are
+chapters of a single file. A reader asking "how do I do X" must have exactly one
+place to start, and a second operations document beside the first is where the
+first goes stale. Add a chapter, never a sibling.
 
 `verification/` is **not** a fourth plane — it is the machine-readable form of
 WHAT; `test-results/` is evidence, not documentation. Small projects may use
@@ -414,7 +420,7 @@ passed is worth nothing.
 | `references/test-spec/` | Human-readable test-document format and section templates |
 | `references/traceability.md` | Seven lifecycle states, `@fsd` tags, evidence fields, four gap categories, coverage check |
 | `references/three-planes.md` | WHAT / HOW / OPERATE model, routing rule, retrofit procedure |
-| `references/templates/` | `00-Overview` (the plane map, at `docs/` root) plus Harness and UserDocumentation templates |
+| `references/templates/` | `00-Overview` (the plane map, at `docs/` root), the Harness set, and the user-manual stub |
 | `references/canonical-fsd-structure.md` | The Parts scheme and chapter skeleton |
 | `references/test-architecture.md` | Layering, tier profiles, component × tier matrix |
 | `references/complexity-scaling.md` | Depth scaling by inferred complexity |

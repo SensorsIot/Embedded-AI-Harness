@@ -67,8 +67,11 @@ the tier a requirement is verified at; it does not contain test steps.
 - `project/` — this project's bindings: layer definitions, source layout, module
   boundaries, dependency direction, prohibitions, tool and credential pointers.
 
-**User documentation (OPERATE)** — installation, wiring, day-to-day procedures, diagnostics,
-recovery. Step-by-step detail lives here and nowhere else.
+**User documentation (OPERATE)** — installation, wiring, day-to-day procedures,
+diagnostics, recovery. Step-by-step detail lives here and nowhere else, as
+**chapters of one manual**: a reader asking "how do I do X" needs exactly one
+place to start, and a second operations document beside the first is where the
+first goes stale.
 
 ## Topology
 
@@ -79,7 +82,7 @@ has rather than forcing new files:
 |------|-----------------|
 | `[SPEC]` | `docs/Functionality/` — the FSD, or a set of per-component FSDs |
 | `[HARNESS]` | `docs/Harness/` (must be committed — an untracked harness is unshared, therefore undocumented) |
-| `[OPERATE]` | `docs/UserDocumentation/` — created from the first commit, even when empty |
+| `[OPERATE]` | `docs/UserDocumentation/` — **one user manual with chapters**, created from the first commit even when empty |
 
 The WHAT plane may be a single FSD or a set of per-component FSDs; the other two
 planes are shared either way. If the project already has a document filling a
@@ -106,6 +109,7 @@ role, **bind to it** — do not create a competing parallel file.
 | A fourth plane ("Design", "Notes", "Architecture") | Content that fits none of three fits none at all — it is HOW with a different hat. |
 | Harness kept untracked or in a private config | Unversioned ⇒ unshared ⇒ effectively undocumented. |
 | The same fact stated in two planes | They diverge on the first edit. Link, never restate. |
+| Operations split across several documents | The reader has no single starting point, and the one they miss is the one that goes stale. One manual, chapters not files. |
 | Test steps in the FSD | The FSD names the tier and criterion; the test skills own the steps. |
 | History in any plane | "Previously the API used X" belongs in `git log`. |
 | `CLAUDE.md` used as the Harness | It is assistant configuration, not project documentation, and is often gitignored. |
