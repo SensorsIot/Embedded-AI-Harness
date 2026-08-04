@@ -17,6 +17,7 @@ import signal
 import socket
 import subprocess
 import sys
+import re
 import tempfile
 import threading
 import time
@@ -1183,6 +1184,23 @@ def _slot_info(slot: dict) -> dict:
 # Serial Services — reset and monitor (FR-008, FR-009)
 # ---------------------------------------------------------------------------
 
+def _resolve_slot(body: dict) -> dict | None:
+    """Find the slot a request means, by label or by slot_key.
+
+    Every other endpoint takes {"slot": "SLOT3"}; /api/start and /api/stop
+    historically took slot_key only, so a caller who stopped a slot with the
+    obvious payload got "missing slot_key" and could leave the bench with a
+    dead proxy. Both spellings work now.
+    """
+    label = body.get("slot")
+    if label:
+        return _find_slot_by_label(label)
+    key = body.get("slot_key")
+    if key:
+        return slots.get(key) or _find_slot_by_label(key)
+    return None
+
+
 def _find_slot_by_label(label: str) -> dict | None:
     """Find a slot by label or truncated slot_key."""
     for s in slots.values():
@@ -1292,6 +1310,36 @@ def serial_reset(slot: dict) -> dict:
             slot["state"] = STATE_IDLE if slot["present"] else STATE_ABSENT
 
     return {"ok": True, "output": lines}
+
+
+_CHIP_INFO_PATTERNS = {
+    # esptool renamed several of these at v5 ("Chip is" -> "Chip type:",
+    # "Crystal is" -> "Crystal frequency:"). Accept both so the endpoint keeps
+    # working on a bench that has not been updated.
+    "chip": r"^Chip (?:is|type:)\s+(.+?)(?:\s+\(revision|$)",
+    "revision": r"revision (v?[\d.]+)",
+    "features": r"^Features:\s+(.+)$",
+    "crystal": r"^Crystal (?:is|frequency:)\s+(.+)$",
+    "usb_mode": r"^USB mode:\s+(.+)$",
+    "mac": r"^MAC:\s+([0-9a-fA-F:]+)$",
+    "flash_manufacturer": r"^Manufacturer:\s+(\w+)$",
+    "flash_device": r"^Device:\s+(\w+)$",
+    "flash_size": r"^Detected flash size:\s+(.+)$",
+}
+
+
+def _parse_chip_info(text: str) -> dict:
+    """Pull the identity fields out of `esptool flash_id` output.
+
+    Every field is optional: esptool's wording varies by version, and a missing
+    key is better than a wrong one. Callers that need certainty read `output`.
+    """
+    info: dict = {}
+    for key, pattern in _CHIP_INFO_PATTERNS.items():
+        m = re.search(pattern, text, re.M)
+        if m:
+            info[key] = m.group(1).strip()
+    return info
 
 
 def flash_device(slot: dict, files: dict, esptool_args: list[str],
@@ -1780,6 +1828,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_hotplug()
         elif path == "/api/flash":
             self._handle_flash()
+        elif path == "/api/chip/info":
+            self._handle_chip_info()
         elif path == "/api/ota":
             self._handle_ota()
         elif path == "/api/serial/reset":
@@ -1873,6 +1923,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_firmware_upload()
         elif path == "/api/flash":
             self._handle_flash()
+        elif path == "/api/chip/info":
+            self._handle_chip_info()
         elif path == "/api/ble/scan":
             self._handle_ble_scan()
         elif path == "/api/ble/connect":
@@ -2179,17 +2231,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "empty body"}, 400)
             return
 
-        slot_key = body.get("slot_key")
-        devnode = body.get("devnode")
-        if not slot_key or not devnode:
-            self._send_json({"ok": False, "error": "missing slot_key or devnode"}, 400)
+        slot = _resolve_slot(body)
+        if slot is None:
+            self._send_json(
+                {"ok": False, "error": "missing or unknown 'slot' / 'slot_key'"}, 400)
             return
 
-        if slot_key not in slots:
-            self._send_json({"ok": False, "error": "unknown slot_key"}, 404)
+        # Optional: a client that stopped a slot should not have to have
+        # remembered its devnode to start it again.
+        devnode = body.get("devnode") or slot.get("devnode")
+        if not devnode:
+            self._send_json(
+                {"ok": False,
+                 "error": f"{slot['label']}: no devnode known — pass 'devnode'"}, 400)
             return
 
-        slot = slots[slot_key]
+        slot_key = slot["slot_key"]
         with slot["_lock"]:
             if slot["running"] and slot["pid"]:
                 stop_proxy(slot)
@@ -2207,16 +2264,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "empty body"}, 400)
             return
 
-        slot_key = body.get("slot_key")
-        if not slot_key:
-            self._send_json({"ok": False, "error": "missing slot_key"}, 400)
+        slot = _resolve_slot(body)
+        if slot is None:
+            self._send_json(
+                {"ok": False, "error": "missing or unknown 'slot' / 'slot_key'"}, 400)
             return
-
-        if slot_key not in slots:
-            self._send_json({"ok": False, "error": "unknown slot_key"}, 404)
-            return
-
-        slot = slots[slot_key]
+        slot_key = slot["slot_key"]
         with slot["_lock"]:
             stop_proxy(slot)
             slot["state"] = STATE_IDLE if slot["present"] else STATE_ABSENT
@@ -3086,6 +3139,55 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         result = flash_device(slot, files, base_args + write_args)
         self._send_json(result, 200 if result.get("ok") else 500)
+
+    def _handle_chip_info(self):
+        """POST /api/chip/info — read chip and flash identity from the device.
+
+        JSON body: {"slot": "SLOT3", "chip": "auto"?}
+
+        Runs `esptool flash_id`, which reports the *physical* flash size. That
+        is not knowable any other way: a build writes its configured size into
+        the image header and the bootloader prints that value back, so a boot
+        log only ever repeats the config. Configuring more than the part holds
+        puts the partition table past the end of flash, and the damage shows up
+        later as corruption at whatever offset first exceeds the device.
+
+        Like /api/flash this stops the proxy, drives the device, and restarts
+        the proxy — so it **reboots the DUT**. It is a deliberate call, never a
+        field on /api/devices, which is polled.
+
+        Returns {"ok", "chip", "revision", "features", "flash_size",
+                 "flash_manufacturer", "flash_device", "mac", "output"}.
+        """
+        body = self._read_json()
+        if body is None:
+            self._send_json({"ok": False, "error": "empty body"}, 400)
+            return
+
+        slot_label = body.get("slot")
+        if not slot_label:
+            self._send_json({"ok": False, "error": "missing 'slot' field"}, 400)
+            return
+        slot = _find_slot_by_label(slot_label)
+        if not slot:
+            self._send_json({"ok": False, "error": f"slot '{slot_label}' not found"}, 404)
+            return
+        if slot.get("debugging"):
+            self._send_json(
+                {"ok": False,
+                 "error": f"slot '{slot_label}' has a debug session — stop it first"},
+                409,
+            )
+            return
+
+        chip = body.get("chip", "auto")
+        result = flash_device(slot, {}, ["--chip", chip, "flash_id"], timeout_s=60.0)
+        if not result.get("ok"):
+            self._send_json(result, 500)
+            return
+
+        result.update(_parse_chip_info(result.get("output", "")))
+        self._send_json(result, 200)
 
     def _handle_ota(self):
         """POST /api/ota — over-the-air firmware update of a networked device.

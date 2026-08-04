@@ -644,6 +644,38 @@ curl -X POST http://workbench.local:8080/api/ota \
   -F firmware=@.pio/build/<env>/firmware.bin
 ```
 
+#### 6.7.3 Chip identity via `POST /api/chip/info`
+
+**When to use:** before choosing a flash size or a partition table, and whenever
+a board's identity is in doubt. It reports the **physical** flash size, which
+nothing else on the bench can tell you: a build writes its configured size into
+the image header and the bootloader prints that value back, so a boot log only
+repeats the configuration. Configuring more than the part holds places the
+partition table past the end of flash — the build and the flash both succeed,
+and the damage appears later as corruption at whatever offset first exceeds the
+device.
+
+**Behavior:** the portal runs `esptool flash_id` locally on the Pi with the same
+lifecycle as `/api/flash` — stop the proxy, drive the device, restart the proxy.
+**It reboots the DUT**, so it is a deliberate call and never a field on
+`/api/devices`, which is polled. Refused with `409` while a debug session holds
+the slot.
+
+**Request:** `POST /api/chip/info`, JSON: `{"slot": "SLOT3", "chip": "auto"}`.
+
+**Response:** `{"ok", "chip", "revision", "features", "crystal", "usb_mode",
+"mac", "flash_size", "flash_manufacturer", "flash_device", "output",
+"returncode"}`. Every identity field is optional — esptool's wording differs
+between major versions, and a missing key is preferable to a wrong one; `output`
+always carries the raw text.
+
+**Example:**
+
+```bash
+curl -X POST http://workbench.local:8080/api/chip/info \
+  -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
+```
+
 #### 6.8 RFC2217 Client Best Practices (ttyACM)
 
 When connecting to an ESP32-C3 via RFC2217, the client must prevent DTR
@@ -3522,7 +3554,7 @@ errors add `"error": "..."`.
 | POST | `/api/serial/recover` | Manual flap-recovery trigger `{"slot"}` |
 | POST | `/api/serial/release` | Release BOOT GPIO + reboot after a download-mode flash `{"slot"}` |
 | POST | `/api/enter-portal` | Provision a captive-portal DUT (WiFiManager: `portal_ssid`, `ssid`, `password`, `save_path=/wifisave`, `field_ssid=s`, `field_password=p`, `method=POST`, `internet`, `extra`); or trigger with `{slot, resets}` |
-| POST | `/api/start` · `/api/stop` | Manually start / stop the proxy for a slot |
+| POST | `/api/start` · `/api/stop` | Manually start / stop the proxy for a slot `{"slot"}` (or `slot_key`). `start` takes an optional `devnode`, defaulting to the slot's own |
 | POST | `/api/hotplug` | udev hotplug event (internal) |
 
 ### D.3 GDB Debug
@@ -3594,6 +3626,7 @@ Allowlist `{16,17,18,19,20,21,22,23,24,25,26,27}` (others reserved for I²C/GPCL
 |--------|----------|-------------|
 | POST | `/api/flash` | Local-Pi esptool flash of a slot (bridge-chip boards). Multipart: `slot`, `chip`, `baud`, `erase?`, one `bin@<offset>` file part per image (§6.7.1) |
 | POST | `/api/ota` | OTA a deployed on-LAN board (espota relayed by the Pi). Multipart: `firmware` file, `target`, `port?`, `auth?` (§6.7.2) |
+| POST | `/api/chip/info` | Chip and **physical** flash identity via `esptool flash_id` `{"slot", "chip?"}` → `{"chip", "revision", "features", "crystal", "usb_mode", "mac", "flash_size", "flash_manufacturer", "flash_device", "output"}`. Reboots the DUT (§6.7.3) |
 
 RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 

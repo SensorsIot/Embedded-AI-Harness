@@ -116,20 +116,27 @@ table extends past the end of flash: the build succeeds, the flash succeeds, and
 the failure arrives later as corruption at whatever offset first exceeds the
 physical device — usually OTA or NVS, rarely the app.
 
-Three ways to learn the truth, in order of preference:
+Ask the bench — it reads the chip directly
+([FSD §6.7.3](../../../docs/Embedded-Workbench-FSD.md#673-chip-identity-via-post-apichipinfo)):
 
 ```bash
-# 1. The chip itself, over a local USB port
-esptool --port /dev/ttyACM0 flash_id     # prints "Detected flash size: ..."
+curl -X POST http://workbench.local:8080/api/chip/info \\
+  -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
+# -> "flash_size": "4MB", plus chip, revision, MAC and USB mode
+```
 
-# 2. On a workbench slot there is no endpoint for this — the portal only
-#    writes flash. Run it on the Pi against the devnode instead (see the
-#    remote-connections skill for access):
-ssh pi@workbench.local "python3 -m esptool --port /dev/ttyACM1 flash_id"
+It runs `esptool flash_id` on the Pi with the proxy stopped, so **it reboots the
+DUT** — a deliberate call, not something to poll. Stop any debug session first
+or it returns `409`.
+
+Off the bench, the same thing over a local port:
+
+```bash
+esptool --port /dev/ttyACM0 flash_id     # "Detected flash size: ..."
 ```
 
 ```c
-/* 3. From the firmware, which is the only way that survives a board swap */
+/* Or from the firmware, the only way that survives a board swap */
 uint32_t size = 0;
 esp_flash_get_physical_size(NULL, &size);
 ESP_LOGI(TAG, "flash %lu MB", (unsigned long)(size / (1024 * 1024)));
