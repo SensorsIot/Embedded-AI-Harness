@@ -199,11 +199,11 @@ within 10 s with no device reset.
 
 ```bash
 # Workbench BLE scan
-curl -X POST http://workbench.local:8080/api/ble/scan \
+curl -X POST $WORKBENCH_URL/api/ble/scan \
   -H 'Content-Type: application/json' -d '{"timeout": 5}'
 
 # Connect and write via workbench
-curl -X POST http://workbench.local:8080/api/ble/write \
+curl -X POST $WORKBENCH_URL/api/ble/write \
   -H 'Content-Type: application/json' \
   -d '{"address": "AA:BB:CC:DD:EE:FF", "service": "6e400001-...", "char": "6e400002-...", "data": "test"}'
 ```

@@ -109,7 +109,7 @@ The Python driver mirrors the API one-for-one. Prefer these over raw curl when w
 
 ```python
 from workbench_driver import WorkbenchDriver
-wt = WorkbenchDriver("http://workbench.local:8080")
+wt = WorkbenchDriver("$WORKBENCH_URL")
 
 status = wt.siggen_status()                              # always first
 print(status["hardware"])

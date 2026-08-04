@@ -39,17 +39,17 @@ OpenOCD starts **automatically** when a device is plugged in or at boot. No API 
 
 **Check debug status:**
 ```bash
-curl http://workbench.local:8080/api/devices
+curl $WORKBENCH_URL/api/devices
 # Look for: "debugging": true, "debug_chip": "esp32s3", "debug_gdb_port": 3335
 ```
 
 **Manual override (optional -- only needed to force-stop or force-start):**
 ```bash
 # Force stop (won't auto-restart until next hotplug)
-curl -X POST http://workbench.local:8080/api/debug/stop -d '{}'
+curl -X POST $WORKBENCH_URL/api/debug/stop -d '{}'
 
 # Force start with specific chip
-curl -X POST http://workbench.local:8080/api/debug/start \
+curl -X POST $WORKBENCH_URL/api/debug/start \
   -d '{"chip": "esp32c3"}'
 ```
 
@@ -69,19 +69,19 @@ When a debug session is active, the workbench automatically uses **JTAG reset** 
 **Via OpenOCD telnet (manual):**
 ```bash
 # Soft reset (chip reboots normally)
-echo "reset run" | nc workbench.local 4446
+echo "reset run" | nc "$BENCH" 4446
 
 # Halt CPU (stops execution immediately)
-echo "halt" | nc workbench.local 4446
+echo "halt" | nc "$BENCH" 4446
 
 # Reset and halt (for debugging from first instruction)
-echo "reset halt" | nc workbench.local 4446
+echo "reset halt" | nc "$BENCH" 4446
 ```
 
 **Via workbench API (automatic):**
 ```bash
 # Uses JTAG reset when debug session is active, DTR/RTS otherwise
-curl -X POST http://workbench.local:8080/api/serial/reset \
+curl -X POST $WORKBENCH_URL/api/serial/reset \
   -H "Content-Type: application/json" -d '{"slot": "SLOT1"}'
 ```
 
@@ -123,7 +123,7 @@ Boards with CH340/CP2102 UART bridges do NOT support USB JTAG.
 
 ```bash
 # Check from Pi
-ssh pi@workbench.local "lsusb -d 303a:1001"
+ssh pi@<bench-hostname> "lsusb -d 303a:1001"
 # → Bus 001 Device 066: ID 303a:1001 Espressif USB JTAG/serial debug unit
 ```
 
@@ -147,12 +147,12 @@ USB PID `303a:1001` is the same for C3 and S3. The JTAG TAP ID identifies the ch
 
 ```bash
 # ESP32-C3
-ssh pi@workbench.local "openocd-esp32 -s /usr/local/share/openocd-esp32/scripts \
+ssh pi@<bench-hostname> "openocd-esp32 -s /usr/local/share/openocd-esp32/scripts \
   -f board/esp32c3-builtin.cfg \
   -c 'gdb port 3333' -c 'telnet port 4444' -c 'bindto 0.0.0.0'"
 
 # ESP32-S3
-ssh pi@workbench.local "openocd-esp32 -s /usr/local/share/openocd-esp32/scripts \
+ssh pi@<bench-hostname> "openocd-esp32 -s /usr/local/share/openocd-esp32/scripts \
   -f board/esp32s3-builtin.cfg \
   -c 'gdb port 3333' -c 'telnet port 4444' -c 'bindto 0.0.0.0'"
 ```
@@ -162,12 +162,12 @@ ssh pi@workbench.local "openocd-esp32 -s /usr/local/share/openocd-esp32/scripts 
 ```bash
 # C3 (RISC-V)
 riscv32-esp-elf-gdb build/project.elf \
-  -ex "target extended-remote workbench.local:3333" \
+  -ex "target extended-remote $BENCH:3333" \
   -ex "monitor reset halt"
 
 # S3 (Xtensa)
 xtensa-esp32s3-elf-gdb build/project.elf \
-  -ex "target extended-remote workbench.local:3333" \
+  -ex "target extended-remote $BENCH:3333" \
   -ex "monitor reset halt"
 ```
 
@@ -176,7 +176,7 @@ xtensa-esp32s3-elf-gdb build/project.elf \
 ```python
 import socket, time
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect(('workbench.local', 4444))
+s.connect((BENCH, 4444))
 time.sleep(0.5)
 banner = s.recv(4096)  # telnet negotiation + "Open On-Chip Debugger"
 s.sendall(b'halt\n')
@@ -230,18 +230,18 @@ Channel A (JTAG) must be released before OpenOCD can use it:
 
 ```bash
 # Find the USB bus ID
-ssh pi@workbench.local "lsusb -d 0403:6010"
+ssh pi@<bench-hostname> "lsusb -d 0403:6010"
 # → Bus 001 Device 020: ID 0403:6010 ... FT2232C/D/H
 
 # Unbind channel A (interface 0)
-ssh pi@workbench.local "echo '1-1.4:1.0' | sudo tee /sys/bus/usb/drivers/ftdi_sio/unbind"
+ssh pi@<bench-hostname> "echo '1-1.4:1.0' | sudo tee /sys/bus/usb/drivers/ftdi_sio/unbind"
 # Channel B (/dev/ttyUSB1) remains for UART
 ```
 
 ### Start OpenOCD with ESP-Prog
 
 ```bash
-ssh pi@workbench.local "openocd-esp32 -s /usr/local/share/openocd-esp32/scripts \
+ssh pi@<bench-hostname> "openocd-esp32 -s /usr/local/share/openocd-esp32/scripts \
   -f interface/ftdi/esp_ftdi.cfg \
   -f target/esp32.cfg \
   -c 'gdb port 3333' -c 'telnet port 4444' -c 'bindto 0.0.0.0'"
@@ -260,7 +260,7 @@ power-on, the chip configures 1.8V flash (crashes on 3.3V boards).
 **Fix:** Burn `VDD_SDIO` eFuse to force 3.3V:
 ```bash
 ## Port is auto-assigned — read it from /api/devices (the "url" field)
-espefuse.py --port rfc2217://workbench.local:<PORT> set_flash_voltage 3.3V
+espefuse.py --port rfc2217://<bench>:<PORT> set_flash_voltage 3.3V
 ```
 
 ---
@@ -274,7 +274,7 @@ espefuse.py --port rfc2217://workbench.local:<PORT> set_flash_voltage 3.3V
   "request": "launch",
   "program": "${workspaceFolder}/build/project.elf",
   "miDebuggerPath": "riscv32-esp-elf-gdb",
-  "miDebuggerServerAddress": "workbench.local:3333",
+  "miDebuggerServerAddress": "<bench-ip>:3333",
   "setupCommands": [
     {"text": "set remote hardware-breakpoint-limit 2"},
     {"text": "monitor reset halt"}
@@ -289,7 +289,7 @@ espefuse.py --port rfc2217://workbench.local:<PORT> set_flash_voltage 3.3V
   "request": "launch",
   "program": "${workspaceFolder}/build/project.elf",
   "miDebuggerPath": "xtensa-esp32s3-elf-gdb",
-  "miDebuggerServerAddress": "workbench.local:3333",
+  "miDebuggerServerAddress": "<bench-ip>:3333",
   "setupCommands": [
     {"text": "set remote hardware-breakpoint-limit 2"},
     {"text": "monitor reset halt"}
@@ -301,7 +301,7 @@ espefuse.py --port rfc2217://workbench.local:<PORT> set_flash_voltage 3.3V
 ```ini
 debug_tool = esp-builtin
 debug_server =
-debug_port = workbench.local:3333
+debug_port = <bench-ip>:3333
 ```
 
 ---
@@ -342,7 +342,7 @@ So the check before flashing is not "is this slot debugging" but **"is any slot
 debugging"**:
 
 ```bash
-curl -s http://workbench.local:8080/api/devices \
+curl -s $WORKBENCH_URL/api/devices \
   | python3 -c "import json,sys; print([s['label'] for s in json.load(sys.stdin)['slots'] if s['debugging']])"
 ```
 
@@ -367,7 +367,7 @@ Request and response shapes: [FSD Appendix D.3](../../../docs/Embedded-Workbench
 | `UNEXPECTED: 0x120034e5` with C3 config | Device is actually an S3 | Use `esp32s3-builtin.cfg` |
 | SLOT flapping after debug | OpenOCD halt/resume caused USB re-enum | `POST /api/serial/recover` or manual hotplug |
 | `ftdi_sio` blocks OpenOCD | ESP-Prog channel A claimed by kernel | Unbind: `echo <busid>:1.0 > .../ftdi_sio/unbind` |
-| GDB connection refused | OpenOCD not running or wrong port | Check `telnet workbench.local 4444` first |
+| GDB connection refused | OpenOCD not running or wrong port | Check `telnet "$BENCH" 4444` first |
 | Flash voltage crash (classic ESP32) | GPIO12/TDI HIGH at boot | Burn VDD_SDIO eFuse to 3.3V |
 | No `303a:1001` in lsusb | Board uses CH340/CP2102 bridge, not native USB | Use ESP-Prog (FR-026) instead |
 | Auto-debug didn't start | Chip not detected or flapping | Check `journalctl -u rfc2217-portal` for `auto-detect` messages |
@@ -399,7 +399,7 @@ GPIO_IN1_REG  0x3FF4403C   — GPIO 32-39 input levels
 import socket, time, re
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect(('workbench.local', 4444))
+s.connect((BENCH, 4444))
 time.sleep(0.3)
 s.recv(4096)  # banner
 
@@ -438,7 +438,7 @@ GDB binary: `~/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-
 
 ```bash
 xtensa-esp32-elf-gdb firmware.elf \
-  -ex "target extended-remote workbench.local:3333" \
+  -ex "target extended-remote $BENCH:3333" \
   -ex "monitor halt" \
   -ex "break radio_controller.cpp:204" \
   -ex "continue"
@@ -457,7 +457,7 @@ When the breakpoint hits, inspect variables, backtrace, and continue:
 
 ```bash
 xtensa-esp32-elf-gdb firmware.elf \
-  -ex "target extended-remote workbench.local:3333" \
+  -ex "target extended-remote $BENCH:3333" \
   -ex "break RadioController::getRSSI" \
   -ex "continue"
 ```
@@ -466,7 +466,7 @@ xtensa-esp32-elf-gdb firmware.elf \
 
 ```bash
 xtensa-esp32-elf-gdb firmware.elf -batch \
-  -ex "target extended-remote workbench.local:3333" \
+  -ex "target extended-remote $BENCH:3333" \
   -ex "monitor halt" \
   -ex "break radio_controller.cpp:204" \
   -ex "continue" \
@@ -498,7 +498,7 @@ code or use watchpoints.
 
 ```bash
 # List all ESP32 configs on the Pi
-ssh pi@workbench.local "ls /usr/local/share/openocd-esp32/scripts/board/esp32*"
+ssh pi@<bench-hostname> "ls /usr/local/share/openocd-esp32/scripts/board/esp32*"
 ```
 
 Key configs:

@@ -5,21 +5,23 @@ description: Use this skill whenever you need to read serial output or debug log
 
 # ESP32 Debug Logging
 
-Base URL: `http://workbench.local:8080`
+Base URL: `$WORKBENCH_URL` — see Step 0
 
-## Step 0: Discover Workbench
+## Step 0: Point at a bench
 
-Before using any workbench API, ensure `workbench.local` resolves:
-
-```bash
-curl -s http://workbench.local:8080/api/info
-```
-
-If that fails, run the discovery script from the workbench repo:
+There are several benches and their addresses move, so nothing here writes one
+down. `workbench.local` is not usable either — a container cannot resolve mDNS.
+Discover the bench and export its URL:
 
 ```bash
-sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
+export WORKBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py \
+                         --url --name <bench-hostname>)
+curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
 ```
+
+`--url` refuses to guess when more than one bench answers, so `--name` is
+required whenever a second bench is powered on. `WORKBENCH_URL` is the same
+variable `pytest --wt-url` falls back to.
 
 Two logging methods are available. Choose based on your situation:
 
@@ -48,12 +50,12 @@ Reads serial output via RFC2217 proxy. Optionally waits for a regex pattern.
 
 ```bash
 # Wait up to 10s for a pattern match
-curl -X POST http://workbench.local:8080/api/serial/monitor \
+curl -X POST $WORKBENCH_URL/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot": "SLOT1", "pattern": "WiFi connected", "timeout": 10}'
 
 # Just capture output for 5s (no pattern)
-curl -X POST http://workbench.local:8080/api/serial/monitor \
+curl -X POST $WORKBENCH_URL/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot": "SLOT1", "timeout": 5}'
 ```
@@ -77,7 +79,7 @@ default state of a board on a JTAG-capable slot, not something you opted into.
 Stop it before capturing boot output:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/debug/stop \
+curl -X POST $WORKBENCH_URL/api/debug/stop \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
 ```
 
@@ -102,12 +104,12 @@ Boot-marker patterns for running / download-mode / unknown are in
 
 ```bash
 # Reset via JTAG slot
-curl -X POST http://workbench.local:8080/api/serial/reset \
+curl -X POST $WORKBENCH_URL/api/serial/reset \
   -H 'Content-Type: application/json' \
   -d '{"slot": "<JTAG-slot>"}'
 
 # Capture boot output from UART slot
-curl -X POST http://workbench.local:8080/api/serial/monitor \
+curl -X POST $WORKBENCH_URL/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot": "<UART-slot>", "timeout": 10}'
 ```
@@ -118,16 +120,16 @@ ESP32 firmware sends debug logs as UDP datagrams to the workbench on port 5555. 
 
 ```bash
 # Get recent UDP logs (default limit: 200)
-curl -s http://workbench.local:8080/api/udplog | jq .
+curl -s $WORKBENCH_URL/api/udplog | jq .
 
 # Filter by source device IP
-curl -s "http://workbench.local:8080/api/udplog?source=192.168.4.2" | jq .
+curl -s "$WORKBENCH_URL/api/udplog?source=192.168.4.2" | jq .
 
 # Get logs since a timestamp, limited to 50 lines
-curl -s "http://workbench.local:8080/api/udplog?since=1700000000.0&limit=50" | jq .
+curl -s "$WORKBENCH_URL/api/udplog?since=1700000000.0&limit=50" | jq .
 
 # Clear the buffer before starting a test
-curl -X DELETE http://workbench.local:8080/api/udplog
+curl -X DELETE $WORKBENCH_URL/api/udplog
 ```
 
 Response format: `{"ok": true, "lines": [{"ts": 1700000001.23, "source": "192.168.4.2", "line": "OTA progress: 45%"}, ...]}`
@@ -160,7 +162,7 @@ if (inet_aton(CONFIG_WORKBENCH_IP, &workbench.sin_addr) == 0) {   /* dotted-quad
 sendto(sock, msg, strlen(msg), 0, (struct sockaddr *)&workbench, sizeof(workbench));
 ```
 
-To use a **name** such as `workbench.local` instead of an IP, resolve it first —
+To use a **name** instead of an IP, resolve it first —
 `inet_aton` will not do it for you:
 
 ```c
@@ -181,8 +183,8 @@ avoids the dependency entirely, which is why the test firmware does that.
 The activity log tracks workbench actions (resets, WiFi changes, firmware uploads) — not device output.
 
 ```bash
-curl -s http://workbench.local:8080/api/log | jq .
-curl -s "http://workbench.local:8080/api/log?since=2025-01-01T00:00:00Z" | jq .
+curl -s $WORKBENCH_URL/api/log | jq .
+curl -s "$WORKBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
 ```
 
 ## Common Workflows

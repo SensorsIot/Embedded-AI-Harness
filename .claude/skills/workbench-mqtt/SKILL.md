@@ -5,21 +5,23 @@ description: Use this skill whenever tests involve MQTT communication — starti
 
 # ESP32 MQTT Broker
 
-Base URL: `http://workbench.local:8080`
+Base URL: `$WORKBENCH_URL` — see Step 0
 
-## Step 0: Discover Workbench
+## Step 0: Point at a bench
 
-Before using any workbench API, ensure `workbench.local` resolves:
-
-```bash
-curl -s http://workbench.local:8080/api/info
-```
-
-If that fails, run the discovery script from the workbench repo:
+There are several benches and their addresses move, so nothing here writes one
+down. `workbench.local` is not usable either — a container cannot resolve mDNS.
+Discover the bench and export its URL:
 
 ```bash
-sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
+export WORKBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py \
+                         --url --name <bench-hostname>)
+curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
 ```
+
+`--url` refuses to guess when more than one bench answers, so `--name` is
+required whenever a second bench is powered on. `WORKBENCH_URL` is the same
+variable `pytest --wt-url` falls back to.
 
 The workbench can run an MQTT broker (mosquitto) for testing ESP32 devices that use MQTT for communication. The broker is accessible to devices connected to the workbench's WiFi AP.
 
@@ -31,20 +33,20 @@ Request and response shapes: [FSD Appendix D.12](../../../docs/Embedded-Workbenc
 
 ```bash
 # Start the MQTT broker
-curl -X POST http://workbench.local:8080/api/mqtt/start
+curl -X POST $WORKBENCH_URL/api/mqtt/start
 
 # Check broker status
-curl http://workbench.local:8080/api/mqtt/status
+curl $WORKBENCH_URL/api/mqtt/status
 
 # Stop the MQTT broker
-curl -X POST http://workbench.local:8080/api/mqtt/stop
+curl -X POST $WORKBENCH_URL/api/mqtt/stop
 ```
 
 ## MQTT Broker Details
 
 | Property | Value |
 |----------|-------|
-| Broker IP | `workbench.local` (from LAN) or `192.168.4.1` (from workbench AP) |
+| Broker | the bench address (from the LAN) or `192.168.4.1` (from the workbench AP) |
 | Default port | `1883` |
 | Authentication | None (open broker for testing) |
 

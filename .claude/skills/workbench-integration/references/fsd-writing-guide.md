@@ -19,8 +19,8 @@ entirely. The workbench operations are the operational procedures for this proje
 
 Query the workbench for hardware details:
 ```bash
-curl -s http://workbench.local:8080/api/devices | jq .
-curl -s http://workbench.local:8080/api/info | jq .
+curl -s $WORKBENCH_URL/api/devices | jq .
+curl -s $WORKBENCH_URL/api/info | jq .
 ```
 
 Record: slot label, TCP port, RFC2217 URL, device state.
@@ -36,10 +36,10 @@ Write a hardware table and a project-specific values table:
 
 | What | Where |
 |------|-------|
-| ESP32 USB | Workbench slot <N>, serial at `rfc2217://workbench.local:<PORT>` |
-| Workbench host | `workbench.local:8080` |
-| UDP log sink | `workbench.local:5555` |
-| OTA firmware URL | `http://workbench.local:8080/firmware/<project>/<project>.bin` |
+| ESP32 USB | Workbench slot <N>, serial at `rfc2217://<bench>:<PORT>` |
+| Workbench host | `<bench>:8080` |
+| UDP log sink | `<bench-ip>:5555` (dotted-quad — the DUT has no mDNS) |
+| OTA firmware URL | `$WORKBENCH_URL/firmware/<project>/<project>.bin` |
 
 #### Project-Specific Values
 

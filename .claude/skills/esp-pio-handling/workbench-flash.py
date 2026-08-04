@@ -9,7 +9,7 @@ where the reset works natively. Native-USB C3/S3/C6/H2 chips flash fine over RFC
 and do not need this.
 
 Usage:
-  workbench-flash.py --host workbench.local:8080 --slot SLOT3 [--env <pio_env>]
+  workbench-flash.py --host <bench-ip>:8080 --slot SLOT3 [--env <pio_env>]
                      [--chip esp32] [--baud 460800] [--project-dir .]
 """
 import argparse
@@ -49,7 +49,7 @@ def multipart(fields, files, boundary="----workbenchflash"):
 
 def main():
     ap = argparse.ArgumentParser(description="Flash a PlatformIO ESP32 build via the workbench /api/flash endpoint.")
-    ap.add_argument("--host", required=True, help="workbench host:port, e.g. workbench.local:8080")
+    ap.add_argument("--host", required=True, help="workbench host:port, e.g. 192.0.2.10:8080")
     ap.add_argument("--slot", required=True, help="slot label, e.g. SLOT3")
     ap.add_argument("--env", help="PlatformIO env (default: first dir under .pio/build)")
     ap.add_argument("--project-dir", default=".", help="PlatformIO project directory")
@@ -94,7 +94,8 @@ def main():
     with urllib.request.urlopen(req, timeout=300) as resp:
         r = json.load(resp)
     print("ok:", r.get("ok"), "| returncode:", r.get("returncode"), "| error:", r.get("error"))
-    tail = (r.get("log") or "")[-800:]
+    # /api/flash returns "output"; older portals used "log".
+    tail = (r.get("output") or r.get("log") or "")[-800:]
     if tail:
         print("--- esptool log tail ---")
         print(tail)

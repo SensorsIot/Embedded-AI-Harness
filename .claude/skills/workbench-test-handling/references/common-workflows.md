@@ -3,7 +3,7 @@
 ## Clean slate then verify
 
 ```python
-wt = WorkbenchDriver("http://workbench.local:8080")
+wt = WorkbenchDriver("$WORKBENCH_URL")
 
 # Flash + erase NVS (via bash/esptool)
 # Then verify via driver:
@@ -15,7 +15,7 @@ assert slot["present"] is True
 ## Captive portal test cycle (GPIO -- fully automated)
 
 ```python
-wt = WorkbenchDriver("http://workbench.local:8080")
+wt = WorkbenchDriver("$WORKBENCH_URL")
 # Look up pin numbers and markers from project FSD
 PI_PIN = ...           # Pi BCM GPIO wired to DUT portal button
 PORTAL_MARKER = ...    # Serial output confirming portal mode
@@ -50,7 +50,7 @@ evt = wt.wait_for_station(timeout=30)
 ## WiFi disconnect test cycle
 
 ```python
-wt = WorkbenchDriver("http://workbench.local:8080")
+wt = WorkbenchDriver("$WORKBENCH_URL")
 
 # 1. DUT on test AP
 wt.ap_start("TestAP", "test12345")
@@ -71,7 +71,7 @@ print(f"Reconnected: {evt}")
 ## Reset DUT and verify normal boot
 
 ```python
-wt = WorkbenchDriver("http://workbench.local:8080")
+wt = WorkbenchDriver("$WORKBENCH_URL")
 
 # Single reset (no GPIO held → normal boot)
 wt.serial_reset(SLOT)

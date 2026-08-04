@@ -5,21 +5,23 @@ description: Use this skill whenever the user needs to interact with BLE periphe
 
 # ESP32 Bluetooth LE Proxy
 
-Base URL: `http://workbench.local:8080`
+Base URL: `$WORKBENCH_URL` — see Step 0
 
-## Step 0: Discover Workbench
+## Step 0: Point at a bench
 
-Before using any workbench API, ensure `workbench.local` resolves:
-
-```bash
-curl -s http://workbench.local:8080/api/info
-```
-
-If that fails, run the discovery script from the workbench repo:
+There are several benches and their addresses move, so nothing here writes one
+down. `workbench.local` is not usable either — a container cannot resolve mDNS.
+Discover the bench and export its URL:
 
 ```bash
-sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
+export WORKBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py \
+                         --url --name <bench-hostname>)
+curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
 ```
+
+`--url` refuses to guess when more than one bench answers, so `--name` is
+required whenever a second bench is powered on. `WORKBENCH_URL` is the same
+variable `pytest --wt-url` falls back to.
 
 ## Endpoints
 
@@ -32,30 +34,30 @@ disconnecting the first and the call fails rather than switching.
 
 ```bash
 # Scan for BLE devices (5s timeout)
-curl -X POST http://workbench.local:8080/api/ble/scan \
+curl -X POST $WORKBENCH_URL/api/ble/scan \
   -H 'Content-Type: application/json' \
   -d '{"timeout": 5}'
 
 # Scan with name filter
-curl -X POST http://workbench.local:8080/api/ble/scan \
+curl -X POST $WORKBENCH_URL/api/ble/scan \
   -H 'Content-Type: application/json' \
   -d '{"timeout": 5, "name_filter": "<device-name>"}'
 
 # Connect by MAC address
-curl -X POST http://workbench.local:8080/api/ble/connect \
+curl -X POST $WORKBENCH_URL/api/ble/connect \
   -H 'Content-Type: application/json' \
   -d '{"address": "AA:BB:CC:DD:EE:FF"}'
 
 # Write hex data to a GATT characteristic
-curl -X POST http://workbench.local:8080/api/ble/write \
+curl -X POST $WORKBENCH_URL/api/ble/write \
   -H 'Content-Type: application/json' \
   -d '{"characteristic": "6e400002-b5a3-f393-e0a9-e50e24dcca9e", "data": "48656c6c6f", "response": true}'
 
 # Check connection status
-curl http://workbench.local:8080/api/ble/status
+curl $WORKBENCH_URL/api/ble/status
 
 # Disconnect
-curl -X POST http://workbench.local:8080/api/ble/disconnect
+curl -X POST $WORKBENCH_URL/api/ble/disconnect
 ```
 
 ## Nordic UART Service (NUS) UUIDs

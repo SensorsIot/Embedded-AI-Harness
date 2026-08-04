@@ -5,7 +5,7 @@ description: Use this skill when running or writing automated tests against the 
 
 # ESP32 Test Automation
 
-Base URL: `http://workbench.local:8080`
+Base URL: `$WORKBENCH_URL` — see Step 0
 
 **The portal and the MQTT broker are always-on infrastructure. A test never
 starts, stops or restarts them** — doing so breaks whatever else is using the
@@ -39,19 +39,21 @@ Rules that decide whether a run is worth anything:
 Workflows that span several instruments — provision, reboot, re-provision, soak —
 are in [`references/common-workflows.md`](references/common-workflows.md).
 
-## Step 0: Discover Workbench
+## Step 0: Point at a bench
 
-Before using any workbench API, ensure `workbench.local` resolves:
-
-```bash
-curl -s http://workbench.local:8080/api/info
-```
-
-If that fails, run the discovery script from the workbench repo:
+There are several benches and their addresses move, so nothing here writes one
+down. `workbench.local` is not usable either — a container cannot resolve mDNS.
+Discover the bench and export its URL:
 
 ```bash
-sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
+export WORKBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py \
+                         --url --name <bench-hostname>)
+curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
 ```
+
+`--url` refuses to guess when more than one bench answers, so `--name` is
+required whenever a second bench is powered on. `WORKBENCH_URL` is the same
+variable `pytest --wt-url` falls back to.
 
 ## Test Progress Tracking
 
@@ -65,27 +67,27 @@ Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbenc
 
 ```bash
 # 1. Start a test session
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST $WORKBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"spec": "<test-spec> v1.0", "phase": "Phase 1", "total": 8}'
 
 # 2. Update current test step
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST $WORKBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"current": {"id": "TC-001", "name": "WiFi Provisioning", "step": "Joining AP...", "manual": false}}'
 
 # 3. Record a result
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST $WORKBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"result": {"id": "TC-001", "name": "WiFi Provisioning", "result": "PASS"}}'
 
 # 4. End the session
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST $WORKBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"end": true}'
 
 # Poll current progress
-curl http://workbench.local:8080/api/test/progress
+curl $WORKBENCH_URL/api/test/progress
 ```
 
 ### Python Driver Methods
@@ -114,7 +116,7 @@ repo's own location, not a copy under `/tmp`:
 import sys
 sys.path.insert(0, "<workbench-repo>/pytest")
 from workbench_driver import WorkbenchDriver
-wt = WorkbenchDriver("http://workbench.local:8080")
+wt = WorkbenchDriver("$WORKBENCH_URL")
 ```
 
 Then discover the slot rather than hard-coding one, because labels move with the
@@ -148,18 +150,18 @@ leaves the modal on screen with nothing waiting for it.
 
 ```bash
 # Request operator action (blocks until Done/Cancel/timeout)
-curl -X POST http://workbench.local:8080/api/human-interaction \
+curl -X POST $WORKBENCH_URL/api/human-interaction \
   -H 'Content-Type: application/json' \
   -d '{"message": "Connect USB cable to port 2 and click Done", "timeout": 120}'
 
 # Check if a request is pending
-curl http://workbench.local:8080/api/human/status
+curl $WORKBENCH_URL/api/human/status
 
 # Operator confirms
-curl -X POST http://workbench.local:8080/api/human/done
+curl -X POST $WORKBENCH_URL/api/human/done
 
 # Operator cancels
-curl -X POST http://workbench.local:8080/api/human/cancel
+curl -X POST $WORKBENCH_URL/api/human/cancel
 ```
 
 ### Responses
@@ -189,10 +191,10 @@ Request and response shapes: [FSD Appendix D.14](../../../docs/Embedded-Workbenc
 
 ```bash
 # Get all entries
-curl -s http://workbench.local:8080/api/log | jq .
+curl -s $WORKBENCH_URL/api/log | jq .
 
 # Get entries since a timestamp
-curl -s "http://workbench.local:8080/api/log?since=2025-01-01T00:00:00Z" | jq .
+curl -s "$WORKBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
 ```
 
 ## Common Workflows

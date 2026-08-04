@@ -11,7 +11,7 @@ The instance of SKILL.md Part 2 that runs in this repository. Read when changing
 | Tier | Command | On a hosted runner? |
 |---|---|---|
 | **host** — 22 tests, pure logic | `pytest pytest/host/` | **Yes.** 0.16 s, no hardware |
-| **bench** — 67 tests over HTTP | `pytest pytest/ --wt-url …` | **No.** Needs a live Pi with DUTs attached; a runner cannot reach `workbench.local` |
+| **bench** — 67 tests over HTTP | `pytest pytest/ --wt-url …` | **No.** Needs a live Pi with DUTs attached; a runner cannot reach the bench |
 
 So the gate covers roughly a fifth of the suite. It catches the RF synthesis
 maths, where a bug puts the bench on the wrong frequency silently — but a green

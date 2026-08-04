@@ -55,11 +55,11 @@ breaks every new bench and no existing one.
 Verify over HTTP — never by reading files over SSH:
 
 ```bash
-curl -s http://workbench.local:8080/api/info      # portal version, host info
-curl -s http://workbench.local:8080/api/devices   # every slot
+curl -s $WORKBENCH_URL/api/info      # portal version, host info
+curl -s $WORKBENCH_URL/api/devices   # every slot
 ```
 
-If `workbench.local` does not resolve:
+If the bench has moved or you do not know its address:
 
 ```bash
 sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
@@ -70,7 +70,7 @@ newer Python takes only its own endpoint down and leaves the portal answering:
 
 ```bash
 for ep in sdr/status siggen/status mqtt/status wifi/mode debug/probes gpio/status; do
-  curl -s "http://workbench.local:8080/api/$ep"; echo
+  curl -s "$WORKBENCH_URL/api/$ep"; echo
 done
 ```
 
@@ -97,8 +97,8 @@ esptool output must accept both wordings.
 The pattern for every module — only the destination name changes:
 
 ```bash
-scp pi/portal.py pi@workbench.local:/tmp/portal.py
-ssh pi@workbench.local 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
+scp pi/portal.py pi@<bench-hostname>:/tmp/portal.py
+ssh pi@<bench-hostname> 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
 ```
 
 `portal.py` is the only one renamed on install (→ `rfc2217-portal`). The rest
@@ -113,7 +113,7 @@ Python has already loaded the old one.
 Then prove it took, rather than assuming:
 
 ```bash
-curl -s http://workbench.local:8080/api/info
+curl -s $WORKBENCH_URL/api/info
 ```
 
 **SSH is for deploying code and nothing else.** Never drive the bench over SSH:
@@ -154,8 +154,8 @@ misbehaves on a new host.
 Re-run the tests against the live bench, and say what actually ran:
 
 ```bash
-pytest pytest/ --wt-url http://workbench.local:8080            # no DUT needed
-pytest pytest/ --wt-url http://workbench.local:8080 --run-dut  # full
+pytest pytest/ --wt-url $WORKBENCH_URL            # no DUT needed
+pytest pytest/ --wt-url $WORKBENCH_URL --run-dut  # full
 pytest pytest/host/                                            # no hardware at all
 ```
 

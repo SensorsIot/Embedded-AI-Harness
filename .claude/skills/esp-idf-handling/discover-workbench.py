@@ -108,14 +108,36 @@ def main():
                         help="Write discovered workbench to /etc/hosts")
     parser.add_argument("--quiet", action="store_true",
                         help="Only output on success")
+    parser.add_argument("--url", action="store_true",
+                        help="Print only the base URL, for: export WORKBENCH_URL=$(... --url)")
+    parser.add_argument("--name",
+                        help="Only the bench with this hostname (case-insensitive). "
+                             "Needed once more than one bench answers.")
     args = parser.parse_args()
 
     results = discover(timeout=args.timeout)
 
+    if args.name:
+        wanted = args.name.lower().removesuffix(".local")
+        results = [w for w in results
+                   if w.get("hostname", "").lower() == wanted]
+
     if not results:
         if not args.quiet:
-            print("No ESP32 Workbench found", file=sys.stderr)
+            which = f" named {args.name}" if args.name else ""
+            print(f"No ESP32 Workbench{which} found", file=sys.stderr)
         return 1
+
+    # --url must name exactly one bench, or the caller would export the wrong
+    # address. Two benches answer here, so silence is not an option.
+    if args.url:
+        if len(results) > 1:
+            names = ", ".join(sorted(w.get("hostname", "?") for w in results))
+            print(f"{len(results)} benches answered ({names}) — pass --name to choose",
+                  file=sys.stderr)
+            return 2
+        print(f"http://{results[0]['source_ip']}:{results[0]['port']}")
+        return 0
 
     for wb in results:
         hostname = wb.get("hostname", "workbench")

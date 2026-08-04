@@ -217,14 +217,14 @@ and step 5 still succeeds.
 
 ```bash
 # Start MQTT broker on workbench
-curl -X POST http://workbench.local:8080/api/mqtt/start
+curl -X POST $WORKBENCH_URL/api/mqtt/start
 
 # Subscribe to device topics
-mosquitto_sub -h workbench.local -t "device/#" -v
+mosquitto_sub -h "$BENCH" -t "device/#" -v
 
 # Publish command to device
-mosquitto_pub -h workbench.local -t "device/cmd" -m '{"action":"status"}'
+mosquitto_pub -h "$BENCH" -t "device/cmd" -m '{"action":"status"}'
 
 # Stop MQTT broker
-curl -X POST http://workbench.local:8080/api/mqtt/stop
+curl -X POST $WORKBENCH_URL/api/mqtt/stop
 ```

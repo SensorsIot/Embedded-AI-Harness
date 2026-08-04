@@ -5,21 +5,23 @@ description: Use this skill whenever you need to control the workbench's WiFi ra
 
 # ESP32 WiFi & Provisioning
 
-Base URL: `http://workbench.local:8080`
+Base URL: `$WORKBENCH_URL` — see Step 0
 
-## Step 0: Discover Workbench
+## Step 0: Point at a bench
 
-Before using any workbench API, ensure `workbench.local` resolves:
-
-```bash
-curl -s http://workbench.local:8080/api/info
-```
-
-If that fails, run the discovery script from the workbench repo:
+There are several benches and their addresses move, so nothing here writes one
+down. `workbench.local` is not usable either — a container cannot resolve mDNS.
+Discover the bench and export its URL:
 
 ```bash
-sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
+export WORKBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py \
+                         --url --name <bench-hostname>)
+curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
 ```
+
+`--url` refuses to guess when more than one bench answers, so `--name` is
+required whenever a second bench is powered on. `WORKBENCH_URL` is the same
+variable `pytest --wt-url` falls back to.
 
 ## Operating Modes
 
@@ -32,15 +34,15 @@ The workbench has two WiFi operating modes:
 
 ```bash
 # Check current mode
-curl http://workbench.local:8080/api/wifi/mode
+curl $WORKBENCH_URL/api/wifi/mode
 
 # Switch to wifi-testing mode
-curl -X POST http://workbench.local:8080/api/wifi/mode \
+curl -X POST $WORKBENCH_URL/api/wifi/mode \
   -H 'Content-Type: application/json' \
   -d '{"mode": "wifi-testing"}'
 
 # Switch to serial-interface mode (joins a WiFi network)
-curl -X POST http://workbench.local:8080/api/wifi/mode \
+curl -X POST $WORKBENCH_URL/api/wifi/mode \
   -H 'Content-Type: application/json' \
   -d '{"mode": "serial-interface", "ssid": "MyNetwork", "pass": "password"}'
 ```
@@ -57,15 +59,15 @@ association and vice versa, so a test that needs both must sequence them.
 
 ```bash
 # Start AP
-curl -X POST http://workbench.local:8080/api/wifi/ap_start \
+curl -X POST $WORKBENCH_URL/api/wifi/ap_start \
   -H 'Content-Type: application/json' \
   -d '{"ssid": "TestAP", "pass": "testpass123", "channel": 6}'
 
 # Check AP status and connected clients
-curl http://workbench.local:8080/api/wifi/ap_status
+curl $WORKBENCH_URL/api/wifi/ap_status
 
 # Stop AP
-curl -X POST http://workbench.local:8080/api/wifi/ap_stop
+curl -X POST $WORKBENCH_URL/api/wifi/ap_stop
 ```
 
 AP and STA are mutually exclusive — starting one stops the other.
@@ -74,18 +76,18 @@ AP and STA are mutually exclusive — starting one stops the other.
 
 ```bash
 # Join a network
-curl -X POST http://workbench.local:8080/api/wifi/sta_join \
+curl -X POST $WORKBENCH_URL/api/wifi/sta_join \
   -H 'Content-Type: application/json' \
   -d '{"ssid": "MyNetwork", "pass": "password", "timeout": 15}'
 
 # Disconnect
-curl -X POST http://workbench.local:8080/api/wifi/sta_leave
+curl -X POST $WORKBENCH_URL/api/wifi/sta_leave
 ```
 
 ## WiFi Scan
 
 ```bash
-curl http://workbench.local:8080/api/wifi/scan
+curl $WORKBENCH_URL/api/wifi/scan
 ```
 
 ## WiFi On/Off Testing
@@ -94,23 +96,23 @@ To test a device's behavior when WiFi connectivity is lost and restored:
 
 ```bash
 # 1. Ensure device is connected to workbench AP
-curl -X POST http://workbench.local:8080/api/wifi/ap_start \
+curl -X POST $WORKBENCH_URL/api/wifi/ap_start \
   -H 'Content-Type: application/json' \
   -d '{"ssid": "TestAP", "pass": "testpass123"}'
 
 # 2. Stop AP — device loses WiFi
-curl -X POST http://workbench.local:8080/api/wifi/ap_stop
+curl -X POST $WORKBENCH_URL/api/wifi/ap_stop
 
 # 3. Monitor device behavior (serial or UDP logs)
 # ... wait for desired duration ...
 
 # 4. Restart AP — device should reconnect
-curl -X POST http://workbench.local:8080/api/wifi/ap_start \
+curl -X POST $WORKBENCH_URL/api/wifi/ap_start \
   -H 'Content-Type: application/json' \
   -d '{"ssid": "TestAP", "pass": "testpass123"}'
 
 # 5. Wait for device to reconnect
-curl "http://workbench.local:8080/api/wifi/events?timeout=30"
+curl "$WORKBENCH_URL/api/wifi/events?timeout=30"
 ```
 
 ## HTTP Relay
@@ -119,18 +121,18 @@ curl "http://workbench.local:8080/api/wifi/events?timeout=30"
 
 ```bash
 # GET request to device
-curl -X POST http://workbench.local:8080/api/wifi/http \
+curl -X POST $WORKBENCH_URL/api/wifi/http \
   -H 'Content-Type: application/json' \
   -d '{"method": "GET", "url": "http://192.168.4.2/status", "timeout": 10}'
 
 # POST with base64-encoded body
 BODY=$(echo -n '{"key":"value"}' | base64)
-curl -X POST http://workbench.local:8080/api/wifi/http \
+curl -X POST $WORKBENCH_URL/api/wifi/http \
   -H 'Content-Type: application/json' \
   -d "{\"method\": \"POST\", \"url\": \"http://192.168.4.2/config\", \"headers\": {\"Content-Type\": \"application/json\"}, \"body\": \"$BODY\", \"timeout\": 10}"
 
 # Decode the base64 response body
-curl -s -X POST http://workbench.local:8080/api/wifi/http \
+curl -s -X POST $WORKBENCH_URL/api/wifi/http \
   -H 'Content-Type: application/json' \
   -d '{"method": "GET", "url": "http://192.168.4.x:8080/endpoint", "timeout": 10}' \
   | python3 -c "import json,sys,base64; r=json.load(sys.stdin); print(base64.b64decode(r['body']).decode())"
@@ -141,7 +143,7 @@ curl -s -X POST http://workbench.local:8080/api/wifi/http \
 Long-poll for STA_CONNECT / STA_DISCONNECT events:
 
 ```bash
-curl "http://workbench.local:8080/api/wifi/events?timeout=30"
+curl "$WORKBENCH_URL/api/wifi/events?timeout=30"
 ```
 
 ## Enter-Portal (Captive Portal Provisioning)
@@ -149,7 +151,7 @@ curl "http://workbench.local:8080/api/wifi/events?timeout=30"
 Ensures a device is connected to the workbench AP. If the device has no WiFi credentials, the workbench provisions it via the device's captive portal.
 
 ```bash
-curl -X POST http://workbench.local:8080/api/enter-portal \
+curl -X POST $WORKBENCH_URL/api/enter-portal \
   -H 'Content-Type: application/json' \
   -d '{"portal_ssid": "<DUT-portal-SSID>", "ssid": "TestAP", "password": "testpass123"}'
 ```

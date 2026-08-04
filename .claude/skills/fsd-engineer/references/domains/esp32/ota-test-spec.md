@@ -171,14 +171,14 @@ download completes.
 
 ```bash
 # Upload firmware to workbench
-curl -X POST http://workbench.local:8080/api/firmware/upload \
+curl -X POST $WORKBENCH_URL/api/firmware/upload \
   -F "project=my-project" -F "file=@build/firmware.bin"
 
 # Trigger OTA on device via HTTP relay
-curl -X POST http://workbench.local:8080/api/wifi/http \
+curl -X POST $WORKBENCH_URL/api/wifi/http \
   -H 'Content-Type: application/json' \
   -d '{"method":"POST","url":"http://192.168.4.2/ota","headers":{"Content-Type":"application/json"},"body":"...", "timeout":60}'
 
 # Monitor progress via UDP logs
-curl "http://workbench.local:8080/api/udplog?limit=50"
+curl "$WORKBENCH_URL/api/udplog?limit=50"
 ```

@@ -61,7 +61,7 @@ so use the explicit `bin@<offset>` form:
 
 ```bash
 cd .pio/build/<env>
-curl -s -X POST http://workbench.local:8080/api/flash \
+curl -s -X POST $WORKBENCH_URL/api/flash \
   -F slot=SLOT1 -F chip=esp32 \
   -F 'bin@0x1000=@bootloader.bin' \
   -F 'bin@0x8000=@partitions.bin' \
@@ -80,7 +80,7 @@ simply a pointer.
 ```bash
 pio run
 python3 .claude/skills/esp-pio-handling/workbench-flash.py \
-  --host workbench.local:8080 --slot SLOT3 --chip esp32
+  --host <bench>:8080 --slot SLOT3 --chip esp32
 ```
 
 Offsets: classic ESP32 → `0x1000`, C3/S3/C6/H2 → `0x0`. Fields and response:
@@ -89,12 +89,12 @@ Offsets: classic ESP32 → `0x1000`, C3/S3/C6/H2 → `0x0`. Fields and response:
 ### Fallback: RFC2217 upload (LAN clients only)
 
 ```ini
-upload_port  = rfc2217://workbench.local:4001
-monitor_port = rfc2217://workbench.local:4001
+upload_port  = rfc2217://<bench>:4001
+monitor_port = rfc2217://<bench>:4001
 ```
 
 ```bash
-pio run -t upload --upload-port 'rfc2217://workbench.local:4001?ign_set_control'
+pio run -t upload --upload-port 'rfc2217://<bench>:4001?ign_set_control'
 ```
 
 `?ign_set_control` is required: PlatformIO's esptool drives DTR/RTS, and over
@@ -104,7 +104,7 @@ RFC2217 each one is a network roundtrip.
 
 ```bash
 pio device monitor                                                    # local
-pio device monitor --port 'rfc2217://workbench.local:4001?ign_set_control'
+pio device monitor --port 'rfc2217://<bench>:4001?ign_set_control'
 ```
 
 For pattern matching, UDP logs, or watching a device whose USB port is occupied,
