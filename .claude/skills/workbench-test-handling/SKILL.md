@@ -67,7 +67,7 @@ Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbenc
 # 1. Start a test session
 curl -X POST http://workbench.local:8080/api/test/update \
   -H 'Content-Type: application/json' \
-  -d '{"spec": "iOS-Keyboard v1.0", "phase": "Phase 1", "total": 8}'
+  -d '{"spec": "<test-spec> v1.0", "phase": "Phase 1", "total": 8}'
 
 # 2. Update current test step
 curl -X POST http://workbench.local:8080/api/test/update \
@@ -91,7 +91,7 @@ curl http://workbench.local:8080/api/test/progress
 ### Python Driver Methods
 
 ```python
-wt.test_start("iOS-Keyboard v1.0", "Phase 1", total=8)
+wt.test_start("<test-spec> v1.0", "Phase 1", total=8)
 wt.test_step("TC-001", "WiFi Provisioning", "Joining AP...", manual=False)
 wt.test_result("TC-001", "WiFi Provisioning", "PASS")
 wt.test_end()

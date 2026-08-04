@@ -118,7 +118,7 @@ OTA_TRIGGER       → ble / http / both
 Record project-specific values:
 - WiFi AP SSID for captive portal (e.g. `"KB-Setup"`)
 - BLE device name (e.g. `"iOS-KB"`)
-- OTA URL (e.g. `"http://workbench.local:8080/firmware/ios-keyboard/ios-keyboard.bin"`)
+- OTA URL (e.g. `"http://workbench.local:8080/firmware/<project>/<project>.bin"`)
 - NVS namespace
 - Any project-specific command opcodes
 

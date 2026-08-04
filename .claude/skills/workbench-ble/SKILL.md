@@ -39,7 +39,7 @@ curl -X POST http://workbench.local:8080/api/ble/scan \
 # Scan with name filter
 curl -X POST http://workbench.local:8080/api/ble/scan \
   -H 'Content-Type: application/json' \
-  -d '{"timeout": 5, "name_filter": "iOS-Keyboard"}'
+  -d '{"timeout": 5, "name_filter": "<device-name>"}'
 
 # Connect by MAC address
 curl -X POST http://workbench.local:8080/api/ble/connect \

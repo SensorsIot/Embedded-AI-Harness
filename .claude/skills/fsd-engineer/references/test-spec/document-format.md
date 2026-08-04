@@ -101,23 +101,23 @@ Choose prefixes that match the project. Not every prefix is needed.
 ### 4.3 Complete Example
 
 ```markdown
-#### TC-102: MQTT Subscription Receives Wallbox Data
+#### TC-102: MQTT Subscription Updates The Reported Value
 
 **Precondition:**
 - DUT reachable: `GET /api/status` returns 200
 - MQTT connected: `/api/status` field `mqtt_connected` is `true`
-- Baseline error count: record `/api/status` field `wallbox_errors` as `E_before`
+- Baseline error count: record `/api/status` field `error_count` as `E_before`
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
 | 1 | Publish `{"power": 3500}` to `{TOPIC}` | Message accepted by broker |
-| 2 | Wait 2 seconds | DUT processes message |
-| 3 | `GET /api/status` | `wallbox_power` is `3500` (within +/-1) |
-| 4 | Check `wallbox_errors` field | Value equals `E_before` (no new errors) |
+| 2 | Poll `GET /api/status` until `power` changes, up to 5 s | DUT has processed the message |
+| 3 | `GET /api/status` | `power` is `3500` (within +/-1) |
+| 4 | Check `error_count` field | Value equals `E_before` (no new errors) |
 
 **Pass Criteria:** DUT receives MQTT message and exposes correct power value via API with no errors.
 
-**Automation:** `pytest test_mqtt.py::test_wallbox_power -v`
+**Automation:** `pytest test_mqtt.py::test_power_from_mqtt -v`
 ```
 
 ### 4.4 Step Table Rules

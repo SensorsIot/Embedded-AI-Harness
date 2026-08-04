@@ -80,7 +80,7 @@ tests:
     executable_test: tests/bench/test_mqtt_recovery.py
     last_execution:
       commit: abc1234
-      firmware_build: gplug-1.4.2
+      firmware_build: 1.4.2
       workbench_commit: def5678
       result: pass
       timestamp: 2026-08-03T14:22:07Z

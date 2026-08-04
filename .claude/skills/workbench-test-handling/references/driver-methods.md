@@ -20,10 +20,10 @@ wt.enter_portal(SLOT, resets=3)            # dict — trigger captive portal
 
 ```python
 wt.get_mode()                              # dict — {"mode": "wifi-testing"}
-wt.ap_start("TestAP-Modbus", "test12345")  # dict — start test AP
+wt.ap_start("TestAP", "test12345")  # dict — start test AP
 wt.ap_stop()                               # None
 wt.ap_status()                             # dict — active, ssid, stations
-wt.sta_join("MODBUS-Proxy-Setup", "", timeout=15)  # dict — join AP
+wt.sta_join("<DUT-portal-SSID>", "", timeout=15)  # dict — join AP
 wt.sta_leave()                             # None
 wt.scan()                                  # dict — nearby networks
 ```
@@ -33,7 +33,7 @@ wt.scan()                                  # dict — nearby networks
 ```python
 wt.http_get("http://192.168.4.1/api/status")         # Response
 wt.http_post("http://192.168.4.1/api/wifi",
-             json_data={"ssid": "TestAP-Modbus", "password": "test12345"})  # Response
+             json_data={"ssid": "TestAP", "password": "test12345"})  # Response
 ```
 
 ## GPIO control (drive Pi GPIO pins wired to DUT -- look up pin numbers in project FSD)

@@ -14,7 +14,7 @@ The skill dynamically scales the FSD depth based on inferred system complexity.
 
 Infer complexity from:
 - Number of distinct components (devices, services, apps)
-- Number of protocols (BLE, WiFi, MQTT, HTTP, LoRa, OCPP, Modbus, etc.)
+- Number of protocols (BLE, WiFi, MQTT, HTTP, LoRa, etc.)
 - Number of external integrations (cloud, Home Assistant, third-party APIs)
 - Presence of real-time constraints or safety requirements
 - Domain (SDR, energy systems, medical -> automatically higher complexity)

@@ -53,7 +53,7 @@ evt = wt.wait_for_station(timeout=30)
 wt = WorkbenchDriver("http://workbench.local:8080")
 
 # 1. DUT on test AP
-wt.ap_start("TestAP-Modbus", "test12345")
+wt.ap_start("TestAP", "test12345")
 # (DUT connects via NVS creds)
 
 # 2. Drop the AP
@@ -61,7 +61,7 @@ wt.ap_stop()
 import time; time.sleep(5)
 
 # 3. Bring AP back
-wt.ap_start("TestAP-Modbus", "test12345")
+wt.ap_start("TestAP", "test12345")
 
 # 4. Wait for reconnection
 evt = wt.wait_for_station(timeout=30)

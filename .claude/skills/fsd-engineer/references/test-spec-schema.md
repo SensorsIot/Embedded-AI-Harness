@@ -91,7 +91,7 @@ initial_state:
 test_data:
   interruption_s: 10
   recovery_limit_s: 30
-  telemetry_topic: gplug/test-device/power
+  telemetry_topic: <project>/test-device/power
 
 equipment:
   - Embedded Workbench

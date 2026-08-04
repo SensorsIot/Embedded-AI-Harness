@@ -151,7 +151,7 @@ Ensures a device is connected to the workbench AP. If the device has no WiFi cre
 ```bash
 curl -X POST http://workbench.local:8080/api/enter-portal \
   -H 'Content-Type: application/json' \
-  -d '{"portal_ssid": "iOS-Keyboard-Setup", "ssid": "TestAP", "password": "testpass123"}'
+  -d '{"portal_ssid": "<DUT-portal-SSID>", "ssid": "TestAP", "password": "testpass123"}'
 ```
 
 | Field | Description |
