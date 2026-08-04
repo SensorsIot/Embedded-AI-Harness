@@ -58,6 +58,44 @@ idf.py build                           # Build
 idf.py fullclean                       # Clean build directory
 ```
 
+### Step 3b: When there is no local toolchain
+
+`export.sh` missing is not a broken setup — a project set up by the
+[`setup-action`](../setup-action/SKILL.md) skill builds on GitHub deliberately,
+and some machines never install ESP-IDF at all. Check before assuming:
+
+```bash
+ls /opt/esp-idf/export.sh ~/esp/esp-idf/export.sh 2>/dev/null || echo "build in CI"
+```
+
+Then the binaries have to come back before Step 4 can run:
+
+```bash
+# The API needs a token — an SSH key authenticates git push, not this.
+gh run download -R <owner>/<repo> -D /tmp/fw            # latest successful run
+gh run download -R <owner>/<repo> <run-id> -D /tmp/fw   # one specific run
+gh release download v1.2.0 -R <owner>/<repo> -D /tmp/fw # a published release
+```
+
+Without a token, download the artefact zip from the run page in a browser and
+unpack it — the flash steps below only care that the files exist.
+
+`setup-action`'s template publishes exactly what the two flash paths need:
+
+| Artefact | Feeds |
+|---|---|
+| `coldflash/{bootloader,partitions,firmware}.bin` | Step 4a/4b — a first flash over USB |
+| `firmware_v<version>.bin` | Step 4c — the OTA image |
+| `sdkconfig.generated` | the effective config, since `sdkconfig` is not committed |
+
+**There is no `flash_args` in a CI artefact**, so use the explicit-offset form in
+Step 4b, not the `flash_args` form. Confirm what you are about to flash rather
+than trusting the filename — the version is compiled into the image:
+
+```bash
+strings /tmp/fw/coldflash/firmware.bin | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+'
+```
+
 ## Flash Size and Partition Tables
 
 > **Flash size defaults to 4MB.** Use `CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y` in
@@ -85,13 +123,17 @@ idf.py -p /dev/ttyUSB0 flash monitor   # Flash and monitor
 
 | Device | `--before` | `--after` |
 |--------|-----------|----------|
-| All chips (via `/api/flash`) | `default-reset` | `no-reset` |
 | ESP32 (local USB, ttyUSB) | `default-reset` | `hard-reset` |
 | ESP32-C3/S3 (local USB, ttyACM) | `default-reset` | `no-reset` |
+| Any chip via `/api/flash` | fixed by the portal | fixed by the portal |
 
-**Note:** On the workbench, use `--after no-reset` and call
-`POST /api/serial/reset` after flash to reboot the device. Stop debug
-before flashing native USB chips (serial + JTAG share USB).
+**`/api/flash` takes no reset flags.** The portal hardcodes
+`--before default_reset --after hard_reset`, so the device reboots into the new
+firmware on its own — do **not** follow it with `POST /api/serial/reset`. The
+`--after no-reset` advice applies only to driving esptool yourself over RFC2217,
+where the reset has to be a separate call.
+
+Stop debug before flashing native USB chips (serial + JTAG share USB).
 
 ### Boot mode (manual)
 
@@ -146,8 +188,11 @@ curl -s -X POST http://workbench.local:8080/api/flash \
 Each .bin file's multipart **part name must equal its basename** as
 referenced by `flash_args` (e.g. `bootloader.bin`).
 
-**Multipart with explicit offsets** (no `flash_args`; use for one-off
-single-binary flashes):
+**Multipart with explicit offsets** — the form to use whenever there is no build
+tree to take `flash_args` from: a CI artefact (Step 3b), a released binary, or a
+one-off single-binary flash. The part name is `bin@<offset>`; a part named just
+`<offset>` is stored as a plain file and never flashed, so the request fails with
+`no binaries to flash`:
 
 ```bash
 curl -s -X POST http://workbench.local:8080/api/flash \
@@ -185,15 +230,15 @@ curl -X POST http://workbench.local:8080/api/serial/reset \
 | GET | `/api/info` | System info (host IP, hostname, slot counts) |
 | POST | `/api/flash` | Multipart upload + esptool flash on a slot (Pi-side) |
 | POST | `/api/serial/reset` | Hardware reset via DTR/RTS pulse, returns boot output |
-| POST | `/api/serial/recover` | Manual flap recovery trigger `{"slot": "slot-1"}` |
-| POST | `/api/serial/release` | Release GPIO after flashing, reboot into firmware `{"slot": "slot-1"}` |
+| POST | `/api/serial/recover` | Manual flap recovery trigger `{"slot": "SLOT1"}` |
+| POST | `/api/serial/release` | Release GPIO after flashing, reboot into firmware `{"slot": "SLOT1"}` |
 
 ### Serial reset
 
 ```bash
 curl -X POST http://workbench.local:8080/api/serial/reset \
   -H 'Content-Type: application/json' \
-  -d '{"slot": "slot-1"}'
+  -d '{"slot": "SLOT1"}'
 ```
 
 ### Slot states
@@ -349,7 +394,7 @@ Then release GPIO:
 
 ```bash
 curl -X POST http://workbench.local:8080/api/serial/release \
-  -H 'Content-Type: application/json' -d '{"slot": "slot-1"}'
+  -H 'Content-Type: application/json' -d '{"slot": "SLOT1"}'
 ```
 
 ### Without GPIO
@@ -364,7 +409,7 @@ After 2 failed attempts, flash directly on the Pi with `esptool --before=usb_res
 
 ```bash
 curl -X POST http://workbench.local:8080/api/serial/recover \
-  -H 'Content-Type: application/json' -d '{"slot": "slot-1"}'
+  -H 'Content-Type: application/json' -d '{"slot": "SLOT1"}'
 ```
 
 ## Troubleshooting

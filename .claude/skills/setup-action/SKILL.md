@@ -300,6 +300,13 @@ Absolute, because `idf.py` does not resolve it against the project directory.
 This also puts the file where the artefact step can find it — `build/sdkconfig`
 does not exist otherwise, and `cp` fails the job at the very last step.
 
+**The artefact still has to reach a device.** This skill ends where the upload
+does. Fetching a run's artefact and flashing it belongs to
+[`esp-idf-handling`](../esp-idf-handling/SKILL.md) — Step 3b for the download,
+Step 4 for the flash. Worth knowing while designing the artefact set: it is the
+consumer of everything published below, and it needs the explicit-offset form of
+`/api/flash`, because a CI artefact carries no `flash_args`.
+
 **Publish three things, not one.** The loose `.bin` is what OTA fetches; the
 `.elf` is what symbolises a crash dump months later; the **cold-flash bundle**
 (`bootloader.bin`, `partitions.bin`, `firmware.bin`) is what a first USB flash

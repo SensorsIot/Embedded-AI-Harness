@@ -583,30 +583,32 @@ debug session is active** on the slot (stop debug first).
 | Part | Kind | Meaning |
 |------|------|---------|
 | `slot` | field | Slot label, e.g. `SLOT3` (required) |
-| `chip` | field | esptool chip, default `esp32` |
-| `baud` | field | Flash baud, default `460800` |
+| `chip` | field | esptool chip, default `auto` |
+| `baud` | field | Flash baud, default `921600` |
 | `erase` | field | `1`/`true` to erase-all first (optional) |
-| `0x1000`, `0x8000`, … | file | One file part **per flash image; the part name is the hex offset**, the content is the binary |
+| `bin@0x1000`, `bin@0x8000`, … | file | One file part per flash image. The part name is **`bin@` followed by the hex offset**; a part named with the bare offset is stored but never flashed |
+| `flash_args` | file | ESP-IDF's `build/flash_args`. Offsets then come from it, and each image's part name must equal its basename |
 
 Standard ESP32 (Arduino) layout: `0x1000` bootloader, `0x8000` partitions,
-`0xe000` boot_app0, `0x10000` firmware.
+`0xe000` boot_app0, `0x10000` firmware. On C3/S3/C6/H2 the bootloader is at
+`0x0`, and an ESP-IDF project has no `boot_app0`.
 
-**Response:** `{"ok": bool, "returncode": int, "log": "<esptool output>",
+**Response:** `{"ok": bool, "returncode": int, "output": "<esptool stdout+stderr>",
 "error": <string if failed>}`.
 
 **Example:**
 
 ```bash
 curl -X POST http://workbench.local:8080/api/flash \
-  -F slot=SLOT3 -F chip=esp32 -F baud=460800 \
-  -F '0x1000=@.pio/build/<env>/bootloader.bin' \
-  -F '0x8000=@.pio/build/<env>/partitions.bin' \
-  -F '0xe000=@boot_app0.bin' \
-  -F '0x10000=@.pio/build/<env>/firmware.bin'
+  -F slot=SLOT3 -F chip=esp32 -F baud=921600 \
+  -F 'bin@0x1000=@.pio/build/<env>/bootloader.bin' \
+  -F 'bin@0x8000=@.pio/build/<env>/partitions.bin' \
+  -F 'bin@0xe000=@boot_app0.bin' \
+  -F 'bin@0x10000=@.pio/build/<env>/firmware.bin'
 ```
 
-No `POST /api/serial/reset` is needed afterwards — esptool's
-`--after hard-reset` reboots the device into the new firmware.
+The portal fixes `--before default_reset --after hard_reset`; the request
+carries no reset flags. No `POST /api/serial/reset` is needed afterwards.
 
 #### 6.7.2 Over-the-air flashing via `POST /api/ota`
 
