@@ -272,6 +272,26 @@ curl -s -X POST $WORKBENCH_URL/api/flash \
 
 Every field, its default, and the response shape: [FSD §6.7.1](../../../docs/Embedded-Workbench-FSD.md#671-local-flashing-via-post-apiflash).
 
+#### Reading flash back: `POST /api/flash/read`
+
+The counterpart to `/api/flash`. Pull a region of flash off the device without
+dropping to OpenOCD — a coredump partition, an NVS blob, the live partition
+table. JSON body, no upload; same proxy lifecycle as a flash (it stops the
+proxy and does a reset, so it disturbs the running firmware just like a flash).
+
+```bash
+curl -s -X POST $WORKBENCH_URL/api/flash/read \
+  -H 'Content-Type: application/json' \
+  -d '{"slot":"SLOT3","offset":"0x3F0000","length":"0x10000","chip":"esp32c3"}'
+# -> {"ok":true,"offset":4128768,"length":65536,"sha256":"...","data_b64":"..."}
+```
+
+`offset`/`length` accept an int or a `0x…` string. The bytes come back
+base64-encoded in `data_b64` with a `sha256` to verify. Stop any debug session
+first (`/api/debug/stop`) — a live OpenOCD holds the port and esptool cannot
+open it. For a coredump, decode the bytes then
+`esp-coredump --chip <c> info_corefile --core <file> --core-format raw <elf>`.
+
 #### Fallback: direct esptool over RFC2217
 
 Only viable when your client is on the same LAN as the workbench
