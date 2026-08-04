@@ -8,7 +8,6 @@ and thread-safe.
 
 import asyncio
 import threading
-import time
 
 try:
     from bleak import BleakClient, BleakScanner

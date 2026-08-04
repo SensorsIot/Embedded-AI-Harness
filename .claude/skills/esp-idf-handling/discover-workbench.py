@@ -87,7 +87,7 @@ def write_hosts_entry(hostname, ip):
         lines = []
 
     # Remove old discovery entries
-    lines = [l for l in lines if marker not in l]
+    lines = [line for line in lines if marker not in line]
     lines.append(new_line)
 
     try:

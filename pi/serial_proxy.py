@@ -15,10 +15,8 @@ Usage:
 import argparse
 import os
 import sys
-import time
 import socket
 import select
-import threading
 import signal
 import serial
 from datetime import datetime
@@ -101,7 +99,7 @@ class SerialLogger:
             for line in printable.split('\n'):
                 if line.strip():
                     self.log_file.write(f"[{timestamp}] [{direction}] {line.rstrip()}\n")
-        except:
+        except (UnicodeError, OSError):
             # Fall back to hex dump
             hex_str = data.hex()
             self.log_file.write(f"[{timestamp}] [{direction}] HEX: {hex_str}\n")
@@ -152,9 +150,9 @@ class RFC2217Proxy:
                     try:
                         with open(attr_file) as f:
                             info[attr] = f.read().strip()
-                    except:
+                    except OSError:
                         pass
-        except:
+        except OSError:
             pass
 
         return info
@@ -315,7 +313,7 @@ class RFC2217Proxy:
         if self.client_socket:
             try:
                 self.client_socket.send(bytes([IAC, cmd, opt]))
-            except:
+            except OSError:
                 pass
 
     def _send_com_port_option(self, subcmd, data):
@@ -324,7 +322,7 @@ class RFC2217Proxy:
             try:
                 msg = bytes([IAC, SB, COM_PORT_OPTION, subcmd]) + data + bytes([IAC, SE])
                 self.client_socket.send(msg)
-            except:
+            except OSError:
                 pass
 
     def run(self):
@@ -358,7 +356,7 @@ class RFC2217Proxy:
                             self.client_socket, addr = self.server_socket.accept()
                             self.client_socket.setblocking(False)
                             self.logger.log(f"Client connected from {addr[0]}:{addr[1]}")
-                        except:
+                        except OSError:
                             pass
 
                     elif sock == self.client_socket:
@@ -392,9 +390,9 @@ class RFC2217Proxy:
                                 if self.client_socket:
                                     try:
                                         self.client_socket.send(data)
-                                    except:
+                                    except OSError:
                                         pass
-                        except:
+                        except OSError:
                             pass
 
                 # Also check for serial data even if not in select
@@ -407,9 +405,9 @@ class RFC2217Proxy:
                                 if self.client_socket:
                                     try:
                                         self.client_socket.send(data)
-                                    except:
+                                    except OSError:
                                         pass
-                    except:
+                    except OSError:
                         pass
 
         except KeyboardInterrupt:
@@ -425,13 +423,13 @@ class RFC2217Proxy:
         if self.client_socket:
             try:
                 self.client_socket.close()
-            except:
+            except OSError:
                 pass
 
         if self.server_socket:
             try:
                 self.server_socket.close()
-            except:
+            except OSError:
                 pass
 
         self.close_serial()

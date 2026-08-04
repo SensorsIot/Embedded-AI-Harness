@@ -1,7 +1,8 @@
 # Universal Embedded Workbench
 
+[![host tests](https://img.shields.io/github/actions/workflow/status/SensorsIot/Universal-Embedded-Workbench/ci.yml?branch=main&label=host%20tests)](https://github.com/SensorsIot/Universal-Embedded-Workbench/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Python](https://img.shields.io/badge/python-3.9+-blue)
+![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-c51a4a)
 ![ESP32](https://img.shields.io/badge/ESP32-supported-green)
 ![MCP](https://img.shields.io/badge/MCP-70%20tools-8a63d2)

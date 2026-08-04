@@ -6,13 +6,10 @@ own wlan0 radio.  Mirrors the ESP32-C3 WiFi Tester command set.
 """
 
 import base64
-import json
 import logging
 import os
 import re
-import signal
 import subprocess
-import tempfile
 import threading
 import time
 import urllib.error
@@ -768,7 +765,7 @@ def sniffer_start(ssid, password="", channel=6):
     _check_wifi_testing_mode()
 
     # Start AP with DNS logging enabled
-    result = ap_start(ssid, password, channel, dns_logging=True)
+    ap_start(ssid, password, channel, dns_logging=True)
 
     # Enable IP forwarding
     _run(["sysctl", "-w", "net.ipv4.ip_forward=1"], check=False)

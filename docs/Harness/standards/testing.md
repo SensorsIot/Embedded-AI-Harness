@@ -28,8 +28,28 @@ imported on a dev machine at all, and slot-key derivation and phantom-port
 filtering — the identity logic the whole product rests on — are unreachable from
 the host tier until they are extracted or `gpiod` is installable here.
 
-There is still no CI, so "green before commit" remains a convention rather than
-an enforced gate. The host tier is what makes CI possible when it is wanted.
+## What CI enforces, and what it does not
+
+`.github/workflows/ci.yml` runs `ruff check .` and the host tier on every push to
+`main` and every pull request. That is an enforced gate.
+
+**It covers roughly a fifth of the suite.** The bench tests need a live Pi with
+DUTs attached, which a hosted runner cannot reach, so "green before commit"
+remains a convention for everything below. A green tick means the RF synthesis
+maths is right and the tree lints — not that the bench works. Gating the bench
+tier would take a self-hosted runner on the lab network, and that runner would
+have to own the bench while it ran.
+
+Both tool versions are pinned in the workflow, and the ruff rule selection is
+pinned in `pyproject.toml`. This is deliberate: ruff's default selection has
+changed between releases — the same `ruff check .` has reported both 36 and 416
+errors on this tree — and a gate that turns red on a rule nobody chose is a gate
+everyone learns to ignore. Widen the selection on purpose, with the fixes in the
+same commit.
+
+`pi/scripts/espota.py` is excluded from linting. It is vendored from the Arduino
+project; its defects are upstream's, and restyling it would conflict on the next
+bump.
 
 The lever that fixes it is in [`../project/architecture.md`](../project/architecture.md):
 **extract pure cores**. Slot-key derivation from a USB path, flap-window

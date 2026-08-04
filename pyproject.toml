@@ -1,0 +1,13 @@
+[tool.ruff]
+target-version = "py311"          # Raspberry Pi OS bookworm ships Python 3.11
+
+# Vendored from the Arduino project. Restyling it would conflict on every bump,
+# and its defects are upstream's to fix.
+exclude = ["pi/scripts/espota.py"]
+
+[tool.ruff.lint]
+# Pinned explicitly rather than left to ruff's default. The default selection has
+# changed between ruff releases — the same `ruff check .` has reported both 36 and
+# 416 errors on this tree — so an unpinned gate turns red when a runner picks up a
+# different ruff. Widen this list deliberately, never by upgrading.
+select = ["E4", "E7", "E9", "F"]

@@ -9,7 +9,6 @@ via the USB-Serial/JTAG controller's DTR/RTS mechanism.
 Usage:
     ssh pi@192.168.0.87 "python3 /tmp/c3_reset_test.py"
 """
-import os
 import serial
 import subprocess
 import sys

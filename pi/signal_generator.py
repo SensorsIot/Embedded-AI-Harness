@@ -34,7 +34,7 @@ from typing import Any
 from gpclk import GpClk
 from morse import MorseKeyer
 from pe4302 import PE4302, PE4302Error
-from si5351 import Si5351, Si5351Error
+from si5351 import Si5351
 
 _DEFAULT_CONFIG: dict[str, Any] = {
     "si5351": {"bus": 1, "address": 0x60, "default_channel": 0},

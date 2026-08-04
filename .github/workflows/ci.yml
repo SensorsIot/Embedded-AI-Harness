@@ -1,0 +1,39 @@
+# Gates the host tier and lint only.
+#
+# A green tick here does NOT mean the bench works. The 67 bench tests drive a
+# live Raspberry Pi with DUTs plugged into it, and a GitHub-hosted runner cannot
+# reach workbench.local. Those stay a pre-release step run against real hardware —
+# see docs/Harness/standards/testing.md.
+name: host tests + lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Matches Raspberry Pi OS bookworm, so CI cannot pass on syntax the
+          # bench would reject.
+          python-version: '3.11'
+
+      # Both versions are pinned. An unpinned ruff turns this gate red on a rule
+      # selection nobody chose — the same `ruff check .` has reported both 36 and
+      # 416 errors on this tree across versions. Bump deliberately, with the
+      # fixes in the same commit.
+      - run: pip install 'pytest==8.*' 'ruff==0.16.1'
+
+      - name: Lint
+        run: ruff check .
+
+      # The host tier is stdlib-only apart from pytest. Do not install
+      # requirements-dev.txt here: it pulls smbus2 and paho-mqtt, which only the
+      # Pi needs, and a failure to build them would look like a test failure.
+      - name: Host tests
+        run: pytest pytest/host/ -q

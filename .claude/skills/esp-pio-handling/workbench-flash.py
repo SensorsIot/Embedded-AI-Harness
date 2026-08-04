@@ -12,7 +12,12 @@ Usage:
   workbench-flash.py --host workbench.local:8080 --slot SLOT3 [--env <pio_env>]
                      [--chip esp32] [--baud 460800] [--project-dir .]
 """
-import argparse, glob, json, os, sys, urllib.request
+import argparse
+import glob
+import json
+import os
+import sys
+import urllib.request
 
 # Bootloader offset: 0x0 for native-USB chips, 0x1000 for classic ESP32/ESP32-S2.
 _BOOT0 = {"esp32c3", "esp32s3", "esp32c6", "esp32h2"}
