@@ -1,6 +1,6 @@
 ---
 name: setup-action
-description: Sets up GitHub Actions for ESP32 projects — building ESP-IDF firmware in a pinned container, taking the version from the git tag, proving a production image is not a simulated build, and publishing artefacts and a release when a tag is pushed. Also covers the pre-merge gate: lint plus the tests a hosted runner can actually run, and which tiers it cannot reach. Use this skill whenever CI comes up for an ESP32 or workbench project — a new project needing a build workflow, a release that should publish firmware, a gate that keeps turning red, or the question "why isn't this checked automatically". Triggers on "GitHub Action", "CI", "workflow", "pipeline", "build firmware in CI", "publish a release", "release on tag", ".github/workflows", "pre-merge check", "self-hosted runner", "lint on push".
+description: Sets up GitHub Actions for ESP32 projects — building ESP-IDF firmware in a pinned container, taking the version from the git tag, proving a published image is the variant it claims to be, and publishing artefacts and a release when a tag is pushed. Also covers the pre-merge gate: lint plus the tests a hosted runner can actually run, and which tiers it cannot reach. Use this skill whenever CI comes up for an ESP32 or workbench project — a new project needing a build workflow, a release that should publish firmware, a gate that keeps turning red, or the question "why isn't this checked automatically". Triggers on "GitHub Action", "CI", "workflow", "pipeline", "build firmware in CI", "publish a release", "release on tag", ".github/workflows", "pre-merge check", "self-hosted runner", "lint on push".
 ---
 
 # CI for ESP32 projects
@@ -9,7 +9,7 @@ Two workflows with different jobs, and most projects want both:
 
 | Workflow | Trigger | Answers |
 |---|---|---|
-| **build** | a version tag | Can this be flashed, and where is the artefact? |
+| **build** | every push; publishes on a version tag | Can this be flashed, and where is the artefact? |
 | **gate** | every push and PR | May this change land? |
 
 The build workflow is the substantial one and comes first below. The gate is
@@ -23,15 +23,14 @@ logic passes.
 
 # Part 1 — Build and publish firmware
 
-Put this at `.github/workflows/build.yml` and change the three placeholders:
-`<firmware-dir>`, `<app-name>`, `<target>`. Drop `working-directory` if the
-ESP-IDF project sits at the repository root.
+Put this at `.github/workflows/build.yml` and fill in `<firmware-dir>`,
+`<app-name>` and `<target>`. Drop `working-directory` if the ESP-IDF project sits
+at the repository root.
 
-**One build per run.** Most projects have one firmware, and the template
-defaults to that: `MULTI_VARIANT: 'false'` pins every run to production and the
-variant machinery costs nothing. Flip it to `'true'` only for a project that
-genuinely ships a second image — a simulated or debug build — and read
-"Variants" below before you do.
+**One build per run.** Most projects have one firmware, and the template defaults
+to that: `MULTI_VARIANT: 'false'` pins every run to production, and `<marker>`
+and `<alt-variant>` are then never read. Flip it to `'true'` only for a project
+that genuinely ships a second image, and read "Variants" below before you do.
 
 ```yaml
 name: Build Firmware
@@ -39,9 +38,9 @@ name: Build Firmware
 env:
   IDF_TAG: v6.0.2          # keep in step with the container tag below
   # The one switch for variant handling. Leave 'false' unless this project
-  # really builds a second image; then set <SIM-MARKER> too.
+  # really builds a second image; then set <marker> too.
   MULTI_VARIANT: 'false'
-  SIM_MARKER: <SIM-MARKER> # a string only the non-production image contains
+  VARIANT_MARKER: <marker>  # a string only the non-production image contains
 
 on:
   push:
@@ -55,7 +54,7 @@ on:
       variant:                       # inert while MULTI_VARIANT is 'false'
         description: 'Which firmware to build'
         type: choice
-        options: [production, simulated]
+        options: [production, <alt-variant>]
         default: production
 
 permissions:
@@ -101,9 +100,9 @@ jobs:
           fi
 
           DEFAULTS="sdkconfig.defaults"
-          if [ "$VARIANT" = "simulated" ]; then
-            DEFAULTS="sdkconfig.defaults;sdkconfig.sim.defaults"
-            VERSION="$VERSION-sim"
+          if [ "$VARIANT" != "production" ]; then
+            DEFAULTS="sdkconfig.defaults;sdkconfig.$VARIANT.defaults"
+            VERSION="$VERSION-$VARIANT"
           fi
 
           { echo "variant=$VARIANT"; echo "version=$VERSION"
@@ -123,12 +122,13 @@ jobs:
       - name: Verify the image matches the variant asked for
         if: env.MULTI_VARIANT == 'true'
         run: |
-          if grep -q "$SIM_MARKER" build/<app-name>.bin; then FOUND=yes; else FOUND=no; fi
-          case "${{ steps.plan.outputs.variant }}:$FOUND" in
-            production:no|simulated:yes) echo "verified, marker $FOUND" ;;
-            production:yes) echo "FATAL: production image contains $SIM_MARKER"; exit 1 ;;
-            simulated:no)   echo "FATAL: simulated image lacks $SIM_MARKER";    exit 1 ;;
-          esac
+          grep -q "$VARIANT_MARKER" build/<app-name>.bin && FOUND=yes || FOUND=no
+          WANT=no; [ "${{ steps.plan.outputs.variant }}" = "production" ] || WANT=yes
+          if [ "$FOUND" != "$WANT" ]; then
+            echo "FATAL: ${{ steps.plan.outputs.variant }} image, marker found=$FOUND, expected=$WANT"
+            exit 1
+          fi
+          echo "verified: ${{ steps.plan.outputs.variant }} image, marker $FOUND"
 
       - name: Collect artefacts
         run: |
@@ -227,45 +227,56 @@ to production, skips the marker check, and makes the `variant` input inert. The
 cost of leaving the machinery in place unused is a `[ ... ] || VARIANT=production`
 and one skipped step.
 
+A **variant** is a second image carrying behaviour production must not have.
+Whatever the project's is — a synthetic data source standing in for hardware that
+is not there, verbose logging, a staging endpoint, factory-test commands, relaxed
+certificate checking — it has the same two properties: somebody needs it
+occasionally, and shipping it would be a quiet disaster rather than a loud one.
+Name it whatever it is (`debug`, `staging`, `factory`) and substitute that for
+`<alt-variant>`; the template only assumes there is one such image and that
+`sdkconfig.<alt-variant>.defaults` selects it.
+
 **Build one variant per run, chosen when the run starts.** Building every variant
 on every push doubles the runner time to produce an image nobody asked for. A
-simulated or debug build is wanted at a specific moment — when somebody is about
-to flash it — so put it behind a `workflow_dispatch` choice input, and let pushes
-and tags build production. A tag must always be production: a release is the one
-thing that must never be simulated.
+variant is wanted at a specific moment — when somebody is about to flash it — so
+put it behind a `workflow_dispatch` choice input, and let pushes and tags build
+production. A tag must always be production: a release is the one thing that must
+never be anything else.
 
-Name the variant in the version string (`1.2.0-sim`) so an artefact that escapes
-into the wrong hands identifies itself, and so the device reports it at runtime.
+Put the variant name in the version string (`1.2.0-debug`) so an artefact that
+escapes into the wrong hands identifies itself, and so the device reports what it
+is at runtime rather than requiring someone to remember.
 
-**Verify the image matches the variant asked for.** A project with a simulated or
-debug build needs proof that the shipped image is not it: shipping a simulated
-build publishes synthetic data that looks entirely real to whatever consumes it.
-Gate the behaviour at compile time. Two mechanisms, and the project's own
-architecture decides which:
+**Verify the image matches the variant asked for.** Gate the behaviour at compile
+time. Two mechanisms, and the project's own architecture decides which:
 
 ```cmake
 # CMake option — good when the flag only guards C/C++ code
-option(SIM_BUILD "Simulated data and debug logging (never ship)" OFF)
+option(ALT_BUILD "Behaviour that must never ship" OFF)
 ```
 ```bash
 # Kconfig symbol — required when the flag must also reach sdkconfig,
 # menuconfig, or component configuration. Select it with a second
 # defaults file rather than -D:
-idf.py -B build/sim -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.sim.defaults" build
+idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.<alt-variant>.defaults" build
 ```
 
 A `-DCONFIG_FOO=y` on the command line does **not** set a Kconfig symbol; it
 defines a CMake variable of that name and the build silently keeps the default.
-Then grep the **built binary**, not the source, for a marker string only the
-simulated variant contains. Checking the artefact survives a broken `#ifdef`, a
-stale build directory, or an option that quietly stopped being passed.
 
-Assert in both directions — that a production image lacks the marker *and* that a
-simulated one carries it. With one build per run each run checks its own image,
-so the two directions are covered across runs rather than within one. That is
-enough: a simulated build that stopped simulating makes every bench run
-meaningless while looking perfectly healthy, and the run that produced it is the
-run that catches it.
+Then grep the **built binary**, not the source, for a marker string only the
+non-production image contains. Checking the artefact is what makes the test worth
+running: it survives a broken `#ifdef`, a stale build directory, a defaults file
+that stopped being applied, and an option that quietly stopped being passed —
+every failure mode where the source still reads correctly.
+
+Assert in **both** directions: production lacks the marker, and the variant
+carries it. The second is not symmetry for its own sake. A variant that silently
+reverted to production behaviour is worse than a broken one, because it keeps
+working — it just stops being the thing under test, and every result taken from
+it afterwards is meaningless while looking perfectly healthy. With one build per
+run, each run checks its own image, so the run that produces the bad artefact is
+the run that catches it.
 
 **Keep `sdkconfig` in the build directory.** `-B` moves the *build* output but
 not the config: ESP-IDF writes `sdkconfig` to the **project root**, and an
@@ -299,10 +310,12 @@ Publish the generated `sdkconfig` too. It is derived from `sdkconfig.defaults`
 and not committed, so once the runner is gone the effective configuration of a
 release is otherwise unrecoverable.
 
-**Tags publish; `workflow_dispatch` does not.** Building on demand without
-cutting a release is what you want when a bench run needs an artefact. Do not add
-a `push: branches` trigger to this workflow — a release should be a deliberate
-act.
+**Build on every push; publish only on a tag.** Building early tells you a
+change does not compile while it is still the change you are looking at. What
+must stay deliberate is the *release*, so the release step alone is gated on
+`refs/tags/`; a push and a manual run produce artefacts nobody outside the
+project can reach. `workflow_dispatch` is then the way to get a flashable image
+without cutting a release.
 
 ## ESP-IDF 6 specifics
 
@@ -401,15 +414,16 @@ like a test failure.
 
 ## What a hosted runner cannot reach
 
-Anything needing the hardware. A runner cannot talk to a device over USB, reach a
-bench on your LAN, or drive a radio. Those tests stay a pre-release step run
+Anything needing the hardware. A runner cannot talk to a device over USB, reach
+equipment on your LAN, or drive a radio. Those tests stay a pre-release step run
 against real hardware, and the gate should say so in its name.
 
 Gating them at all needs a **self-hosted runner on a machine that can reach the
-hardware**, and that is a real commitment: the runner owns the bench while it
-runs, so a queued second job fights the first. Raise it as a choice rather than
-building it unasked — a `workflow_dispatch` job a human triggers when the bench
-is free is usually the right first step, not a `push` trigger.
+hardware**, and that is a real commitment: a test run physically drives the
+hardware, so the runner owns it for the duration and a queued second job fights
+the first. Raise it as a choice rather than building it unasked — a
+`workflow_dispatch` job a human triggers when the hardware is free is usually the
+right first step, not a `push` trigger.
 
 ## Keep the docs true
 
