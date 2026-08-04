@@ -12,6 +12,7 @@ import collections
 import json
 import os
 import base64
+import hashlib
 import shutil
 import signal
 import socket
@@ -1424,6 +1425,87 @@ def flash_device(slot: dict, files: dict, esptool_args: list[str],
     return {"ok": True, "output": output_text, "returncode": returncode}
 
 
+def read_flash_device(slot: dict, offset: int, length: int,
+                      chip: str = "auto", baud: str = "460800",
+                      timeout_s: float = 120.0) -> dict:
+    """Read *length* bytes of flash from *offset* on *slot*'s device via esptool.
+
+    The counterpart to flash_device: the portal has always been able to WRITE
+    flash but never read it back, so pulling a coredump, an NVS blob, or the
+    running partition table meant dropping to OpenOCD. Same proxy lifecycle as a
+    flash — stop the RFC2217 proxy, run `esptool read-flash`, restart the proxy.
+
+    Returns {"ok": bool, "data": bytes, "sha256": str, "output": str,
+    "returncode": int, "error": str?}. The HTTP layer base64-encodes `data`.
+    """
+    import tempfile
+
+    label = slot["label"]
+    devnode = slot.get("devnode")
+
+    if not devnode:
+        return {"ok": False, "error": f"{label}: no device node"}
+    if not slot.get("present"):
+        return {"ok": False, "error": f"{label}: device not present"}
+    if length <= 0:
+        return {"ok": False, "error": "length must be positive"}
+
+    with slot["_lock"]:
+        was_running = bool(slot.get("running"))
+        if was_running:
+            stop_proxy(slot)
+        slot["state"] = STATE_RESETTING
+
+    data = b""
+    output_text = ""
+    returncode = -1
+    error = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="wb-read-") as tmpdir:
+            outfile = os.path.join(tmpdir, "readback.bin")
+            cmd = ESPTOOL + ["--port", devnode]
+            if chip and chip != "auto":
+                cmd += ["--chip", chip]
+            cmd += ["--baud", str(baud), "read-flash",
+                    hex(offset), str(length), outfile]
+            log_activity(
+                f"read-flash({label}) — {hex(offset)} +{length}B", "step")
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout_s,
+            )
+            output_text = (proc.stdout or "") + (proc.stderr or "")
+            returncode = proc.returncode
+            if returncode != 0:
+                error = f"esptool exited {returncode}"
+            elif os.path.exists(outfile):
+                with open(outfile, "rb") as f:
+                    data = f.read()
+            else:
+                error = "esptool produced no output file"
+    except subprocess.TimeoutExpired:
+        error = f"esptool timed out after {timeout_s}s"
+    except Exception as e:
+        error = f"read-flash failed: {e}"
+    finally:
+        # Same as flash_device: read-flash does a DTR/RTS reset, not a USB
+        # re-enum, so the same devnode is reused after a short boot delay.
+        time.sleep(NATIVE_USB_BOOT_DELAY_S)
+        with slot["_lock"]:
+            if was_running and not slot.get("running"):
+                start_proxy(slot)
+            if slot["state"] == STATE_RESETTING:
+                slot["state"] = STATE_IDLE if slot["present"] else STATE_ABSENT
+
+    if error:
+        log_activity(f"read-flash({label}) — failed: {error}", "error")
+        return {"ok": False, "error": error,
+                "output": output_text, "returncode": returncode}
+    sha = hashlib.sha256(data).hexdigest()
+    log_activity(f"read-flash({label}) — ok ({len(data)} bytes)", "ok")
+    return {"ok": True, "data": data, "sha256": sha,
+            "output": output_text, "returncode": returncode}
+
+
 def serial_monitor(slot: dict, pattern: str | None = None,
                    timeout: float = 10.0) -> dict:
     """FR-009: Read serial output via RFC2217 proxy.
@@ -1835,6 +1917,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_hotplug()
         elif path == "/api/flash":
             self._handle_flash()
+        elif path == "/api/flash/read":
+            self._handle_flash_read()
         elif path == "/api/chip/info":
             self._handle_chip_info()
         elif path == "/api/ota":
@@ -3146,6 +3230,59 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         result = flash_device(slot, files, base_args + write_args)
         self._send_json(result, 200 if result.get("ok") else 500)
+
+    def _handle_flash_read(self):
+        """POST /api/flash/read — read a flash region back off a slot's device.
+
+        The read counterpart to /api/flash. JSON body (no upload needed):
+          slot / slot_key — which slot, required
+          offset          — flash offset, int or "0x..." string, required
+          length          — bytes to read, int or "0x..." string, required
+          chip            — esp32c3/... (default "auto")
+          baud            — esptool baud (default "460800")
+
+        Response: {"ok": true, "offset", "length", "sha256",
+                   "data_b64": "<base64 of the bytes>"}. The caller decodes
+        data_b64 to bytes. Use for pulling a coredump partition, an NVS blob,
+        or the live partition table without dropping to OpenOCD.
+        """
+        body = self._read_json()
+        if body is None:
+            self._send_json({"ok": False, "error": "empty body"}, 400)
+            return
+        slot = _resolve_slot(body)
+        if slot is None:
+            self._send_json(
+                {"ok": False, "error": "missing or unknown 'slot' / 'slot_key'"}, 400)
+            return
+
+        def _as_int(v):
+            return int(v, 0) if isinstance(v, str) else int(v)
+
+        try:
+            offset = _as_int(body["offset"])
+            length = _as_int(body["length"])
+        except (KeyError, ValueError, TypeError):
+            self._send_json(
+                {"ok": False, "error": "offset and length required (int or 0x-string)"}, 400)
+            return
+        if offset < 0 or length <= 0:
+            self._send_json({"ok": False, "error": "offset >= 0 and length > 0"}, 400)
+            return
+
+        chip = body.get("chip", "auto")
+        baud = body.get("baud", "460800")
+        result = read_flash_device(slot, offset, length, chip=chip, baud=baud)
+        if not result.get("ok"):
+            self._send_json(result, 500)
+            return
+        self._send_json({
+            "ok": True,
+            "offset": offset,
+            "length": len(result["data"]),
+            "sha256": result["sha256"],
+            "data_b64": base64.b64encode(result["data"]).decode("ascii"),
+        })
 
     def _handle_chip_info(self):
         """POST /api/chip/info — read chip and flash identity from the device.
