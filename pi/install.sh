@@ -31,7 +31,8 @@ if [ "$UPDATE_ONLY" = false ]; then
         rtl-sdr rtl-433
 
     # Python packages not available via apt
-    pip3 install esptool bleak smbus2 --break-system-packages 2>/dev/null || true
+    # esptool >= 5: the portal uses the hyphenated subcommands and flags.
+    pip3 install 'esptool>=5' bleak smbus2 --break-system-packages 2>/dev/null || true
 
     # Enable I2C for Si5351 signal generator
     if command -v raspi-config >/dev/null 2>&1; then

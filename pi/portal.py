@@ -1312,6 +1312,13 @@ def serial_reset(slot: dict) -> dict:
     return {"ok": True, "output": lines}
 
 
+# esptool 5 renamed the console script (`esptool.py` -> `esptool`) and every
+# subcommand and flag from underscores to hyphens; the old spellings still work
+# but warn, and go away at the next major release. The module form is the one
+# name that has never changed, so invoke through it rather than either script.
+# Requires esptool >= 5 for the hyphenated spellings — install.sh pins that.
+ESPTOOL = ["python3", "-m", "esptool"]
+
 _CHIP_INFO_PATTERNS = {
     # esptool renamed several of these at v5 ("Chip is" -> "Chip type:",
     # "Crystal is" -> "Crystal frequency:"). Accept both so the endpoint keeps
@@ -1329,7 +1336,7 @@ _CHIP_INFO_PATTERNS = {
 
 
 def _parse_chip_info(text: str) -> dict:
-    """Pull the identity fields out of `esptool flash_id` output.
+    """Pull the identity fields out of `esptool flash-id` output.
 
     Every field is optional: esptool's wording varies by version, and a missing
     key is better than a wrong one. Callers that need certainty read `output`.
@@ -1386,7 +1393,7 @@ def flash_device(slot: dict, files: dict, esptool_args: list[str],
                 paths[name] = p
             if not error:
                 resolved = [paths.get(a, a) for a in esptool_args]
-                cmd = ["esptool.py", "--port", devnode] + resolved
+                cmd = ESPTOOL + ["--port", devnode] + resolved
                 log_activity(f"flash({label}) — {' '.join(cmd[:6])} ...", "step")
                 proc = subprocess.run(
                     cmd, capture_output=True, text=True, timeout=timeout_s,
@@ -3123,14 +3130,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         base_args = [
             "--chip", chip,
             "--baud", baud,
-            "--before", "default_reset",
-            "--after", "hard_reset",
+            "--before", "default-reset",
+            "--after", "hard-reset",
         ]
         write_args = [
-            "write_flash",
-            "--flash_mode", flash_mode,
-            "--flash_freq", flash_freq,
-            "--flash_size", flash_size,
+            "write-flash",
+            "--flash-mode", flash_mode,
+            "--flash-freq", flash_freq,
+            "--flash-size", flash_size,
         ]
         if erase:
             write_args.append("--erase-all")
@@ -3145,7 +3152,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         JSON body: {"slot": "SLOT3", "chip": "auto"?}
 
-        Runs `esptool flash_id`, which reports the *physical* flash size. That
+        Runs `esptool flash-id`, which reports the *physical* flash size. That
         is not knowable any other way: a build writes its configured size into
         the image header and the bootloader prints that value back, so a boot
         log only ever repeats the config. Configuring more than the part holds
@@ -3181,7 +3188,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         chip = body.get("chip", "auto")
-        result = flash_device(slot, {}, ["--chip", chip, "flash_id"], timeout_s=60.0)
+        result = flash_device(slot, {}, ["--chip", chip, "flash-id"], timeout_s=60.0)
         if not result.get("ok"):
             self._send_json(result, 500)
             return
