@@ -174,6 +174,35 @@ curl -X POST http://workbench.local:8080/api/enter-portal \
 
 Monitor progress via `GET /api/log`.
 
+### Getting the device into portal mode first
+
+`/api/enter-portal` assumes the device will offer its portal. A device that
+already holds credentials will not, so the portal has to be forced. Three ways,
+best first — all of them need the pin, the active level and the serial marker
+looked up in the project's FSD:
+
+**GPIO** — fully automated, when a Pi pin is wired to the device's portal button:
+
+```python
+try:
+    wt.gpio_set(PI_PIN, 0)                 # hold the portal pin low
+    result = wt.serial_reset(SLOT)          # reset — device boots into portal
+    assert any(PORTAL_MARKER in l for l in result["output"])
+finally:
+    wt.gpio_set(PI_PIN, "z")               # always release, even on failure
+```
+
+Release the pin in a `finally`: left driven, it holds the device in portal mode
+for every later test in the run. `ok: true` confirms the write — do not poll
+`gpio_get()` to check.
+
+**Rapid resets** — for firmware with a boot-counter trigger:
+`wt.enter_portal(SLOT, resets=3)`, then wait for `idle`.
+
+**An operator** — no GPIO wiring: raise a blocking prompt (see
+`workbench-test-handling`) on a thread, reset, and match the marker while the
+operator holds the button.
+
 ## Common Workflows
 
 1. **Ensure device is connected to workbench AP:**

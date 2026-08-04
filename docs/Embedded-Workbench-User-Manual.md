@@ -962,7 +962,7 @@ Claude Code loads skills at session start, so restart your session after copying
 | `workbench-ble` · `workbench-mqtt` | BLE scan/connect/write · broker lifecycle and pub/sub |
 | `workbench-debug` | GDB/JTAG: USB JTAG, dual-USB, ESP-Prog |
 | `signal-generator` · `sdr-receiver` | RF transmit · RF receive, decode, reverse-engineering |
-| `workbench-test-handling` · `esp32-test-harness` | Test sessions, operator prompts, DUT manipulation |
+| `workbench-test-handling` | The test execution protocol, live progress, operator prompts, `WorkbenchDriver` |
 | `workbench-integration` | Add workbench support to an existing ESP32 project |
 | `fsd-engineer` | Requirements, verification contracts, test specifications, traceability, and the Harness/Handbook planes |
 

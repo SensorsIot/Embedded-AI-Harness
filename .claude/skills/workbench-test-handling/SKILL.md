@@ -1,11 +1,43 @@
 ---
 name: workbench-test-handling
-description: Use this skill whenever running automated tests that need progress tracking on the Pi's web UI, or when a test step requires physical operator action (button press, cable swap, power cycle). Covers test session lifecycle (start/step/result/end), human interaction requests with blocking modal on the Pi display, and activity log queries. Use for any test workflow that an operator needs to follow visually. Triggers on "test progress", "test session", "human interaction", "operator", "activity log", "test tracking", "test panel".
+description: Use this skill when running or writing automated tests against the workbench — the three-phase execution protocol every test case follows, live progress on the Pi's web UI, blocking prompts for physical operator actions (button press, cable swap, power cycle), the WorkbenchDriver Python API, and activity log queries. Use it for authoring a pytest suite as well as for tracking a manual run. For driving one instrument, use that instrument's skill instead. Triggers on "test progress", "test session", "test spec", "test case", "test harness", "run the tests", "write a test", "WorkbenchDriver", "human interaction", "operator", "activity log", "test panel".
 ---
 
 # ESP32 Test Automation
 
 Base URL: `http://workbench.local:8080`
+
+**The portal and the MQTT broker are always-on infrastructure. A test never
+starts, stops or restarts them** — doing so breaks whatever else is using the
+bench, and a test that needs a restart to pass is testing the restart.
+
+## The execution protocol
+
+Every test case runs in three phases, and the panel shows which one is current so
+the operator can follow along without a terminal.
+
+| Phase | Panel shows | What happens |
+|-------|-------------|--------------|
+| **Preconditions** | `[TC-100] Preconditions: checking DUT reachable...` | Verify **and establish** each precondition from the spec. If the AP is not running, start it. Fail only when a precondition is genuinely unrecoverable. |
+| **Execute** | `[TC-100] Step 2: <the step from the spec>` | Run the spec's steps one at a time, checking the expected result after each. |
+| **Result** | `TC-100: PASS` / `TC-100: FAIL — <what was seen>` | Record PASS/FAIL/SKIP with the observed value, not just the verdict. |
+
+Rules that decide whether a run is worth anything:
+
+1. **The spec is the script.** Execute its preconditions, steps and pass criteria
+   as written — not an improved version of them.
+2. **Update the panel before each action**, never after. The panel is how the
+   operator knows what the bench is doing to the hardware right now.
+3. **Record baselines.** Where the spec says "record X as `X_before`", capture it
+   and compare in the result phase.
+4. **Generate test credentials per run.** A random SSID and password for the test
+   AP proves the DUT used what it was provisioned with, rather than a network it
+   had already cached.
+5. **Write the results out.** A markdown file with test ID, name, result, details
+   and timestamps — the panel is live state, not a record.
+
+Workflows that span several instruments — provision, reboot, re-provision, soak —
+are in [`references/common-workflows.md`](references/common-workflows.md).
 
 ## Step 0: Discover Workbench
 
@@ -64,6 +96,41 @@ wt.test_step("TC-001", "WiFi Provisioning", "Joining AP...", manual=False)
 wt.test_result("TC-001", "WiFi Provisioning", "PASS")
 wt.test_end()
 ```
+
+## WorkbenchDriver
+
+**Inside this repo's suite there is nothing to set up** — `pytest/conftest.py`
+provides a session-scoped `workbench` fixture. Take it as an argument:
+
+```python
+def test_boots_clean(workbench):
+    workbench.serial_reset("SLOT1")
+```
+
+From a standalone script, put the workbench repo's `pytest/` on the path — the
+repo's own location, not a copy under `/tmp`:
+
+```python
+import sys
+sys.path.insert(0, "<workbench-repo>/pytest")
+from workbench_driver import WorkbenchDriver
+wt = WorkbenchDriver("http://workbench.local:8080")
+```
+
+Then discover the slot rather than hard-coding one, because labels move with the
+USB topology:
+
+```python
+dut = next(s for s in wt.get_devices() if s["present"])
+SLOT = dut["label"]
+```
+
+**Use the driver when writing tests**; it gives typed responses, real error
+handling and the slot `state` field. For a one-off operation at the prompt, reach
+for the instrument skill and its `curl` instead — the driver is not worth an
+import path. The methods worth knowing are in
+[`references/driver-methods.md`](references/driver-methods.md); the full surface
+is `pytest/workbench_driver.py`.
 
 ## Human Interaction
 

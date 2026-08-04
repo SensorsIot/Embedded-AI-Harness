@@ -60,6 +60,12 @@ curl -X POST http://workbench.local:8080/api/serial/monitor \
 
 Response: `{"ok": true, "matched": true, "line": "WiFi connected to MyAP", "output": [...]}`
 
+**Serial is the lifeline.** Never decide whether a device is alive by pinging it
+or calling its HTTP endpoint — a device that boots fine but never joins WiFi
+looks identical to a dead one. Reading what it printed tells you which.
+Boot-marker patterns for running / download-mode / unknown are in
+[`references/state-detection.md`](references/state-detection.md).
+
 ### Use serial monitor when:
 - You need **boot messages** (before WiFi is up)
 - You need to **wait for a specific log line** (pattern matching with timeout)
