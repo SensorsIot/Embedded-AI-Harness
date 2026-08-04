@@ -661,8 +661,14 @@ class TestUSBJTAGDebug:
         with pytest.raises((CommandError, CommandTimeout)):
             workbench.debug_start(slot="SLOT99")
 
+    @requires_dut
     def test_wt1404_debug_reject_unsupported(self, workbench):
-        """WT-1404: Unsupported chip returns error."""
+        """WT-1404: Unsupported chip returns error.
+
+        Needs a DUT despite only checking a rejection: with no slot given the
+        portal auto-selects the first present device, and on an empty bench it
+        answers "no device found" before it ever looks at the chip.
+        """
         with pytest.raises(CommandError):
             workbench.debug_start(chip="esp8266")
 

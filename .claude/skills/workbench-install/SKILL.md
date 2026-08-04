@@ -32,11 +32,25 @@ cd Universal-Embedded-Workbench/pi
 sudo bash install.sh
 ```
 
-`install.sh` is idempotent and does eight things: apt packages, masking the
-services it manages dynamically (`hostapd`, `dnsmasq`, `mosquitto` — it starts
-them itself, so leaving them enabled fights the portal), directories, the Python
-modules into `/usr/local/bin/`, helper scripts, config defaults, systemd + udev
-rules, then enable and start.
+`install.sh` is idempotent and does eight things: apt packages, standing down
+the services it manages dynamically (`hostapd` is masked; `dnsmasq` and
+`mosquitto` are disabled — the portal starts them itself, so leaving them
+enabled fights it), directories, the Python modules into `/usr/local/bin/`,
+helper scripts, config defaults, systemd + udev rules, then enable and start.
+
+It fetches `openocd-esp32` from GitHub releases and installs it as
+`/usr/local/bin/openocd-esp32`, alongside — not replacing — Debian's `openocd`.
+
+**It runs under `set -e`, and the script copy comes before systemd and udev.** So
+a single missing file aborts the install after the packages are in but before the
+service exists, and the output ends on a bare `cp: cannot stat` with no summary.
+Read the last line rather than assuming a long successful-looking log means it
+finished; `curl /api/info` is the only proof.
+
+**A fresh install exercises code that `--update` never reaches.** An installer
+bug can therefore sit undiscovered indefinitely on benches that were built before
+it was introduced — a file deleted from `pi/` but still named in `install.sh`
+breaks every new bench and no existing one.
 
 Verify over HTTP — never by reading files over SSH:
 
@@ -51,6 +65,33 @@ If `workbench.local` does not resolve:
 sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
 ```
 
+Then prove the subsystems actually loaded, because an import that fails on a
+newer Python takes only its own endpoint down and leaves the portal answering:
+
+```bash
+for ep in sdr/status siggen/status mqtt/status wifi/mode debug/probes gpio/status; do
+  curl -s "http://workbench.local:8080/api/$ep"; echo
+done
+```
+
+## Platform
+
+The installer pins nothing and works across releases. Verified on:
+
+| | Debian 12 bookworm | Debian 13 trixie |
+|---|---|---|
+| Python | 3.11 | 3.13 |
+| esptool | 4.x | 5.x |
+
+**Python 3.13 removed `telnetlib`, `cgi`, `imp` and `distutils`.** No portal
+module uses them today; check before adding a dependency that might.
+
+**esptool 5 renamed things and warns loudly.** `esptool.py` → `esptool`,
+`flash_id` → `flash-id`, and its output fields changed (`Chip is` → `Chip type:`,
+`Crystal is` → `Crystal frequency:`). The old spellings still work, so the portal
+keeps using them for compatibility with older benches, and anything parsing
+esptool output must accept both wordings.
+
 ## Single-file deploy
 
 The pattern for every module — only the destination name changes:
@@ -64,7 +105,7 @@ ssh pi@workbench.local 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && 
 keep their filenames: `sdr_controller.py`, `wifi_controller.py`,
 `ble_controller.py`, `mqtt_controller.py`, `debug_controller.py`,
 `signal_generator.py`, `si5351.py`, `gpclk.py`, `morse.py`, `bcm_gpio.py`,
-`pe4302.py`, `sniffer.py`, `plain_rfc2217_server.py`, `cw_beacon.py`.
+`pe4302.py`, `sniffer.py`, `plain_rfc2217_server.py`.
 
 Restarting `rfc2217-portal` is required even for a module the portal imports —
 Python has already loaded the old one.
@@ -117,6 +158,13 @@ pytest pytest/ --wt-url http://workbench.local:8080            # no DUT needed
 pytest pytest/ --wt-url http://workbench.local:8080 --run-dut  # full
 pytest pytest/host/                                            # no hardware at all
 ```
+
+On a bench with nothing plugged in, expect roughly **47 passed, 42 skipped** —
+that is the whole of what can be checked without a DUT, and it is the right
+acceptance run for a new build. A test that fails there rather than skipping is
+usually the test's own bug: one that omits a slot lets the portal auto-select the
+first present device, so on an empty bench it fails with `no device found`
+instead of exercising what it claims to.
 
 If the change altered externally observable behaviour, it belongs in the FSD; if
 it changed how the bench is built or deployed, it belongs in the Harness. See
