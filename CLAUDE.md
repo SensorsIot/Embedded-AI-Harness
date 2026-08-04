@@ -35,5 +35,5 @@ Commands, install steps and environment variables are in the User Manual. Module
 
 ## Two hazards recorded nowhere else
 
-- **`gplug-mini/` is a separate git repository nested in this one**, and shows as untracked here. Add explicit paths when committing — `git add -A` would swallow it, and `tmp/`.
+- **`gplug-mini/` is a separate git repository nested in this one**, and shows as untracked here. Add explicit paths when committing — `git add -A` would swallow it.
 - **Host access** — SSH, InfluxDB, Grafana and Docker details are in the `remote-connections` skill.
