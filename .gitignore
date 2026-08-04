@@ -17,3 +17,8 @@ sdkconfig.old
 # Fetched by the ESP-IDF component manager from idf_component.yml.
 # dependencies.lock IS committed, so builds are reproducible.
 managed_components/
+
+# Scratch. CLAUDE.md says never commit it; this makes that true rather than
+# a rule someone has to remember, and it is where secrets get dropped.
+tmp/
+*.env

@@ -1,5 +1,5 @@
 ---
-name: setup-workbench
+name: workbench-install
 description: Use this skill whenever the workbench Pi itself needs to be built, installed, updated, or have code deployed to it — a fresh SD card, a first `install.sh` run, pushing a changed controller module to a running bench, or diagnosing why a change had no effect. This is about the machine, not the instruments: the other workbench-* skills drive a bench that already works. Triggers on "install the workbench", "set up the Pi", "deploy", "push this to the bench", "my change didn't take effect", "rebuild the SD card", "update the portal", "install.sh", "systemctl restart rfc2217-portal".
 ---
 
