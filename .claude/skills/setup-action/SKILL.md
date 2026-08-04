@@ -80,19 +80,23 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # -DSDKCONFIG per variant — see "Two builds, one sdkconfig" below.
       - name: Build production firmware
         run: |
           . $IDF_PATH/export.sh >/dev/null
           V="${{ steps.version.outputs.version }}"
-          idf.py -B build/prod -DPROJECT_VER="$V" set-target <target>
-          idf.py -B build/prod -DPROJECT_VER="$V" build
+          ARGS="-B build/prod -DSDKCONFIG=$PWD/build/prod/sdkconfig -DPROJECT_VER=$V"
+          idf.py $ARGS set-target <target>
+          idf.py $ARGS build
 
       - name: Build simulated firmware
         run: |
           . $IDF_PATH/export.sh >/dev/null
           V="${{ steps.version.outputs.version }}"
-          idf.py -B build/sim -DSIM_BUILD=1 -DPROJECT_VER="$V-sim" set-target <target>
-          idf.py -B build/sim -DSIM_BUILD=1 -DPROJECT_VER="$V-sim" build
+          ARGS="-B build/sim -DSDKCONFIG=$PWD/build/sim/sdkconfig \
+                -DSIM_BUILD=1 -DPROJECT_VER=$V-sim"
+          idf.py $ARGS set-target <target>
+          idf.py $ARGS build
 
       - name: Verify the two variants are actually different
         run: |
@@ -215,6 +219,28 @@ simulated variant contains. Checking the artefact survives a broken `#ifdef`, a
 stale build directory, or an option that quietly stopped being passed. The second
 direction matters as much as the first: a simulated build that stopped being one
 makes every bench run meaningless while looking fine.
+
+**Two builds, one sdkconfig — give each variant its own.** `-B build/prod` and
+`-B build/sim` separate the *build* directories, but not the config: ESP-IDF
+keeps `sdkconfig` in the **project root**, so both variants write the same file.
+An existing `sdkconfig` outranks `sdkconfig.defaults` for symbols it already
+mentions, so the second build can inherit the first variant's configuration and
+produce two images that differ only in their version string. What prevents it
+today is a side effect — `set-target` deletes `sdkconfig` before regenerating it
+— and dropping `set-target` on a second run, or reordering the steps, removes
+that protection with nothing to show for it.
+
+State it instead, and pass the same flags to `set-target` and `build`:
+
+```bash
+ARGS="-B build/prod -DSDKCONFIG=$PWD/build/prod/sdkconfig -DPROJECT_VER=$V"
+idf.py $ARGS set-target <target>
+idf.py $ARGS build
+```
+
+Absolute, because `idf.py` does not resolve it against the project directory.
+This also puts the file where the artefact step can find it — `build/*/sdkconfig`
+does not exist otherwise, and `cp` fails the job at the very last step.
 
 **Publish three things, not one.** The loose `.bin` is what OTA fetches; the
 `.elf` is what symbolises a crash dump months later; the **cold-flash bundle**
