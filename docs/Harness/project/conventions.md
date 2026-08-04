@@ -63,5 +63,6 @@ change as the FSD — a skill quoting a dead endpoint is a defect. Scripts shipp
 beside a skill are code and are wrong in the same way a skill is: check them
 against the handler, not against the skill's prose.
 
-The full skill list is in `CLAUDE.md`; the FSD and Handbook describe what each
-drives.
+`.claude/skills/` is the list — each skill's `description` states when it
+applies, which is also how it gets selected. The FSD and Handbook describe what
+each drives.
