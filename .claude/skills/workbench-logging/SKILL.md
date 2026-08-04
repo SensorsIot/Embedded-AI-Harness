@@ -60,6 +60,29 @@ curl -X POST http://workbench.local:8080/api/serial/monitor \
 
 Response: `{"ok": true, "matched": true, "line": "WiFi connected to MyAP", "output": [...]}`
 
+### A debug session silently changes what reset returns
+
+`POST /api/serial/reset` picks its method from the slot. With no debug session it
+pulses DTR/RTS and returns the boot log as **a list of lines**. With OpenOCD
+attached it issues a JTAG `reset run` instead and returns **a single string** of
+OpenOCD's reply — `JTAG tap: esp32c3.tap0 ...` — which is not the device's output
+at all. Same endpoint, same request, two response shapes and two meanings.
+
+Nothing in the response announces this except a `"method": "jtag"` key that is
+absent on the serial path. Client code that iterates `output` gets characters
+instead of lines and quietly finds no boot markers.
+
+**OpenOCD attaches by itself when a device is plugged in**, so this is the
+default state of a board on a JTAG-capable slot, not something you opted into.
+Stop it before capturing boot output:
+
+```bash
+curl -X POST http://workbench.local:8080/api/debug/stop \
+  -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
+```
+
+Check first with `debugging` in `/api/devices` — a slot reads `idle` either way.
+
 **Serial is the lifeline.** Never decide whether a device is alive by pinging it
 or calling its HTTP endpoint — a device that boots fine but never joins WiFi
 looks identical to a dead one. Reading what it printed tells you which.
@@ -165,7 +188,7 @@ curl -s "http://workbench.local:8080/api/log?since=2025-01-01T00:00:00Z" | jq .
 ## Common Workflows
 
 1. **Verify boot after flash:**
-   - `POST /api/serial/reset` — returns boot output
+   - `POST /api/serial/reset` — returns boot output, **but only with debug stopped** (see below)
    - Check for expected boot messages (e.g., `boot:0x28`, firmware version)
 
 2. **Wait for WiFi connection:**

@@ -306,6 +306,21 @@ debug_port = workbench.local:3333
 
 ---
 
+## Effects on the rest of the bench
+
+A live session is not passive. On a native-USB part serial and JTAG share the one
+interface, so while OpenOCD holds a slot:
+
+| Call | What happens |
+|---|---|
+| `POST /api/flash` | refused — stop debug first |
+| `POST /api/chip/info` | `409` — same reason |
+| `POST /api/serial/reset` | silently switches to a JTAG `reset run` and returns OpenOCD's text, not the boot log (see `workbench-logging`) |
+| `/api/devices` | still reports `state: "idle"` — the give-away is `debugging: true` |
+
+**OpenOCD starts on its own when a device is plugged in**, so a board is usually
+in this state without anyone having asked. `POST /api/debug/stop` releases it.
+
 ## API Endpoints
 
 Request and response shapes: [FSD Appendix D.3](../../../docs/Embedded-Workbench-FSD.md#d3-gdb-debug).

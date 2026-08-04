@@ -350,10 +350,10 @@ jack count, and add any unoccupied prefix(es) to the table.
 |--------|----------|-------------|
 | GET | /api/devices | List all slots with status |
 | POST | /api/hotplug | Receive udev hotplug event (add/remove) |
-| POST | /api/start | Manually start proxy for a slot |
-| POST | /api/stop | Manually stop proxy for a slot |
+| POST | /api/start | Manually start proxy for a slot `{"slot"}`, optional `devnode` |
+| POST | /api/stop | Manually stop proxy for a slot `{"slot"}` |
 | GET | /api/info | Pi IP, hostname, slot counts |
-| POST | /api/serial/reset | Reset device via DTR/RTS (FR-008) |
+| POST | /api/serial/reset | Reset device — DTR/RTS, or JTAG while a debug session is active (FR-008) |
 | POST | /api/serial/monitor | Read serial output with pattern match (FR-009) |
 
 **GET /api/devices** returns:
@@ -923,10 +923,10 @@ serial-interface mode.
 | **Serial** | | |
 | GET | /api/devices | List all slots with status |
 | POST | /api/hotplug | Receive udev hotplug event (add/remove) |
-| POST | /api/start | Manually start proxy for a slot |
-| POST | /api/stop | Manually stop proxy for a slot |
+| POST | /api/start | Manually start proxy for a slot `{"slot"}`, optional `devnode` |
+| POST | /api/stop | Manually stop proxy for a slot `{"slot"}` |
 | GET | /api/info | Pi IP, hostname, slot counts |
-| POST | /api/serial/reset | Reset device via DTR/RTS (FR-008) |
+| POST | /api/serial/reset | Reset device — DTR/RTS, or JTAG while a debug session is active (FR-008) |
 | POST | /api/serial/monitor | Read serial output with pattern match (FR-009) |
 | **WiFi** | | |
 | GET | /api/wifi/ping | Version and uptime |
@@ -3548,7 +3548,7 @@ errors add `"error": "..."`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/serial/reset` | Reset device via DTR/RTS `{"slot"}` → `{"ok", "output": ["boot line", ...]}` |
+| POST | `/api/serial/reset` | Reset a device `{"slot"}`. **The method depends on the slot.** With no debug session: DTR/RTS, and `{"ok", "output": ["boot line", ...]}` — a list of the boot log. With a debug session active: JTAG `reset run`, and `{"ok", "method": "jtag", "command", "output": "<OpenOCD text>"}` — a single string of OpenOCD's reply, **not** the device's output. Falls back to DTR/RTS if the JTAG reset fails |
 | POST | `/api/serial/monitor` | Wait for a pattern `{"slot", "pattern?", "timeout?"}` → `{"ok", "matched", "line", "output"}` |
 | GET | `/api/serial/output` | Passive buffer read `?slot=&lines=&since=` |
 | POST | `/api/serial/recover` | Manual flap-recovery trigger `{"slot"}` |
