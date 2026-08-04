@@ -179,6 +179,13 @@ idf.py -p /dev/ttyUSB0 flash monitor   # Flash and monitor
 | ESP32-C3/S3 (local USB, ttyACM) | `default-reset` | `no-reset` |
 | Any chip via `/api/flash` | fixed by the portal | fixed by the portal |
 
+**A DTR/RTS reset can take a native-USB board off the bus.** `POST
+/api/serial/reset` on a C3/S3 re-enumerates USB, and the device normally comes
+back within a second or two. When it does not, the slot goes `absent` and stays
+there — seen once immediately after a reset, with `USB remove` in the activity
+log and nothing on `lsusb` afterwards. Prefer `/api/serial/monitor` for reading a
+running device, and keep resets for when you actually need a reboot.
+
 **`/api/flash` takes no reset flags.** The portal hardcodes
 `--before default_reset --after hard_reset`, so the device reboots into the new
 firmware on its own — do **not** follow it with `POST /api/serial/reset`. The
@@ -519,6 +526,7 @@ one, unless the bench has isolated DUT power.
 | Problem | Fix |
 |---------|-----|
 | Slot shows `absent` | Check USB cable, re-seat device |
+| Slot went `absent` and stays there | Check `lsusb` on the Pi. **If no `303a:` device appears, no API call can help** — `/api/serial/recover` and GPIO download mode both drive a board that is still enumerated. A device off the bus needs hands: re-seat the cable or power-cycle the board |
 | `flapping` state | Recovery should start automatically; if stuck, `POST /api/serial/recover` |
 | `recovering` state | USB unbound, recovery in progress — wait for `download_mode` or `idle` |
 | `download_mode` state | Flash firmware on the Pi, then `POST /api/serial/release` |
