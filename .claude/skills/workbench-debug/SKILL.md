@@ -321,6 +321,34 @@ interface, so while OpenOCD holds a slot:
 **OpenOCD starts on its own when a device is plugged in**, so a board is usually
 in this state without anyone having asked. `POST /api/debug/stop` releases it.
 
+### A session on one slot can block a different slot
+
+Native-USB parts all enumerate as `303a:1001`, and OpenOCD selects its USB JTAG
+interface by VID:PID rather than by devnode. With two identical boards on the
+bench, a session started for one can claim the other's interface. The symptom is
+on the *innocent* slot:
+
+```
+Serial port /dev/ttyACM1:
+Connecting...
+A serial exception error occurred: Write timeout
+```
+
+`/api/flash`, `/api/chip/info` and esptool all fail this way, while the slot
+reads `idle` with `debugging: false` — because the session belongs to a different
+slot. `detected_chip` going from a chip name to `null` is the other tell.
+
+So the check before flashing is not "is this slot debugging" but **"is any slot
+debugging"**:
+
+```bash
+curl -s http://workbench.local:8080/api/devices \
+  | python3 -c "import json,sys; print([s['label'] for s in json.load(sys.stdin)['slots'] if s['debugging']])"
+```
+
+Stop every one it lists. A `Write timeout` here is a held interface, not a bad
+cable — retrying at a lower baud will not help.
+
 ## API Endpoints
 
 Request and response shapes: [FSD Appendix D.3](../../../docs/Embedded-Workbench-FSD.md#d3-gdb-debug).

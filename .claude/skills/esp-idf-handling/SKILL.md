@@ -211,6 +211,12 @@ curl -s http://workbench.local:8080/api/devices | jq .
 
 Response fields per slot: `label`, `state`, `url` (RFC2217, auto-assigned port), `present`, `running`, `detected_chip`, `debugging`.
 
+**A debug session on *any* slot can block this one.** Native-USB parts share the
+VID:PID `303a:1001` and OpenOCD claims the interface by it, so a session on a
+different board fails this slot with `A serial exception error occurred: Write
+timeout` while it reads `idle` and `debugging: false`. Stop every session, not
+just this slot's — see `workbench-debug`.
+
 **`state: "idle"` is not enough — check `debugging` too.** A slot with a live
 OpenOCD session reads `idle` while still holding the port, and `/api/flash` is
 refused. On native-USB parts serial and JTAG share the one interface, so this is
