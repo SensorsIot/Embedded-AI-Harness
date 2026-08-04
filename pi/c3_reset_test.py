@@ -7,7 +7,7 @@ Tests switching between download mode and running (SPI boot) mode
 via the USB-Serial/JTAG controller's DTR/RTS mechanism.
 
 Usage:
-    ssh pi@192.168.0.87 "python3 /tmp/c3_reset_test.py"
+    ssh pi@workbench.local "python3 /tmp/c3_reset_test.py"
 """
 import serial
 import subprocess

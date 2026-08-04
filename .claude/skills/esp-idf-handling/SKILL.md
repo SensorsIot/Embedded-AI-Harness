@@ -71,7 +71,12 @@ ls /opt/esp-idf/export.sh ~/esp/esp-idf/export.sh 2>/dev/null || echo "build in 
 Then the binaries have to come back before Step 4 can run:
 
 ```bash
-# The API needs a token — an SSH key authenticates git push, not this.
+# `gh` needs a token, and a tool call is a NON-interactive shell, where
+# ~/.bashrc returns before it sources the secrets. Without this line gh says
+# "not logged into any GitHub hosts" even though the terminal works fine.
+# Never `gh auth login` — see the `github` skill.
+. /run/secrets/env 2>/dev/null
+
 gh run download -R <owner>/<repo> -D /tmp/fw            # latest successful run
 gh run download -R <owner>/<repo> <run-id> -D /tmp/fw   # one specific run
 gh release download v1.2.0 -R <owner>/<repo> -D /tmp/fw # a published release
@@ -157,7 +162,17 @@ Slots are mapped to physical USB hub ports via prefix matching. The portal auto-
 curl -s http://workbench.local:8080/api/devices | jq .
 ```
 
-Response fields per slot: `label`, `state`, `url` (RFC2217, auto-assigned port), `present`, `running`, `detected_chip`.
+Response fields per slot: `label`, `state`, `url` (RFC2217, auto-assigned port), `present`, `running`, `detected_chip`, `debugging`.
+
+**`state: "idle"` is not enough — check `debugging` too.** A slot with a live
+OpenOCD session reads `idle` while still holding the port, and `/api/flash` is
+refused. On native-USB parts serial and JTAG share the one interface, so this is
+the normal state of a board you have been debugging:
+
+```bash
+curl -X POST http://workbench.local:8080/api/debug/stop \
+  -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
+```
 
 ### Flash via RFC2217
 

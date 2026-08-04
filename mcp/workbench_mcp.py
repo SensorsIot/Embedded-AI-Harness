@@ -10,7 +10,7 @@ with the Python standard library only (stdio JSON-RPC + urllib), so it runs on a
 Python 3 with no `pip install` — which is what lets it ship as a one-file .mcpb
 Desktop extension.
 
-Run (stdio):  WORKBENCH_URL=http://192.168.0.87:8080 python3 workbench_mcp.py
+Run (stdio):  WORKBENCH_URL=http://workbench.local:8080 python3 workbench_mcp.py
 """
 import json
 import os
@@ -19,7 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = os.environ.get("WORKBENCH_URL", "http://192.168.0.87:8080").rstrip("/")
+BASE = os.environ.get("WORKBENCH_URL", "http://workbench.local:8080").rstrip("/")
 
 S_INT = {"type": "integer"}
 S_NUM = {"type": "number"}

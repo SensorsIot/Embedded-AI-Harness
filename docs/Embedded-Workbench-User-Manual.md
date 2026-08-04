@@ -983,7 +983,7 @@ the Pi. It just needs network reach to the bench, pointed by `WORKBENCH_URL`.
 [`mcp/universal-embedded-workbench.mcpb`](../mcp/universal-embedded-workbench.mcpb),
 then in Claude Desktop go to **Settings → Extensions** and drag the file onto the
 window. When prompted, enter your workbench URL — e.g.
-`http://192.168.0.87:8080`, or `http://workbench.local:8080` if mDNS resolves.
+`http://workbench.local:8080`, or `http://workbench.local:8080` if mDNS resolves.
 You need Python 3 on the machine (macOS has it; on Windows install from
 python.org and tick **Add Python to PATH**).
 
@@ -997,7 +997,7 @@ URL — no reinstall. To update, install a newer `.mcpb` over the old one.
 
 ```bash
 claude mcp add workbench \
-  --env WORKBENCH_URL=http://192.168.0.87:8080 \
+  --env WORKBENCH_URL=http://workbench.local:8080 \
   -- python3 /abs/path/to/Universal-Embedded-Workbench/mcp/workbench_mcp.py
 
 claude mcp list      # look for: workbench … ✔ Connected
@@ -1015,7 +1015,7 @@ Windows `%APPDATA%\Claude\`, Linux `~/.config/Claude/`). Merge in:
     "workbench": {
       "command": "python3",
       "args": ["/abs/path/to/Universal-Embedded-Workbench/mcp/workbench_mcp.py"],
-      "env": { "WORKBENCH_URL": "http://192.168.0.87:8080" }
+      "env": { "WORKBENCH_URL": "http://workbench.local:8080" }
     }
   }
 }

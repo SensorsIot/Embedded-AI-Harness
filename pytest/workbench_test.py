@@ -566,7 +566,9 @@ class TestCaptivePortal:
         """WT-2100/2101/2102: captive-portal provisioning end-to-end."""
         # Broker on the Pi's LAN address so MQTT proves NAT-to-LAN.
         workbench.mqtt_start()
-        lan_ip = os.environ.get("WORKBENCH_LAN_IP", "192.168.0.87")
+        # Ask the bench where it is rather than hard-coding an address that
+        # goes stale the next time it gets a different lease.
+        lan_ip = os.environ.get("WORKBENCH_LAN_IP") or workbench.info()["host_ip"]
 
         # Clear the DUT's saved creds (double reset within DRD window) so it
         # re-enters its captive portal.
@@ -925,7 +927,7 @@ class TestEndToEnd:
     run.  If flash fails, all subsequent tests are skipped.
 
     Usage:
-        pytest workbench_test.py -k TestEndToEnd --run-dut --wt-url http://192.168.0.87:8080
+        pytest workbench_test.py -k TestEndToEnd --run-dut --wt-url http://workbench.local:8080
     """
 
     _test_session_started = False

@@ -130,7 +130,7 @@ The workbench listens on UDP port **5555**. ESP32 firmware sends plain text line
    failure it leaves the address at 0.0.0.0, so the logs vanish silently.
    Always check the return value. */
 struct sockaddr_in workbench = { .sin_family = AF_INET, .sin_port = htons(5555) };
-if (inet_aton("192.168.0.87", &workbench.sin_addr) == 0) {
+if (inet_aton(CONFIG_WORKBENCH_IP, &workbench.sin_addr) == 0) {   /* dotted-quad */
     ESP_LOGE(TAG, "bad workbench address");
     return ESP_ERR_INVALID_ARG;
 }

@@ -974,7 +974,7 @@ its extra portal fields (MQTT host/port/user/pass) via `extra`.
 {"portal_ssid": "Awning-Setup", "ssid": "awning-net", "password": "awningpass",
  "save_path": "/wifisave", "field_ssid": "s", "field_password": "p",
  "method": "POST", "internet": true,
- "extra": {"host": "192.168.0.87", "port": "1883"}}
+ "extra": {"host": "workbench.local", "port": "1883"}}
 ```
 
 | Parameter | Required | Default | Description |

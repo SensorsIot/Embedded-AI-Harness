@@ -119,7 +119,12 @@ def main():
 
     for wb in results:
         hostname = wb.get("hostname", "workbench")
-        ip = wb.get("ip", wb["source_ip"])
+        # The address the reply actually came from, not the one the payload
+        # claims. The portal caches its own IP and refreshes it periodically,
+        # so after the bench changes address the beacon advertises the old one
+        # until that refresh runs — and the whole point of the beacon is to say
+        # where to connect. A source address cannot be stale.
+        ip = wb["source_ip"]
         fqdn = f"{hostname}.local"
 
         if not args.quiet:
