@@ -91,6 +91,22 @@ looks identical to a dead one. Reading what it printed tells you which.
 Boot-marker patterns for running / download-mode / unknown are in
 [`references/state-detection.md`](references/state-detection.md).
 
+### Serial cannot count restarts on a native-USB part
+
+On a chip whose console is USB-CDC (ESP32-C3/S3/C6), `esp_restart()` resets the
+USB-JTAG peripheral, the devnode re-enumerates, and the RFC2217 proxy's file
+descriptor breaks. The capture socket **stays open and simply goes quiet** — and
+on reconnect it can replay stale scrollback from before the reset. A test that
+counted "boots seen" from serial once read 25 lines then nothing for 30 minutes
+while the device restarted six times, and a filtered view showed a clean pass.
+
+Serial is authoritative only **within one boot**. For anything that counts
+restarts — a 5-minute-rule reboot, a watchdog reset, a crash loop — read a
+monotonic **boot counter the firmware publishes** (e.g. an MQTT status payload
+or UDP telemetry), not the console. A silent device and a dead probe look
+identical in any filtered serial view, so make the harness exit loud (non-zero
+with the raw captured-line count) rather than reporting `boots: 0`.
+
 ### Use serial monitor when:
 - You need **boot messages** (before WiFi is up)
 - You need to **wait for a specific log line** (pattern matching with timeout)

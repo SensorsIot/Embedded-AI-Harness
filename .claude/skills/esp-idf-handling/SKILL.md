@@ -460,6 +460,30 @@ curl -X POST $WORKBENCH_URL/api/serial/recover \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT1"}'
 ```
 
+## Power-cycling a DUT (don't automate it with uhubctl)
+
+A test that needs a **true power cycle** — a `POWERON` reset reason, or clearing
+the ESP32's RTC SRAM to exercise a cold-boot guard — is tempting to automate by
+cutting USB VBUS with `uhubctl`. On a typical bench Pi this backfires two ways,
+both observed:
+
+- **It can take the whole bench offline.** The Pi's *one* switchable root port
+  (`uhubctl` shows `ppps` on only that port) usually feeds a **ganged** hub that
+  carries the DUT slots *and the Pi's own USB-Ethernet uplink*. Cutting it drops
+  the Pi's network, and the port frequently does not restore on its own — the
+  bench needs a physical power-cycle to come back. Never run `uhubctl` against
+  the root port that carries the Pi's uplink.
+- **A brief VBUS cut may not be a real power cycle anyway.** The ESP32-C3's RTC
+  domain holds its charge across a short outage, so `reset_reason` comes back
+  `USB`, not `POWERON`, and RTC-SRAM guards still see stale state. Even a Pi
+  power-cycle left the C3's RTC SRAM intact in one run.
+
+If a case genuinely needs power removed from the DUT alone, use a **per-port
+switchable hub** (uhubctl's supported list) powering only the DUT slots, a
+smart-plug/relay on the DUT rail, or an operator replug — never the shared root
+port. Treat "true power cycle" as an operator-assisted tier, not an automated
+one, unless the bench has isolated DUT power.
+
 ## Troubleshooting
 
 ### Local USB
