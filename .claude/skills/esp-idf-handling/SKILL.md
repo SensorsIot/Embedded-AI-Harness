@@ -222,7 +222,7 @@ curl -X POST http://workbench.local:8080/api/serial/reset \
 
 ### Workbench API endpoints
 
-The full endpoint reference is [FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api-mcp-reference)
+The full endpoint reference is [FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)
 — D.1 discovery, D.2 serial, D.8 firmware repository, D.9 flashing. Read it there
 rather than from memory: this skill states *which* call to reach for and what
 breaks, not the request shapes.

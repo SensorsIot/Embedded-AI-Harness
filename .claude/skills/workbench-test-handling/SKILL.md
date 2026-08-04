@@ -59,7 +59,7 @@ Test scripts can push live progress updates to the workbench web UI so operators
 
 ### Endpoints
 
-Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbench-FSD.md#d13-test-progress-human-interaction).
+Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbench-FSD.md#d13-test-progress--human-interaction).
 
 ### Session Lifecycle
 
@@ -138,7 +138,7 @@ Some test steps require physical actions that cannot be automated — pressing a
 
 ### Endpoints
 
-Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbench-FSD.md#d13-test-progress-human-interaction).
+Request and response shapes: [FSD Appendix D.13](../../../docs/Embedded-Workbench-FSD.md#d13-test-progress--human-interaction).
 
 `/api/human-interaction` **blocks the caller** until Done, Cancel or timeout — so
 give it a timeout shorter than the client's own, or the client gives up first and

@@ -297,7 +297,7 @@ After completing all steps, verify:
 ## Workbench Skills Reference
 
 Every endpoint these skills drive is specified in
-[FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api-mcp-reference).
+[FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference).
 
 | Skill | Covers |
 |-------|--------|
