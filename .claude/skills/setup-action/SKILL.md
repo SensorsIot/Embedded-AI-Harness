@@ -23,8 +23,9 @@ logic passes.
 
 # Part 1 — Build and publish firmware
 
-Put this at `.github/workflows/build.yml` and change the four placeholders:
-`<firmware-dir>`, `<app-name>`, `<target>`, `<version-header>`.
+Put this at `.github/workflows/build.yml` and change the three placeholders:
+`<firmware-dir>`, `<app-name>`, `<target>`. Drop `working-directory` if the
+ESP-IDF project sits at the repository root.
 
 ```yaml
 name: Build Firmware
@@ -55,6 +56,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # see "Versioning" below — tags are needed
 
       - name: Show the IDF version actually used
         run: . $IDF_PATH/export.sh >/dev/null && idf.py --version
@@ -69,23 +72,19 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Stamp the version into the firmware
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i "s/^#define FW_VERSION \".*\"/#define FW_VERSION \"$VERSION\"/" <version-header>
-          grep -q "^#define FW_VERSION \"$VERSION\"" <version-header>
-
       - name: Build production firmware
         run: |
           . $IDF_PATH/export.sh >/dev/null
-          idf.py -B build/prod set-target <target>
-          idf.py -B build/prod build
+          V="${{ steps.version.outputs.version }}"
+          idf.py -B build/prod -DPROJECT_VER="$V" set-target <target>
+          idf.py -B build/prod -DPROJECT_VER="$V" build
 
       - name: Build simulated firmware
         run: |
           . $IDF_PATH/export.sh >/dev/null
-          idf.py -B build/sim -DSIM_BUILD=1 set-target <target>
-          idf.py -B build/sim -DSIM_BUILD=1 build
+          V="${{ steps.version.outputs.version }}"
+          idf.py -B build/sim -DSIM_BUILD=1 -DPROJECT_VER="$V-sim" set-target <target>
+          idf.py -B build/sim -DSIM_BUILD=1 -DPROJECT_VER="$V-sim" build
 
       - name: Verify the two variants are actually different
         run: |
@@ -137,23 +136,44 @@ container tag removes that indirection entirely.
 Echo `idf.py --version` in its own step. When a build behaves differently from a
 developer's machine, that line is the first thing worth reading.
 
-**Assert the version substitution landed.** The `grep -q` after the `sed` is the
-step people skip. A `sed` whose pattern stops matching after a refactor exits 0
-having changed nothing, and the release then ships firmware reporting the
-*previous* version — invisible until someone tries to work out whether an OTA
-actually applied. If the project has not already committed to a version macro,
-prefer letting `esp_app_desc_t` take the version from git and drop both steps.
+**Versioning: prefer `PROJECT_VER` over `sed`.** ESP-IDF puts the version in
+`esp_app_desc_t`, readable at runtime, so the same string reaches the device page,
+the OTA log and the release asset and cannot disagree. Pass it explicitly:
+
+```yaml
+idf.py -B build/prod -DPROJECT_VER="${{ steps.version.outputs.version }}" build
+```
+
+Left unset, ESP-IDF falls back to `git describe`, and **the default shallow
+checkout has no tags** — so the version silently degrades to a bare hash. Set
+`fetch-depth: 0` whenever the version comes from git, as the template above does.
+
+Only reach for the `sed` route when the project has already committed to a version
+macro in a header. Then the `grep -q` after it is not optional: a `sed` whose
+pattern stops matching after a refactor exits 0 having changed nothing, and the
+release ships firmware reporting the *previous* version — invisible until someone
+tries to work out whether an OTA actually applied.
 
 **Verify the variants differ, in both directions.** A project with a simulated or
 debug build needs proof that the shipped image is not it: shipping a simulated
 build publishes synthetic data that looks entirely real to whatever consumes it.
-Gate the behaviour on a compile-time option —
+Gate the behaviour at compile time. Two mechanisms, and the project's own
+architecture decides which:
 
 ```cmake
+# CMake option — good when the flag only guards C/C++ code
 option(SIM_BUILD "Simulated data and debug logging (never ship)" OFF)
 ```
+```bash
+# Kconfig symbol — required when the flag must also reach sdkconfig,
+# menuconfig, or component configuration. Select it with a second
+# defaults file rather than -D:
+idf.py -B build/sim -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.sim.defaults" build
+```
 
-— then grep the **built binary**, not the source, for a marker string only the
+A `-DCONFIG_FOO=y` on the command line does **not** set a Kconfig symbol; it
+defines a CMake variable of that name and the build silently keeps the default.
+Then grep the **built binary**, not the source, for a marker string only the
 simulated variant contains. Checking the artefact survives a broken `#ifdef`, a
 stale build directory, or an option that quietly stopped being passed. The second
 direction matters as much as the first: a simulated build that stopped being one
@@ -188,6 +208,25 @@ act.
 - **Do not commit `sdkconfig`.** It is generated; `sdkconfig.defaults` is the
   source. Publishing the generated file as an artefact (above) covers the
   diagnostic need.
+
+## Setting this up before the code exists
+
+A project can be fully specified with no source yet, and that changes which
+workflow may land:
+
+- **The build workflow can.** It is tag-triggered, so it stays dormant until
+  someone pushes a version tag — which nobody does before the firmware builds
+  locally. Committing it early encodes the release requirements in executable
+  form and tells whoever implements the firmware what layout to produce. Say in a
+  header comment that it has never run and which names are guesses.
+- **The gate cannot.** `pytest <dir>` on a missing directory exits 4, and a bare
+  `pytest` with no tests exits 5. Either fails the job, so the gate would be red
+  from its first run — the one thing that makes a gate worthless. Add it with the
+  first test, not before.
+
+Note also that **git does not track empty directories**, so a `tests/host/`
+created locally will not exist in a fresh clone. A gate that passes on your
+machine and fails on the runner usually means exactly this.
 
 ---
 
