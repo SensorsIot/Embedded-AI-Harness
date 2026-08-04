@@ -27,20 +27,36 @@ Put this at `.github/workflows/build.yml` and change the three placeholders:
 `<firmware-dir>`, `<app-name>`, `<target>`. Drop `working-directory` if the
 ESP-IDF project sits at the repository root.
 
+**One build per run.** Most projects have one firmware, and the template
+defaults to that: `MULTI_VARIANT: 'false'` pins every run to production and the
+variant machinery costs nothing. Flip it to `'true'` only for a project that
+genuinely ships a second image — a simulated or debug build — and read
+"Variants" below before you do.
+
 ```yaml
 name: Build Firmware
 
 env:
   IDF_TAG: v6.0.2          # keep in step with the container tag below
+  # The one switch for variant handling. Leave 'false' unless this project
+  # really builds a second image; then set <SIM-MARKER> too.
+  MULTI_VARIANT: 'false'
+  SIM_MARKER: <SIM-MARKER> # a string only the non-production image contains
 
 on:
   push:
+    branches: [main]
     tags: ['v*.*.*']
   workflow_dispatch:
     inputs:
       version:
         description: 'Version number (e.g. 1.2.0)'
         required: true
+      variant:                       # inert while MULTI_VARIANT is 'false'
+        description: 'Which firmware to build'
+        type: choice
+        options: [production, simulated]
+        default: production
 
 permissions:
   contents: write          # required to create the release
@@ -70,56 +86,64 @@ jobs:
       - name: Show the IDF version actually used
         run: . $IDF_PATH/export.sh >/dev/null && idf.py --version
 
-      - name: Resolve version
-        id: version
+      - name: Decide what to build
+        id: plan
         run: |
+          VARIANT="${{ github.event.inputs.variant || 'production' }}"
+          [ "$MULTI_VARIANT" = "true" ] || VARIANT=production
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
-          else
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="0.0.0-$(git rev-parse --short HEAD)"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # -DSDKCONFIG per variant — see "Two builds, one sdkconfig" below.
-      - name: Build production firmware
+          DEFAULTS="sdkconfig.defaults"
+          if [ "$VARIANT" = "simulated" ]; then
+            DEFAULTS="sdkconfig.defaults;sdkconfig.sim.defaults"
+            VERSION="$VERSION-sim"
+          fi
+
+          { echo "variant=$VARIANT"; echo "version=$VERSION"
+            echo "defaults=$DEFAULTS"; } >> $GITHUB_OUTPUT
+          echo "Building the $VARIANT firmware as $VERSION"
+
+      # -DSDKCONFIG: keep the config in the build dir — see "sdkconfig" below.
+      - name: Build firmware
         run: |
           . $IDF_PATH/export.sh >/dev/null
-          V="${{ steps.version.outputs.version }}"
-          ARGS="-B build/prod -DSDKCONFIG=$PWD/build/prod/sdkconfig -DPROJECT_VER=$V"
+          ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig \
+                -DSDKCONFIG_DEFAULTS=${{ steps.plan.outputs.defaults }} \
+                -DPROJECT_VER=${{ steps.plan.outputs.version }}"
           idf.py $ARGS set-target <target>
           idf.py $ARGS build
 
-      - name: Build simulated firmware
+      - name: Verify the image matches the variant asked for
+        if: env.MULTI_VARIANT == 'true'
         run: |
-          . $IDF_PATH/export.sh >/dev/null
-          V="${{ steps.version.outputs.version }}"
-          ARGS="-B build/sim -DSDKCONFIG=$PWD/build/sim/sdkconfig \
-                -DSIM_BUILD=1 -DPROJECT_VER=$V-sim"
-          idf.py $ARGS set-target <target>
-          idf.py $ARGS build
-
-      - name: Verify the two variants are actually different
-        run: |
-          if grep -q "<SIM-MARKER>" build/prod/<app-name>.bin; then
-            echo "FATAL: production image contains simulated-data code"; exit 1; fi
-          if ! grep -q "<SIM-MARKER>" build/sim/<app-name>.bin; then
-            echo "FATAL: simulated image lacks simulated-data code"; exit 1; fi
+          if grep -q "$SIM_MARKER" build/<app-name>.bin; then FOUND=yes; else FOUND=no; fi
+          case "${{ steps.plan.outputs.variant }}:$FOUND" in
+            production:no|simulated:yes) echo "verified, marker $FOUND" ;;
+            production:yes) echo "FATAL: production image contains $SIM_MARKER"; exit 1 ;;
+            simulated:no)   echo "FATAL: simulated image lacks $SIM_MARKER";    exit 1 ;;
+          esac
 
       - name: Collect artefacts
         run: |
-          V="${{ steps.version.outputs.version }}"
-          cp build/prod/<app-name>.bin firmware_v${V}.bin
-          cp build/prod/<app-name>.elf firmware_v${V}.elf
-          cp build/sim/<app-name>.bin  firmware_v${V}-sim.bin
+          V="${{ steps.plan.outputs.version }}"
+          cp build/<app-name>.bin firmware_v${V}.bin
+          cp build/<app-name>.elf firmware_v${V}.elf
           mkdir -p coldflash
-          cp build/prod/<app-name>.bin                      coldflash/firmware.bin
-          cp build/prod/bootloader/bootloader.bin           coldflash/bootloader.bin
-          cp build/prod/partition_table/partition-table.bin coldflash/partitions.bin
-          cp build/prod/sdkconfig sdkconfig.generated
+          cp build/<app-name>.bin                      coldflash/firmware.bin
+          cp build/bootloader/bootloader.bin           coldflash/bootloader.bin
+          cp build/partition_table/partition-table.bin coldflash/partitions.bin
+          cp build/sdkconfig sdkconfig.generated
 
       - uses: actions/upload-artifact@v4
         with:
-          name: firmware-v${{ steps.version.outputs.version }}
+          name: firmware-v${{ steps.plan.outputs.version }}
           path: |
             <firmware-dir>/firmware_v*.bin
             <firmware-dir>/firmware_v*.elf
@@ -182,7 +206,7 @@ runner, so it cannot be reproduced by testing the steps locally.
 the OTA log and the release asset and cannot disagree. Pass it explicitly:
 
 ```yaml
-idf.py -B build/prod -DPROJECT_VER="${{ steps.version.outputs.version }}" build
+idf.py -B build -DPROJECT_VER="${{ steps.plan.outputs.version }}" build
 ```
 
 Left unset, ESP-IDF falls back to `git describe`, and **the default shallow
@@ -195,7 +219,25 @@ pattern stops matching after a refactor exits 0 having changed nothing, and the
 release ships firmware reporting the *previous* version — invisible until someone
 tries to work out whether an OTA actually applied.
 
-**Verify the variants differ, in both directions.** A project with a simulated or
+## Variants
+
+Skip this section entirely when the project builds one firmware, which is most of
+them. `MULTI_VARIANT: 'false'` is not a stub to fill in later — it pins every run
+to production, skips the marker check, and makes the `variant` input inert. The
+cost of leaving the machinery in place unused is a `[ ... ] || VARIANT=production`
+and one skipped step.
+
+**Build one variant per run, chosen when the run starts.** Building every variant
+on every push doubles the runner time to produce an image nobody asked for. A
+simulated or debug build is wanted at a specific moment — when somebody is about
+to flash it — so put it behind a `workflow_dispatch` choice input, and let pushes
+and tags build production. A tag must always be production: a release is the one
+thing that must never be simulated.
+
+Name the variant in the version string (`1.2.0-sim`) so an artefact that escapes
+into the wrong hands identifies itself, and so the device reports it at runtime.
+
+**Verify the image matches the variant asked for.** A project with a simulated or
 debug build needs proof that the shipped image is not it: shipping a simulated
 build publishes synthetic data that looks entirely real to whatever consumes it.
 Gate the behaviour at compile time. Two mechanisms, and the project's own
@@ -216,30 +258,35 @@ A `-DCONFIG_FOO=y` on the command line does **not** set a Kconfig symbol; it
 defines a CMake variable of that name and the build silently keeps the default.
 Then grep the **built binary**, not the source, for a marker string only the
 simulated variant contains. Checking the artefact survives a broken `#ifdef`, a
-stale build directory, or an option that quietly stopped being passed. The second
-direction matters as much as the first: a simulated build that stopped being one
-makes every bench run meaningless while looking fine.
+stale build directory, or an option that quietly stopped being passed.
 
-**Two builds, one sdkconfig — give each variant its own.** `-B build/prod` and
-`-B build/sim` separate the *build* directories, but not the config: ESP-IDF
-keeps `sdkconfig` in the **project root**, so both variants write the same file.
-An existing `sdkconfig` outranks `sdkconfig.defaults` for symbols it already
-mentions, so the second build can inherit the first variant's configuration and
-produce two images that differ only in their version string. What prevents it
-today is a side effect — `set-target` deletes `sdkconfig` before regenerating it
-— and dropping `set-target` on a second run, or reordering the steps, removes
-that protection with nothing to show for it.
+Assert in both directions — that a production image lacks the marker *and* that a
+simulated one carries it. With one build per run each run checks its own image,
+so the two directions are covered across runs rather than within one. That is
+enough: a simulated build that stopped simulating makes every bench run
+meaningless while looking perfectly healthy, and the run that produced it is the
+run that catches it.
+
+**Keep `sdkconfig` in the build directory.** `-B` moves the *build* output but
+not the config: ESP-IDF writes `sdkconfig` to the **project root**, and an
+existing one outranks `sdkconfig.defaults` for every symbol it already mentions.
+So a leftover from an earlier run — a previous variant, a developer's local
+build, anything restored from a cache — silently overrides the defaults file and
+the job cheerfully produces the wrong variant. What prevents it today is a side
+effect: `set-target` deletes `sdkconfig` before regenerating it. Nothing states
+that, and dropping `set-target` from a second invocation removes the protection
+with no visible change.
 
 State it instead, and pass the same flags to `set-target` and `build`:
 
 ```bash
-ARGS="-B build/prod -DSDKCONFIG=$PWD/build/prod/sdkconfig -DPROJECT_VER=$V"
+ARGS="-B build -DSDKCONFIG=$PWD/build/sdkconfig -DPROJECT_VER=$V"
 idf.py $ARGS set-target <target>
 idf.py $ARGS build
 ```
 
 Absolute, because `idf.py` does not resolve it against the project directory.
-This also puts the file where the artefact step can find it — `build/*/sdkconfig`
+This also puts the file where the artefact step can find it — `build/sdkconfig`
 does not exist otherwise, and `cp` fails the job at the very last step.
 
 **Publish three things, not one.** The loose `.bin` is what OTA fetches; the
