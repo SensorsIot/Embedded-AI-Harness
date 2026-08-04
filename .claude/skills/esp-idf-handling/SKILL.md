@@ -202,9 +202,7 @@ curl -s -X POST http://workbench.local:8080/api/flash \
   -F 'bin@0x10000=@firmware.bin'
 ```
 
-Optional form fields: `flash_mode` (default `dio`), `flash_freq` (`40m`),
-`flash_size` (`keep`), `erase=1` to erase whole flash before writing.
-Response: `{"ok": ..., "output": "<esptool stdout+stderr>", "returncode": N}`.
+Every field, its default, and the response shape: [FSD §6.7.1](../../../docs/Embedded-Workbench-FSD.md#671-local-flashing-via-post-apiflash).
 
 #### Fallback: direct esptool over RFC2217
 
@@ -224,34 +222,23 @@ curl -X POST http://workbench.local:8080/api/serial/reset \
 
 ### Workbench API endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/devices` | List all slots with state, device node, RFC2217 URL |
-| GET | `/api/info` | System info (host IP, hostname, slot counts) |
-| POST | `/api/flash` | Multipart upload + esptool flash on a slot (Pi-side) |
-| POST | `/api/serial/reset` | Hardware reset via DTR/RTS pulse, returns boot output |
-| POST | `/api/serial/recover` | Manual flap recovery trigger `{"slot": "SLOT1"}` |
-| POST | `/api/serial/release` | Release GPIO after flashing, reboot into firmware `{"slot": "SLOT1"}` |
+The full endpoint reference is [FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api-mcp-reference)
+— D.1 discovery, D.2 serial, D.8 firmware repository, D.9 flashing. Read it there
+rather than from memory: this skill states *which* call to reach for and what
+breaks, not the request shapes.
 
 ### Serial reset
 
-```bash
-curl -X POST http://workbench.local:8080/api/serial/reset \
-  -H 'Content-Type: application/json' \
-  -d '{"slot": "SLOT1"}'
-```
+`POST /api/serial/reset` ([D.2](../../../docs/Embedded-Workbench-FSD.md#d2-serial-management)) pulses DTR/RTS and
+returns the boot output. Needed after driving esptool yourself over RFC2217 —
+**not** after `/api/flash`, which resets the device itself.
 
 ### Slot states
 
-| State | Meaning | Can flash? |
-|-------|---------|------------|
-| `absent` | No USB device | No |
-| `idle` | Ready | Yes (via RFC2217) |
-| `resetting` | Reset in progress | No |
-| `monitoring` | Monitor active | No |
-| `flapping` | USB storm, recovery failed or pending | No |
-| `recovering` | USB unbound, recovery in progress | No |
-| `download_mode` | GPIO holding BOOT LOW, device stable in bootloader | Yes (direct serial on Pi) |
+Defined with their transitions in the [FSD](../../../docs/Embedded-Workbench-FSD.md#16-state-model). Only two accept a
+flash: **`idle`** (via `/api/flash` or RFC2217) and **`download_mode`** (direct
+serial on the Pi). Anything else means wait or recover first — see
+Flapping & Automatic Recovery below.
 
 ## Step 4c: Flash — Workbench OTA
 
@@ -279,17 +266,10 @@ curl "http://workbench.local:8080/api/udplog?limit=50"
 
 ### Firmware repository management
 
-```bash
-# List all uploaded firmware
-curl http://workbench.local:8080/api/firmware/list
-
-# Delete a firmware file
-curl -X DELETE http://workbench.local:8080/api/firmware/delete \
-  -H 'Content-Type: application/json' \
-  -d '{"project": "my-project", "filename": "firmware.bin"}'
-
-# Download URL for ESP32: http://workbench.local:8080/firmware/<project>/<filename>
-```
+Upload, list and delete are [FSD Appendix D.8](../../../docs/Embedded-Workbench-FSD.md#d8-firmware-repository). The
+one detail this flow depends on: an uploaded image is served to the device at
+`http://workbench.local:8080/firmware/<project>/<filename>`, and that URL is
+what step 3 above hands to the ESP32.
 
 ## Step 5: Monitor
 
