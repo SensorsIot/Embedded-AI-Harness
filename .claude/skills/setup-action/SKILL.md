@@ -55,6 +55,14 @@ jobs:
         shell: bash
 
     steps:
+      # Must come first, and must not be skipped. The container runs as root
+      # while the workspace belongs to the runner user, so every git call in a
+      # `run:` step dies with "detected dubious ownership" — see "The container
+      # runs as the wrong user" below.
+      - name: Trust the workspace
+        working-directory: ${{ github.workspace }}
+        run: git config --global --add safe.directory '*'
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0     # see "Versioning" below — tags are needed
@@ -135,6 +143,35 @@ container tag removes that indirection entirely.
 
 Echo `idf.py --version` in its own step. When a build behaves differently from a
 developer's machine, that line is the first thing worth reading.
+
+**The container runs as the wrong user, and git refuses.** Choosing a container
+buys the toolchain and costs this: the runner checks the workspace out as its own
+user, the `espressif/idf` image runs as root, and since git 2.35.2 a repository
+owned by somebody else is refused outright:
+
+```
+fatal: detected dubious ownership in repository at '/__w/<repo>/<repo>'
+Error: Process completed with exit code 128
+```
+
+`actions/checkout` exempts the workspace for itself, which is why checkout is
+green and the failure lands later — on the first `run:` step that touches git,
+usually the version resolution. The single line in the template fixes it for
+every step:
+
+```yaml
+- run: git config --global --add safe.directory '*'
+```
+
+Use `'*'`, not `$GITHUB_WORKSPACE`: submodules and `$IDF_PATH` are git
+repositories too, and the IDF build system reads them. Keep it as the first step
+so it applies to checkout as well, and give it
+`working-directory: ${{ github.workspace }}` — a job-level `working-directory`
+pointing at `<firmware-dir>` would make it fail, because that directory does not
+exist until checkout has run.
+
+This is a container-only failure. It never appears on a plain `ubuntu-latest`
+runner, so it cannot be reproduced by testing the steps locally.
 
 **Versioning: prefer `PROJECT_VER` over `sed`.** ESP-IDF puts the version in
 `esp_app_desc_t`, readable at runtime, so the same string reaches the device page,
