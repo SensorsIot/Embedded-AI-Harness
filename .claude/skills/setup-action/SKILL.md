@@ -135,10 +135,13 @@ jobs:
           V="${{ steps.plan.outputs.version }}"
           cp build/<app-name>.bin firmware_v${V}.bin
           cp build/<app-name>.elf firmware_v${V}.elf
+          # Cold-flash set, taken from flash_args rather than named here —
+          # see "Never hand-write the image list" below.
           mkdir -p coldflash
-          cp build/<app-name>.bin                      coldflash/firmware.bin
-          cp build/bootloader/bootloader.bin           coldflash/bootloader.bin
-          cp build/partition_table/partition-table.bin coldflash/partitions.bin
+          cp build/flash_args coldflash/
+          awk '$1 ~ /^0x/ {print $2}' build/flash_args | while read -r f; do
+            cp "build/$f" coldflash/ || { echo "FATAL: missing build/$f"; exit 1; }
+          done
           cp build/sdkconfig sdkconfig.generated
 
       - uses: actions/upload-artifact@v4
@@ -307,11 +310,22 @@ Step 4 for the flash. Worth knowing while designing the artefact set: it is the
 consumer of everything published below, and it needs the explicit-offset form of
 `/api/flash`, because a CI artefact carries no `flash_args`.
 
-**Publish three things, not one.** The loose `.bin` is what OTA fetches; the
-`.elf` is what symbolises a crash dump months later; the **cold-flash bundle**
-(`bootloader.bin`, `partitions.bin`, `firmware.bin`) is what a first USB flash
-needs. Ship the three parts at their offsets rather than a merged image — that is
-what flashing tools expect.
+**Publish three kinds of thing.** The loose `.bin` is what OTA fetches; the
+`.elf` is what symbolises a crash dump months later; the **cold-flash bundle** is
+what a first USB flash needs. Ship the parts at their offsets rather than a
+merged image — that is what flashing tools expect.
+
+**Never hand-write the image list.** ESP-IDF emits `build/flash_args` holding the
+exact offsets and filenames for this configuration; copy that and the files it
+names. A list written by hand is right until the partition table changes, and
+then wrong in a way nothing reports: turning on OTA adds a fourth image
+(`ota_data_initial.bin` at `0xf000`) and moves the app from `0x10000` to
+`0x20000`. A flash missing the first leaves the bootloader reading stale
+OTA-select data; one using the old app offset writes into the wrong partition and
+boots the previous firmware. Both look like a successful flash.
+
+Keep the build's own filenames in the bundle: `flash_args` refers to each image
+by basename, and the workbench's `/api/flash` pairs them on it.
 
 Publish the generated `sdkconfig` too. It is derived from `sdkconfig.defaults`
 and not committed, so once the runner is gone the effective configuration of a

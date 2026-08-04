@@ -89,13 +89,18 @@ unpack it — the flash steps below only care that the files exist.
 
 | Artefact | Feeds |
 |---|---|
-| `coldflash/{bootloader,partitions,firmware}.bin` | Step 4a/4b — a first flash over USB |
+| `coldflash/` — `flash_args` plus every image it names | Step 4a/4b — a first flash over USB |
 | `firmware_v<version>.bin` | Step 4c — the OTA image |
 | `sdkconfig.generated` | the effective config, since `sdkconfig` is not committed |
 
-**There is no `flash_args` in a CI artefact**, so use the explicit-offset form in
-Step 4b, not the `flash_args` form. Confirm what you are about to flash rather
-than trusting the filename — the version is compiled into the image:
+**Use the `flash_args` form in Step 4b when the artefact carries one**, and the
+explicit-offset form only when it does not. Offsets are not constant: enabling
+OTA moves the app from `0x10000` to `0x20000` and adds `ota_data_initial.bin` at
+`0xf000`. A remembered offset writes into the wrong partition and boots the
+previous firmware, which looks exactly like a flash that worked.
+
+Confirm what you are about to flash rather than trusting the filename — the
+version is compiled into the image:
 
 ```bash
 strings /tmp/fw/coldflash/firmware.bin | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+'
