@@ -127,6 +127,40 @@ This phase is the **gate**: while it fails, every later test is unreadable,
 because they all fail for the same upstream reason and the report reads as a
 dozen defects instead of one.
 
+**The cheap tier is exempt from all of this.** Host tests run in full, every
+time, in whatever order — they cost milliseconds, so selecting among them buys
+nothing and risks running a subset that hides the one failure that mattered.
+Ordering, gating and phasing are disciplines for runs that cost minutes. Run
+every host test before every hardware session, and treat a red one as a reason
+not to start the session at all.
+
+### Bring-up may come first — that is a judgement call
+
+Where the system meets hardware nobody has exercised yet, the standard run is
+not the first thing to attempt. **A bring-up test answers "is this connected the
+way we think it is?"** — the pin is wired, the polarity is right, the parity
+matches, bytes arrive at all — and it is far cheaper to answer directly than to
+infer from a journey that fails five steps later for a reason that turns out to
+be an inverted line.
+
+Decide this at the start of test design, and decide it explicitly:
+
+| Reach for bring-up when | Skip it when |
+|---|---|
+| A physical interface has never been driven | The system is software over settled transports |
+| The wiring or polarity is unconfirmed | The hardware is a known-good rig |
+| A previous session's result was unattributable | The last run reached the end of the journey |
+
+Keep it small and keep it honest about what it proves. A pattern that cannot
+survive the error you are hunting is the right stimulus: a continuous `0x55`
+alternates every bit, so an inverted line turns it into a uniform `0xD5` rather
+than into noise that looks like data. Reading back the pad configuration after
+boot is the same idea one layer down.
+
+Bring-up tests are `standard` in kind. They are not a fifth bin — they are the
+first few standard tests, ordered ahead of the journey because the journey
+cannot be read without them.
+
 ### The four kinds
 
 Every test declares which it is, and the balance is a design property to watch
