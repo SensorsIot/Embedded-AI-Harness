@@ -55,3 +55,25 @@ are written for the threat model the FSD declares — not imported wholesale.
   "the literal credential does not appear in a raw partition dump" can.
 - Where the threat model does not justify a protection, record that as an accepted
   risk rather than writing a requirement nobody implements.
+
+---
+
+# Running a test
+
+Setup, teardown and evidence rules, then one section per procedure that several
+tests share. They live here rather than in a file beside this one: a procedure
+restates the rules it sits next to, and two documents drift.
+
+## Rules that hold for every run
+
+- **Capture evidence before resetting anything** — a reset destroys the reason
+  for the reset.
+- **A timeout is a failure, not an absent result.** A device that crashes prints
+  nothing, so "no failure seen" is not a pass. Require a completion marker.
+- **Verify the precondition; if it fails record `not done`, never `failed`.** A
+  failure claims you learned something, and with a broken baseline you did not.
+- **Leave the rig as you found it** — a fault left set corrupts every later test.
+
+## P-{{PROCEDURE}} — {{what it sets up}}
+
+**Needs** {{capabilities}}. **Before** … **Steps** … **After** …

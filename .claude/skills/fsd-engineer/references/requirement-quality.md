@@ -176,7 +176,7 @@ verification:
   timing:               # deadline from stimulus to response
   tolerance:            # permitted deviation
   prohibited_outcomes:  # what must NOT happen, even if the deadline is met
-  tier:                 # host | target | bench
+  tier:                 # see test-architecture.md SS3
   evidence:             # what is captured to prove it
   cleanup:              # how the system is restored afterwards
 ```
@@ -220,7 +220,7 @@ verification:
 ```
 
 The contract establishes verification **intent** at requirement level. It does
-not replace the detailed test specification (`test-spec-schema.md`), which adds
+not replace the test entry in the plan (`test-design.md` §10), which adds
 equipment, test data, automation handoff, and failure recovery.
 
 ### Two forms — pick per requirement, not per document

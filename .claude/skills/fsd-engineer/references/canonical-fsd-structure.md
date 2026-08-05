@@ -15,7 +15,7 @@ High-complexity production FSD before being adopted as the standard.
 ## Why layer-grouped
 
 - **One structure end to end.** The FSD body, the §2.4 diagram, the generated
-  coverage matrix, and the test-spec files all share the same per-component
+  report, and the plan's test entries all share the same per-component
   spine. A reader (or an agent) finds everything about one interface in one place.
 - **Chapters are self-contained.** A component's requirements, protocol, schema,
   behavior, and failure modes live together — not scattered across a global FR

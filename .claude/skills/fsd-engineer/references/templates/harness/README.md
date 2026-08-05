@@ -6,7 +6,7 @@ Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
 | Path | Contents |
 |------|----------|
 | `AI-Workflow.md` | The loop every change follows. Read it before touching code. |
-| `standards/` | Portable rules, reusable on any project — engineering, testing, documentation governance. Ship as-is; trim what does not apply. |
+| `standards/` | Portable rules, reusable on any project — engineering and testing. Ship as-is; trim what does not apply. |
 | `project/` | {{PROJECT}}-specific bindings: layers, source layout, dependency rules, prohibitions, tool pointers. |
 
 A rule belongs here when it constrains **how the code is written, structured, or

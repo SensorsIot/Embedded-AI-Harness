@@ -57,7 +57,7 @@ did about it.
 - [ ] **Planes separated**: no build conventions, install steps, or history in the
       FSD. Every fact in exactly one plane; the others link.
 - [ ] Body grouped by layer Parts mirroring §2.4; chapters self-contained.
-- [ ] Full test specs live in `verification/test-specs/`, linked not inlined.
+- [ ] Every test is declared in the plan file, linked not inlined.
 - [ ] Chapter numbering sequential, heading depth ≤ `####`, phases carry scope,
       deliverables and exit criteria, no `<placeholder>` or `TODO` left.
 - [ ] Written to the correct path and **committed**; in update mode, unaffected

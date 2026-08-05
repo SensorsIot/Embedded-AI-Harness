@@ -50,6 +50,17 @@ alternatives that were considered and rejected. Consult it before proposing a
 change that reverses one — a rejected alternative usually looks like an obvious
 improvement in isolation, which is why the reason is written down.
 
-All three planes are present-state and single-home: state a fact once, link to it
-from anywhere else. See
-[`Harness/standards/documentation.md`](Harness/standards/documentation.md).
+## Writing rules
+
+**Present-state.** Write what is true now, in the present tense. No history, no
+rationale narrative, no temporal comparison. Delete on sight: "now uses",
+"previously", "as of v2", "we decided to", "legacy", "this was changed because".
+Version history belongs in `git log`; a dated revision-history table is the one
+sanctioned exception, and only in the FSD.
+
+**One canonical home.** Every fact is stated once. Anywhere else that needs it,
+link. Two copies of a fact are two facts the moment one is edited, and the reader
+has no way to tell which is current.
+
+All three planes are present-state and single-home. Routing lives in the table
+above and nowhere else — a second copy of the triage is the first thing to drift.

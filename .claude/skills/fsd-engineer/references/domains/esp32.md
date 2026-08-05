@@ -149,6 +149,13 @@ apply silently — the same rule as the requirements themselves.
 
 All under `references/domains/esp32/`:
 
+**These files are a library of proposed test cases, not a specification format.**
+Take the cases that apply, declare each as an entry in the project's plan file
+with its tier, the equipment it needs and what it expects, and drop the rest. A
+pack proposes; it never adopts — and it never introduces a second place where
+tests are described.
+
+
 | File | Coverage |
 |------|----------|
 | `wifi-test-spec.md` | WiFi STA connection, signal, DHCP, ethernet test mode |

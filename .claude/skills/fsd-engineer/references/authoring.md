@@ -218,7 +218,7 @@ verification/                     machine-readable WHAT + verification design
 ├── states.yaml
 ├── interfaces.yaml
 ├── configuration.yaml
-├── test-specs/<area>.yaml
+├── test-plan.yaml
 ├── traceability.yaml
 ├── implementation-handoff.yaml
 └── gaps.md
@@ -378,7 +378,7 @@ Creates or refreshes detailed test specifications without rewriting unaffected
 FSD content. Runs the clause inventory, tier allocation, controllability
 analysis, and the required test classes
 (`references/test-design.md`), emitting specs in the canonical schema
-(`references/test-spec-schema.md`) plus an updated traceability matrix.
+(`testing/test-plan.yaml`) plus a regenerated report.
 
 Use when the FSD is stable but its verification is not — or after a `tests`-only
 delta such as adding boundary cases.
@@ -391,7 +391,7 @@ delta such as adding boundary cases.
 
 Compares the FSD, requirement inventory, test specifications, executable tests,
 source mappings, and available evidence, then reports the **lifecycle state of
-every requirement** (`references/traceability.md` §1) and the gaps by category.
+every requirement** (`test-design.md` §10) and the gaps by category.
 
 This is the mode that answers "are we done?" honestly. Expect most requirements
 to sit below *Requirement verified*; that is information, not failure.

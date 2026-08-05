@@ -1,7 +1,7 @@
 # Test design
 
 This skill owns test design end to end. It does not delegate to another
-test-specification skill.
+test-planning model in §9.
 
 It designs and documents tests. It does **not** implement them, run them, or
 operate hardware — see the responsibility table in `SKILL.md`.
@@ -27,7 +27,7 @@ Record per clause:
 - id: FSD-5.2-403-led
   text: "LED set to red+green alternating on 403"
   source_section: "§5.2"
-  tier: host | target | bench
+  tier: <see test-architecture.md SS3>
   testability: testable | philosophical
   kind: positive | negative | boundary | state-transition | error
   pending: false        # true when the clause itself is TBD in the FSD
@@ -44,19 +44,22 @@ Save to `<output_root>/clauses.yaml`.
 
 ## 2. Verification tiers
 
-Assign each test to the **lowest tier** where the defect can occur and the
-behaviour can be both controlled and observed.
+**`test-architecture.md` §3 owns the tier taxonomy** — what each tier is, how
+they are named per platform, why the full-system tier is defined by control
+rather than realism, and why the deployed tier is optional. It is not restated
+here: a tier list in two files is a tier list that will disagree, and this one
+did.
 
-| Tier | Runs on | Catches |
-|------|---------|---------|
-| **host** | Dev machine, no hardware | Pure logic: parsing, encoding, validation, math, state calculations |
-| **target** | The MCU or a faithful target environment | NVS, RTOS interaction, target timing, watchdog and reset behaviour |
-| **bench** | Real physical interfaces and peers | WiFi environment, broker interruption, RF, GPIO, power, real peer interaction |
+What belongs to *design* rather than architecture is the choice for a given
+clause. Two rules:
+
+**Assign each behaviour to the lowest tier where the defect can occur and the
+behaviour can be both controlled and observed.**
 
 **Difficulty changes the tier or demands a test seam — it never justifies dropping
 a failure mode.** If a clause's natural tier is uncontrollable, add a seam and
-relocate the test downward. `bench` is for behaviour that genuinely needs real
-hardware to manifest, not a bin for inconvenient cases.
+relocate the test downward. The full-system tier is for behaviour that genuinely
+needs real peers to manifest, not a bin for inconvenient cases.
 
 ---
 
@@ -164,3 +167,209 @@ references:
 wifi_password_ref: env:WB_TEST_WIFI_PASSWORD
 mqtt_password_ref: secret:workbench/mqtt-test
 ```
+
+---
+
+## 8. Test seams are a handoff, not a workaround
+
+Some clauses cannot be observed unless the implementation exposes something: a
+console command listing which tasks are watchdog-subscribed, a hook to see what
+reaches a decoder's input.
+
+Name the seam on the test that needs it. It is an obligation on development,
+discovered at design time rather than when someone sits down to write the test
+and finds they cannot. The alternative is worse than it looks — without the seam
+the clause gets quietly weakened to whatever happens to be observable, and
+nobody records that the claim shrank.
+
+---
+
+## 9. Sequence — what to write when
+
+**The contract is written with the requirement, before any code.** Attempting it
+*is* the quality gate: a requirement whose stimulus cannot be stated is not
+finished.
+
+**The test is declared next, still before code** — id, tier, equipment, what it
+does, what it expects. Cheap, and it surfaces two things nothing else does:
+equipment that does not exist, and **interfaces nobody has decided**. A clause
+saying a counter is "available on the serial console" cannot be declared without
+deciding the command, and that is a specification gap caught before it becomes an
+implementation guess.
+
+**The executable test is written before or alongside the code — never after.**
+
+> A test written after the code is a description of the code, not a check on it.
+> It will assert what the implementation happens to do, including the bug.
+
+Writing it first also validates the contract. In practice a contract demanding
+"a complete set is published" after a mid-burst start proved unsatisfiable — the
+identity is sent once per telegram and cannot be recovered from a cycle that
+began after it passed. The test corrected the specification within minutes.
+
+**Mark tests for unimplemented features expected-to-fail** — `WILL_FAIL` in
+CTest, `xfail` in pytest. This is what makes test-first survivable: the suite
+stays green so a real regression is still visible, the test exists rather than
+living in someone's intent, and **xfail reports XPASS when it unexpectedly
+passes** — the day the feature lands the test announces itself.
+
+A permanently red suite is worse than no suite. People stop reading it, and the
+one real failure hides among the twenty expected ones.
+
+```
+requirement + contract  →  test declared  →  executable test (xfail)
+                        →  code  →  run  →  record  →  report
+```
+
+The only step that may legitimately wait for code is the executable test, and
+only when the interface it drives has not been decided. Then the missing decision
+is the deliverable, not the test.
+
+---
+
+## 10. Test status, and what a requirement being met means
+
+Two levels, never collapsed into one `covered` flag.
+
+**A test** has exactly three statuses, written by whatever ran it and never by
+hand, carrying the commit so staleness is visible rather than assumed:
+
+```text
+not done      no result — see the reason, which is the important part
+successful    it ran and passed, including its prohibited-outcome check
+failed        it ran and did not
+```
+
+`not done` covers four different problems and must say which, because they need
+different people:
+
+| Reason | Who resolves it |
+|---|---|
+| test not written | the backlog |
+| the feature is not implemented | development |
+| needs *capability* — unavailable | whoever builds the rig |
+| precondition unmet | fix that first; the result would mean nothing |
+
+**A failed precondition is `not done`, not `failed`.** Recording a failure claims
+you learned something about the requirement; with a broken baseline you learned
+nothing, and it sends the next person hunting the wrong defect.
+
+**Never predict.** A test you are confident is about to fail still reads
+`not done` until it runs. Once predictions are allowed into that column it stops
+being evidence.
+
+**A requirement is met** when every test that verifies it is successful —
+including the check that its *must not* did not happen. That is a derived answer,
+not a stored one, and the honest reply is usually "no": it has two tests, one
+passes and one is blocked on equipment that does not exist.
+
+### Blocked is computed, never typed
+
+Declare the equipment once; let each test list what it `needs`. A test needing an
+unavailable capability then renders as blocked, with the reason, without anyone
+writing it down:
+
+```yaml
+capabilities:
+  wifi-ap-outage:
+    what:      Stopping and restarting the access point on demand
+    available: no
+```
+
+This is where the model earns its keep. On one project a safety requirement
+rendered as *"needs button-gpio, ota-relay"* — because observing it required
+states the rig could not reach — a fact no review had found.
+
+Record **rig limitations on the capability, with their consequence**. "The
+simulator is unstable" is a note; *"two bursts in six arrive clean, so assert
+across several cycles and require one good one"* changes how tests get written.
+
+### Reconcile the plan against the code, both directions
+
+Two lists, both of which must end empty:
+
+- declared in the plan, absent from the code → the backlog
+- **implemented, absent from the plan** → a test verifying something nobody wrote
+  down, or a duplicate about to be written for a requirement already covered
+
+The second is the one people forget, and it silently produces duplicate work.
+
+### What the artefacts actually prove
+
+| Artefact | Proves | Does **not** prove |
+|----------|--------|--------------------|
+| `@fsd` tag | This source location *claims* responsibility for this clause | That the mapping is correct, that the code ran, or that anything asserted the outcome |
+| Coverage data | These lines executed during some run | That the behaviour was correct, or which test exercised them |
+| A passing test | The assertions it contains held | Anything about assertions it does not contain — notably prohibited outcomes |
+
+Aggregate coverage cannot attribute a line to a test. Per-test attribution needs
+per-test coverage contexts or separate execution runs; without one of those, do
+not claim it.
+
+---
+
+### What the artefacts actually prove
+
+| Artefact | Proves | Does **not** prove |
+|----------|--------|--------------------|
+| `@fsd` tag | This source location *claims* responsibility for this clause | That the mapping is correct, that the code ran, or that anything asserted the outcome |
+| Coverage data | These lines executed during some run | That the behaviour was correct, or which test exercised them |
+| A passing test | The assertions it contains held | Anything about assertions it does not contain — notably prohibited outcomes |
+
+Aggregate coverage cannot attribute a line to a test. Per-test attribution needs
+per-test coverage contexts or separate execution runs; without one of those, do
+not claim it.
+
+---
+
+## 11. Gap reports — four categories, not one list
+
+A single undifferentiated gap list hides the fact that these need different
+people to resolve them.
+
+### 5.1 Specification defects
+compound requirement · undefined initial state · undefined resulting state ·
+missing timeout or tolerance · ambiguous term · missing failure behaviour ·
+conflicting requirements · unverifiable observation · uncontrollable stimulus ·
+missing security assumption · unsupported regulatory claim · missing
+configuration rule
+
+### 5.2 Verification gaps
+approved requirement without a test specification · normative state transition
+without a test · numeric boundary without a boundary test · rejection rule
+without a negative test · test lacking evidence criteria · test lacking cleanup ·
+test infeasible with available equipment
+
+### 5.3 Implementation gaps
+approved requirement without implementation mapping · implementation mapping
+without an approved requirement · executable test absent · production behaviour
+detected but undocumented · obsolete implementation after a requirement change
+
+**Source without clause** (the backward arrow) forces a choice the developer must
+make, not the skill: *add a clause to the FSD* (behaviour exists but is
+undocumented) or *delete the code* (orphaned implementation).
+
+### 5.4 Execution and evidence gaps
+executable test never run · result not tied to a commit · missing raw evidence ·
+stale evidence after a requirement or implementation change · test passed but
+prohibited outcomes were never checked · coverage present without behavioural
+assertions
+
+### Also listed, so they are not mistaken for gaps
+clauses marked `pending: true` (the FSD itself is unresolved) and
+`testability: philosophical` (no rig can decide them).
+
+**The skill proposes resolutions. It does not silently decide product questions.**
+
+---
+
+---
+
+Traceability is the join between requirement ids in the FSD and the tests in the
+plan that reference them, computed by the report. There is no separate matrix to
+maintain, no `@fsd` tag to keep in step, and no evidence directory: the plan entry
+carries the commit its result came from, which is what makes staleness visible.
+
+A heavier project may want source tags and a retained evidence archive. Both are
+additions to this model, not parts of it, and both cost a synchronisation problem
+in exchange for provenance the plan already approximates.

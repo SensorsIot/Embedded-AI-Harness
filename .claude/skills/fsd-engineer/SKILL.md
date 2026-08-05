@@ -228,13 +228,22 @@ Two artefacts, two levels of detail:
    the requirement: preconditions, stimulus, expected observations, timing,
    tolerance, **prohibited outcomes**, tier, evidence, cleanup. Establishes
    normative intent. → `references/requirement-quality.md` §4
-2. **Test specification** — the executable-ready design: test data, equipment,
-   pass and failure criteria, required evidence, cleanup, failure recovery, and
-   the automation handoff. → `references/test-design.md`,
-   `references/test-spec-schema.md`
+2. **Test** — declared in one plan file with the requirements it verifies, its
+   tier, the equipment it needs, and what it last produced; implemented as the
+   executable test itself. → `references/test-design.md` (design, seams,
+   sequence), `references/test-design.md` §10 (status, blocking, reconciliation)
 
-The readable FSD carries requirements and contracts; full specs live under
-`verification/test-specs/` and are linked, not inlined. This skill designs them;
+There is **no separate test-specification layer.** The contract carries the
+normative claim, the plan entry carries everything needed to run the test, and
+shared setup lives in the testing standard. A third artefact between them only
+adds something to keep in sync.
+
+**The order matters and is not negotiable**: contract, then declaration, then
+executable test, then code — never the reverse. `test-design.md` §9.
+
+The readable FSD carries requirements and contracts; the tests that discharge
+them are declared in one plan file and linked, not inlined. This skill designs
+them;
 who implements and runs them is in §0.
 
 #### 6.9.1 State model — mandatory for stateful systems
@@ -346,7 +355,7 @@ references their paths and never hand-maintains a Covered/GAP column. Evidence
 records commit and environment so staleness is computed, not guessed.
 
 Full model, tag rules, evidence fields, gap categories, optional coverage check:
-**`references/traceability.md`**.
+**`references/test-design.md` §10–11**.
 
 ## 10. Output layout
 
@@ -360,8 +369,8 @@ docs/Harness/             HOW    — 00-Overview · AI-Workflow · standards/ ·
 docs/UserDocumentation/   OPERATE— one user manual with chapters, from day one
 docs/decisions.md · docs/open-issues.md      inputs and rationale — not planes
 
-verification/   requirements · states · interfaces · configuration ·
-                test-specs/ · traceability · implementation-handoff · gaps
+testing/       test-plan.yaml — every test, what it needs, what it produced
+               plus the executable tests themselves
 tests/{host,target,bench}/      executable tests (written by dev skills)
 test-results/<run-id>/          evidence (captured by workbench skills)
 ```
@@ -383,6 +392,11 @@ first goes stale. Add a chapter, never a sibling.
 `verification/` is **not** a fourth plane — it is the machine-readable form of
 WHAT; `test-results/` is evidence, not documentation. Small projects may use
 fewer files, but the information model stays the same.
+
+**"Fewer files" has a worked shape — do not improvise one.** A single-team
+project usually collapses `verification/` to one plan file listing every test
+with the equipment it needs and what it last produced, keeps procedures inside
+the testing standard rather than beside it, and generates the report.
 
 **Match the repo.** If it already uses `Documents/` or another convention, follow
 it. If a document already fills a plane's role, bind to it — never create a
@@ -415,10 +429,7 @@ passed is worth nothing.
 | `references/finalisation.md` | The pre-delivery quality checklist and the lifecycle metadata block. Load at the end of a run |
 | `references/requirement-quality.md` | Statement types, provenance and status, the 13-check quality gate, the verification contract |
 | `references/system-models.md` | Context, components, state-transition model, interfaces, configuration and data catalogues, security profile |
-| `references/test-design.md` | Clause inventory, tiers, controllability (Drive/Feed/Emulate/Observe/Rig), observability, required test classes, independence and cleanup, test data and secrets |
-| `references/test-spec-schema.md` | The canonical test-specification schema, field by field |
-| `references/test-spec/` | Human-readable test-document format and section templates |
-| `references/traceability.md` | Seven lifecycle states, `@fsd` tags, evidence fields, four gap categories, coverage check |
+| `references/test-design.md` | Verification end to end: clause inventory, controllability (Drive/Feed/Emulate/Observe/Rig), observability, test classes, cleanup, seams, the order to write things in, test status, computed blocking, gap categories |
 | `references/three-planes.md` | WHAT / HOW / OPERATE model, routing rule, retrofit procedure |
 | `references/templates/` | `00-Overview` (the plane map, at `docs/` root), the Harness set, and the user-manual stub |
 | `references/canonical-fsd-structure.md` | The Parts scheme and chapter skeleton |

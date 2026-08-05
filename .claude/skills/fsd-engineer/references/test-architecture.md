@@ -9,7 +9,7 @@ Two FSD homes:
 - **§x.0 Test Architecture** — the test tiers + a generated coverage matrix (the
   V&V chapter under Part E; the chapter number is whatever it lands on).
 
-§2.4 is the spine: the FSD body Parts/chapters and the test-spec files both mirror
+§2.4 is the spine: the FSD body Parts/chapters and the plan's test files both mirror
 these components, so the architecture, the spec, and the matrix share one shape.
 
 This skill *declares* the layers and an empty matrix
@@ -177,6 +177,12 @@ Place each behaviour at the **lowest tier where the bug it catches can manifest*
 Tier is a property of the behaviour (fixed); maturity (is the test written yet) is
 separate — "cheap tier first" is scheduling, not a claim the expensive tier is a
 better version of the cheap one.
+
+**One requirement is not one tier.** The rule above places a *behaviour*, and a
+requirement usually implies several — a configurable value wants a fast-tier test
+per value and a full-system test proving it can change while the system runs. So
+tier belongs on the **test**, never as a column on the requirement, and never
+inside a test id: ids are stable and tier is not.
 
 Tiers are **cost-ordered execution environments**; name them per platform:
 
