@@ -157,8 +157,26 @@ alternates every bit, so an inverted line turns it into a uniform `0xD5` rather
 than into noise that looks like data. Reading back the pad configuration after
 boot is the same idea one layer down.
 
-Bring-up tests are `standard` in kind. They are not a fifth bin — they are the
-first few standard tests, ordered ahead of the journey because the journey
+**Most bring-up work is not a test case at all — it is a debugging aid, and it
+must not enter the plan.** The question that separates them:
+
+> Does it discharge a requirement, or does it interrogate the rig?
+
+A check that drives a known pattern and asserts the device receives it intact
+discharges a requirement about the device's line configuration, and is a test.
+A sweep that varies a *simulator* setting to see what the board happens to
+receive answers "what does this rig do" — it is a measurement, it can fail in no
+way that matters, and counting it inflates the plan with an entry no requirement
+asked for.
+
+Keep the measurement; put it on the **capability**, where a rig's properties
+belong, not on a test ID. On one project a preamble sweep was promoted to a test
+case and had to be withdrawn: the number it produced was genuinely useful and
+belonged in the rig's notes, while the test entry claimed coverage of a
+requirement it never checked.
+
+The bring-up work that *is* a test case is `standard` in kind — not a fifth bin,
+just the first standard tests, ordered ahead of the journey because the journey
 cannot be read without them.
 
 ### The four kinds
