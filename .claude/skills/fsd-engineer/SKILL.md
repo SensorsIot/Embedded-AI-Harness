@@ -120,8 +120,10 @@ later mistaken for something the skill assumed.
 Re-asking a question the user has already answered is the fastest way to make a
 spec feel like a form to fill in — and it earns a shorter answer the second time.
 
-One question is always worth asking and never harvestable: **what does one
-ordinary successful run look like, end to end?** No requirements document
+Two questions are always worth asking and never harvestable. **What has to be
+debugged before testing starts** — the parts nobody has yet seen working *here*,
+whatever their reputation elsewhere. And **what one ordinary successful run looks
+like, end to end.** No requirements document
 contains it — the FSD is a set of clauses, and the journey is the thing none of
 them describes. Ask for it as ordered steps with an observable at each, before
 any test is written.
@@ -244,8 +246,12 @@ normative claim, the plan entry carries everything needed to run the test, and
 shared setup lives in the testing standard. A third artefact between them only
 adds something to keep in sync.
 
-**Before writing any test, ask what one ordinary successful run looks like, end
-to end.** The FSD says what must be true clause by clause and never what a normal
+**Test design opens with a discussion, and it has two parts.** First: *what has
+to be debugged before anything is tested?* — which parts of the system have
+never been observed doing their job, and how each will be proven. That agenda is
+debugging work, not test cases, and none of it enters the plan; its purpose is to
+reach a state where a failing test means something. Second: *what does one
+ordinary successful run look like, end to end?* The FSD says what must be true clause by clause and never what a normal
 run *is*, so a suite built faithfully from it can cover every requirement and
 never check the product works — measured on one project at 108 declared tests
 with the standard journey still unwritten. Get it as ordered steps with an

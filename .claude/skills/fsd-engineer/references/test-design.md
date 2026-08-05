@@ -97,10 +97,44 @@ log test and failed the requirement.
 
 ## 5. What to build, and in what order
 
+### Open with a discussion, not a test
+
+Test design begins with two questions put to the user, in this order. Neither is
+answerable from the FSD, and getting them wrong costs days rather than minutes.
+
+**First: what has to be debugged before anything is tested?**
+
+Ask which parts of the system are not yet known to work at all — not "which are
+unfinished", but *which have never been observed doing their job*. A new board's
+wiring. A protocol nobody has spoken to the real peer. A rig that has never
+delivered a complete message. A library integrated but never exercised on the
+target.
+
+Go through the system with the user and produce a short agenda:
+
+```text
+part                    unproven because            proven by
+meter UART              never driven on this board  a known pattern arrives intact
+M-Bus simulator         new to the bench            it emits a whole telegram
+broker path             device has never published  a message reaches the broker
+```
+
+That agenda is **debugging work, not test cases.** It gets done, it gets
+discussed, and it produces measurements that belong in the rig's notes — none of
+it enters the plan. The point is to reach a state where a failing test means
+something, because until each of those parts is known to work, every test result
+is unattributable and the suite is measuring the environment.
+
+Do not skip this because the code compiles or because a component is
+well-regarded. The question is not whether it is good; it is whether *this*
+instance of it has been seen working *here*.
+
+**Second: what does one ordinary successful run look like, end to end?**
+
 ### Ask for the standard run before writing anything
 
-**The first act is a question, not a test: what does one ordinary, successful
-use of this system look like, end to end?**
+**The second question: what does one ordinary, successful use of this system
+look like, end to end?**
 
 Ask the user. It cannot be derived from the FSD, and that is the whole problem —
 the FSD says what must be *true*, clause by clause, and never what a normal run
