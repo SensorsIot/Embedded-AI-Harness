@@ -239,7 +239,15 @@ shared setup lives in the testing standard. A third artefact between them only
 adds something to keep in sync.
 
 **The order matters and is not negotiable**: contract, then declaration, then
-executable test, then code — never the reverse. `test-design.md` §9.
+executable test, then code — never the reverse, and **per requirement rather than
+as project phases**. Running the steps as phases produces a plan that reads
+finished while nothing is verified.
+
+**Say where the project sits on that chain at the start of every session, and
+what the next act is.** The user asking "so what do I do first, write the tests or
+the code?" means this skill failed to lead. Where code already exists the order
+cannot be replayed — `test-design.md` §9 gives the two steps that remove the harm
+it causes, and both are mandatory.
 
 The readable FSD carries requirements and contracts; the tests that discharge
 them are declared in one plan file and linked, not inlined. This skill designs

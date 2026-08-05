@@ -184,7 +184,21 @@ nobody records that the claim shrank.
 
 ---
 
-## 9. Sequence — what to write when
+## 9. Sequence — what to write when, and how to lead the user through it
+
+```
+requirement + contract  →  test declared  →  executable test (xfail)
+                        →  code  →  run  →  record  →  report
+```
+
+**This runs per requirement, not as project phases.** One requirement walks the
+whole chain before the next one starts. Writing every contract, then every
+declaration, then all the code is the same order on paper and a different project
+in practice: the plan reads finished while nothing is verified, and the
+declarations were never tested against a real interface, so a fraction of them
+turn out to be undeliverable at once.
+
+Batch only the first step, and only to find the shape of the work.
 
 **The contract is written with the requirement, before any code.** Attempting it
 *is* the quality gate: a requirement whose stimulus cannot be stated is not
@@ -216,14 +230,42 @@ passes** — the day the feature lands the test announces itself.
 A permanently red suite is worse than no suite. People stop reading it, and the
 one real failure hides among the twenty expected ones.
 
-```
-requirement + contract  →  test declared  →  executable test (xfail)
-                        →  code  →  run  →  record  →  report
-```
-
 The only step that may legitimately wait for code is the executable test, and
 only when the interface it drives has not been decided. Then the missing decision
 is the deliverable, not the test.
+
+### Say where the project is, unprompted
+
+The user should never have to ask what comes next. Open every session by locating
+the project on the chain and naming the next act:
+
+| What exists | Position | The next act |
+|---|---|---|
+| a description, no requirements | before the chain | grill it, then write requirements with contracts |
+| requirements without contracts | contract step | write the contracts — expect this to rewrite requirements, that is the gate working |
+| contracts, no declared tests | declaration step | declare them; report the equipment that turns out not to exist and the interfaces nobody has decided |
+| declared tests, none executable | executable step | write them, xfail where the feature is absent |
+| executable tests, feature absent | code step | hand off to development; the XPASS is the landing signal |
+| **code with no tests** | off the chain | the retrofit below |
+
+If the answer is "several at once", say which requirement is at which position
+rather than averaging them. An average hides the one requirement that has nothing.
+
+### When the code already exists
+
+Most projects arrive here, and the honest position is that the order cannot be
+replayed. What can be done is to remove the specific harm it causes.
+
+- **Write the test from the contract with the implementation closed.** If you
+  cannot state the assertion without reading the code, the contract is incomplete
+  — fixing the contract is the finding, and it is worth more than the test.
+- **Then prove the test can fail.** Break the code deliberately — invert a
+  comparison, stub a return — watch it go red, restore. A test that has only ever
+  been green is a claim, not a check, and this is the only way to tell the two
+  apart after the fact.
+
+Neither step is optional busywork. A retrofitted suite that skips them reliably
+encodes the defects it was written to catch.
 
 ---
 
@@ -308,39 +350,25 @@ not claim it.
 
 ---
 
-### What the artefacts actually prove
-
-| Artefact | Proves | Does **not** prove |
-|----------|--------|--------------------|
-| `@fsd` tag | This source location *claims* responsibility for this clause | That the mapping is correct, that the code ran, or that anything asserted the outcome |
-| Coverage data | These lines executed during some run | That the behaviour was correct, or which test exercised them |
-| A passing test | The assertions it contains held | Anything about assertions it does not contain — notably prohibited outcomes |
-
-Aggregate coverage cannot attribute a line to a test. Per-test attribution needs
-per-test coverage contexts or separate execution runs; without one of those, do
-not claim it.
-
----
-
 ## 11. Gap reports — four categories, not one list
 
 A single undifferentiated gap list hides the fact that these need different
 people to resolve them.
 
-### 5.1 Specification defects
+### 11.1 Specification defects
 compound requirement · undefined initial state · undefined resulting state ·
 missing timeout or tolerance · ambiguous term · missing failure behaviour ·
 conflicting requirements · unverifiable observation · uncontrollable stimulus ·
 missing security assumption · unsupported regulatory claim · missing
 configuration rule
 
-### 5.2 Verification gaps
+### 11.2 Verification gaps
 approved requirement without a test specification · normative state transition
 without a test · numeric boundary without a boundary test · rejection rule
 without a negative test · test lacking evidence criteria · test lacking cleanup ·
 test infeasible with available equipment
 
-### 5.3 Implementation gaps
+### 11.3 Implementation gaps
 approved requirement without implementation mapping · implementation mapping
 without an approved requirement · executable test absent · production behaviour
 detected but undocumented · obsolete implementation after a requirement change
@@ -349,7 +377,7 @@ detected but undocumented · obsolete implementation after a requirement change
 make, not the skill: *add a clause to the FSD* (behaviour exists but is
 undocumented) or *delete the code* (orphaned implementation).
 
-### 5.4 Execution and evidence gaps
+### 11.4 Execution and evidence gaps
 executable test never run · result not tied to a commit · missing raw evidence ·
 stale evidence after a requirement or implementation change · test passed but
 prohibited outcomes were never checked · coverage present without behavioural
