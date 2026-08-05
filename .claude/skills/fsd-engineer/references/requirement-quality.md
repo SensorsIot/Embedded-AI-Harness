@@ -220,7 +220,7 @@ verification:
 ```
 
 The contract establishes verification **intent** at requirement level. It does
-not replace the test entry in the plan (`test-design.md` §10), which adds
+not replace the test entry in the plan (`test-lifecycle.md` §2), which adds
 equipment, test data, automation handoff, and failure recovery.
 
 ### Two forms — pick per requirement, not per document

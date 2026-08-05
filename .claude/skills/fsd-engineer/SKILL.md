@@ -239,7 +239,7 @@ Two artefacts, two levels of detail:
 2. **Test** — declared in one plan file with the requirements it verifies, its
    tier, the equipment it needs, and what it last produced; implemented as the
    executable test itself. → `references/test-design.md` (design, seams,
-   sequence), `references/test-design.md` §10 (status, blocking, reconciliation)
+   test kinds), `references/test-lifecycle.md` (order, status, blocking, gaps)
 
 There is **no separate test-specification layer.** The contract carries the
 normative claim, the plan entry carries everything needed to run the test, and
@@ -268,7 +268,7 @@ finished while nothing is verified.
 **Say where the project sits on that chain at the start of every session, and
 what the next act is.** The user asking "so what do I do first, write the tests or
 the code?" means this skill failed to lead. Where code already exists the order
-cannot be replayed — `test-design.md` §9 gives the two steps that remove the harm
+cannot be replayed — `test-lifecycle.md` §1 gives the two steps that remove the harm
 it causes, and both are mandatory.
 
 The readable FSD carries requirements and contracts; the tests that discharge
@@ -385,7 +385,7 @@ references their paths and never hand-maintains a Covered/GAP column. Evidence
 records commit and environment so staleness is computed, not guessed.
 
 Full model, tag rules, evidence fields, gap categories, optional coverage check:
-**`references/test-design.md` §10–11**.
+**`references/test-lifecycle.md` §2–3**.
 
 ## 10. Output layout
 
@@ -459,7 +459,8 @@ passed is worth nothing.
 | `references/finalisation.md` | The pre-delivery quality checklist and the lifecycle metadata block. Load at the end of a run |
 | `references/requirement-quality.md` | Statement types, provenance and status, the 13-check quality gate, the verification contract |
 | `references/system-models.md` | Context, components, state-transition model, interfaces, configuration and data catalogues, security profile |
-| `references/test-design.md` | Verification end to end: clause inventory, controllability (Drive/Feed/Emulate/Observe/Rig), observability, test classes, cleanup, seams, the order to write things in, test status, computed blocking, gap categories |
+| `references/test-design.md` | What to build: the two opening questions, clause inventory, controllability (Drive/Feed/Emulate/Observe/Rig), observability, the four test kinds and their order, cleanup, seams |
+| `references/test-lifecycle.md` | When and what it means: the write-order, where a project sits on it, test status, computed blocking, reconciliation, gap categories |
 | `references/three-planes.md` | WHAT / HOW / OPERATE model, routing rule, retrofit procedure |
 | `references/templates/` | `00-Overview` (the plane map, at `docs/` root), the Harness set, and the user-manual stub |
 | `references/canonical-fsd-structure.md` | The Parts scheme and chapter skeleton |

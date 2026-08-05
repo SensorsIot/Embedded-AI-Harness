@@ -391,7 +391,7 @@ delta such as adding boundary cases.
 
 Compares the FSD, requirement inventory, test specifications, executable tests,
 source mappings, and available evidence, then reports the **lifecycle state of
-every requirement** (`test-design.md` §10) and the gaps by category.
+every requirement** (`test-lifecycle.md` §2) and the gaps by category.
 
 This is the mode that answers "are we done?" honestly. Expect most requirements
 to sit below *Requirement verified*; that is information, not failure.
