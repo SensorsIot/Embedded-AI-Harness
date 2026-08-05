@@ -87,7 +87,7 @@ Seven modes. Pick by what already exists and what the user is asking for.
 | **update** | `/fsd-engineer update <path>` + delta | An FSD exists. Apply the delta surgically — never regenerate the whole file, never renumber a stable ID. |
 | **grill** | `/fsd-engineer --grill` + description | **Cold start only** — invoked with no prior conversation and no decisions file, on a brief too thin to infer architecture from. If step 2 above already happened, use `create` instead. One question at a time, depth-first, each with a recommended answer. |
 | **planes** | `/fsd-engineer --planes [path]` | Write the Harness and UserDocumentation, or retrofit an existing doc set into the three planes. Preview the move plan and get confirmation **before** moving anything. |
-| **tests** | `/fsd-engineer tests <path>` | The FSD is stable but its verification is not. Runs clause inventory → tier allocation → controllability → required test classes, emitting specs plus an updated matrix. |
+| **tests** | `/fsd-engineer tests <path>` | The FSD is stable but its verification is not. **Opens by asking for the standard end-to-end run** (§6.9), then clause inventory → tier allocation → controllability → test classes, emitting specs plus an updated matrix. |
 | **audit** | `/fsd-engineer audit` | Answers "are we actually done?" — reports the lifecycle state of every requirement and the gaps by category. Expect most requirements to sit below *verified*; that is information, not failure. |
 | **reconcile** | `/fsd-engineer reconcile` | Code, tests, and documents drifted apart. Identifies undocumented behaviour, obsolete tests, stale evidence, contradictions — and **proposes**, never silently adopts. |
 
@@ -119,6 +119,12 @@ later mistaken for something the skill assumed.
 
 Re-asking a question the user has already answered is the fastest way to make a
 spec feel like a form to fill in — and it earns a shorter answer the second time.
+
+One question is always worth asking and never harvestable: **what does one
+ordinary successful run look like, end to end?** No requirements document
+contains it — the FSD is a set of clauses, and the journey is the thing none of
+them describes. Ask for it as ordered steps with an observable at each, before
+any test is written.
 
 Then ask only when what is *still* missing affects architecture, protocol choice,
 interface definition, safety or regulatory constraints, phase decomposition,
@@ -237,6 +243,16 @@ There is **no separate test-specification layer.** The contract carries the
 normative claim, the plan entry carries everything needed to run the test, and
 shared setup lives in the testing standard. A third artefact between them only
 adds something to keep in sync.
+
+**Before writing any test, ask what one ordinary successful run looks like, end
+to end.** The FSD says what must be true clause by clause and never what a normal
+run *is*, so a suite built faithfully from it can cover every requirement and
+never check the product works — measured on one project at 108 declared tests
+with the standard journey still unwritten. Get it as ordered steps with an
+observable at each, write one test per step, and make that phase the gate.
+Then build outward: standard, deviations, the negatives that matter, security
+from the threat profile — with the volume tilted to the first two.
+`test-design.md` §5.
 
 **The order matters and is not negotiable**: contract, then declaration, then
 executable test, then code — never the reverse, and **per requirement rather than

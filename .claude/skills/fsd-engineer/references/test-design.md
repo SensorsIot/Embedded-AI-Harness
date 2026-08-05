@@ -95,9 +95,73 @@ log test and failed the requirement.
 
 ---
 
-## 5. Required test classes
+## 5. What to build, and in what order
 
-For each applicable clause, derive every class that applies:
+### Ask for the standard run before writing anything
+
+**The first act is a question, not a test: what does one ordinary, successful
+use of this system look like, end to end?**
+
+Ask the user. It cannot be derived from the FSD, and that is the whole problem —
+the FSD says what must be *true*, clause by clause, and never what a normal run
+*is*. Nothing in a requirements document describes the journey, so a suite built
+faithfully from one covers every clause and never once checks the product works.
+
+Get it as an ordered list of steps with an observable at each. A real answer:
+
+```text
+1  captive portal, enter credentials     the form accepts them
+2  device joins the access point         association succeeds
+3  device connects to the broker         a session is established
+4  the meter sends a normal telegram     values decode
+5  values arrive at the broker           a live message, twice
+```
+
+Then write **one test per step**, each asserting its own checkpoint. Separately,
+because they fail for different reasons and the difference is what says where to
+look — step 4 failing is a decoder problem, step 5 failing with step 4 passing is
+a topic or a session problem, and a single end-to-end test that only says "no
+data arrived" distinguishes neither.
+
+This phase is the **gate**: while it fails, every later test is unreadable,
+because they all fail for the same upstream reason and the report reads as a
+dozen defects instead of one.
+
+### The four kinds
+
+Every test declares which it is, and the balance is a design property to watch
+rather than an accident.
+
+| Kind | Is | Build |
+|---|---|---|
+| **standard** | The ordinary case — the product doing its job | first |
+| **deviation** | Still normal, just not the simplest case | second |
+| **negative** | A fault or malfunction is injected | third, and only the ones that matter |
+| **security** | Derived from the threat profile, not from a feature | alongside, from §6.5.1 |
+
+**Keep the volume tilted towards the first two.** A suite heavy on negatives has
+never checked the product works. Negatives accumulate one at a time, each
+individually justified, and nobody notices the ordinary case is missing.
+
+Measured on one project: 108 declared tests, and the standard end-to-end journey
+was still unwritten. The bench suite ran corrupted checksums, silent lines, noise
+injection and no-download-without-a-command against a device whose ordinary path
+had never been checked — and a defect that stopped it publishing *entirely* was
+found sideways, when unrelated update tests could not read the device's topic
+name. The balance there was 46 / 17 / 27 / 8, and the deviation bin was the
+thinnest when it should be among the fattest: "still normal, just not the
+simplest case" is where real deployments live.
+
+**A deviation is not a malfunction.** Two valid serial lengths are two normal
+configurations. Waking mid-transmission is what happens on every power-up when
+the device is energised by the thing it reads. Filing those under faults is part
+of how the ordinary case goes untested — the bin looks full while nothing in it
+tests normal operation.
+
+### Then, per clause
+
+Once the standard run and its variations exist, derive per clause every class
+that applies:
 
 positive · negative/rejection · lower and upper boundary · invalid-format ·
 error-handling · state-transition · persistence · recovery · timeout ·
@@ -111,6 +175,10 @@ Minimum enforcement:
 - **Boundary tests** at each numeric edge the spec implies (`= 0`, `= max`,
   `> max`, `< min`).
 - **A state-transition test** for every normative row of every state table.
+
+Per-clause coverage is necessary and not sufficient. It is the step that reaches
+100% of requirements while leaving the product untested, because no clause
+describes the journey.
 
 Test IDs: `TC-<area>-<nn>[-<qualifier>]`
 
@@ -187,9 +255,15 @@ nobody records that the claim shrank.
 ## 9. Sequence — what to write when, and how to lead the user through it
 
 ```
-requirement + contract  →  test declared  →  executable test (xfail)
-                        →  code  →  run  →  record  →  report
+ask for the standard run  →  requirement + contract  →  test declared
+                          →  executable test (xfail)  →  code  →  run
+                          →  record  →  report
 ```
+
+**The ask comes first and happens once**, before any test is declared — §5. It
+is the one input the FSD cannot supply, and everything else is ordered around
+it: the standard run becomes the first tests written and the gate the rest run
+behind.
 
 **This runs per requirement, not as project phases.** One requirement walks the
 whole chain before the next one starts. Writing every contract, then every
