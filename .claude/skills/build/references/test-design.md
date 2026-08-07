@@ -1,10 +1,10 @@
 # Test design
 
-This skill owns test design end to end. It does not delegate to another
-test-planning model in §9.
+The Method skill owns test design end to end — there is no separate
+test-specification skill or layer.
 
 It designs and documents tests. It does **not** implement them, run them, or
-operate hardware — see the responsibility table in `SKILL.md`.
+operate hardware — see the dispatch table in `../SKILL.md` §2.
 
 ---
 
@@ -129,12 +129,10 @@ Do not skip this because the code compiles or because a component is
 well-regarded. The question is not whether it is good; it is whether *this*
 instance of it has been seen working *here*.
 
-**Second: what does one ordinary successful run look like, end to end?**
+### The second question: the standard run, before writing anything
 
-### Ask for the standard run before writing anything
-
-**The second question: what does one ordinary, successful use of this system
-look like, end to end?**
+**What does one ordinary, successful use of this system look like, end to
+end?**
 
 Ask the user. It cannot be derived from the FSD, and that is the whole problem —
 the FSD says what must be *true*, clause by clause, and never what a normal run

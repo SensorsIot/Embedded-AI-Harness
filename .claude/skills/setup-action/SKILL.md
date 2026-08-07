@@ -446,6 +446,42 @@ the first. Raise it as a choice rather than building it unasked — a
 `workflow_dispatch` job a human triggers when the hardware is free is usually the
 right first step, not a `push` trigger.
 
+## Release verification — the journey on the shipped bytes
+
+The one hardware job that *does* belong in CI, because it closes the weakest
+link in every firmware release: the tested build and the shipped build are
+different binaries (same source, same pinned toolchain, but a rebuild). The
+release workflow gains a verify job between build and publish:
+
+```yaml
+verify:
+  needs: build
+  runs-on: [self-hosted, testbench]     # the project's devcontainer
+  steps:
+    - uses: actions/download-artifact@v4          # the bytes from THIS run
+    - run: |                                      # discover the bench, read the
+        pytest tests/bench --journey \            # slot from harness config,
+          --firmware "$MERGED_BIN"                # flash, run the journey
+release:
+  needs: verify                          # red journey ⇒ nothing publishes
+```
+
+**The runner lives inside the project's devcontainer** — one project, one
+container; the devcontainer already holds the bench tier, WorkbenchDriver,
+discovery and slot config, which is everything this job needs (it never
+builds). Register per-repo, ephemeral, labels `[self-hosted, testbench]`;
+trigger on tag push only; approval required for outside contributors — the
+public-repo self-hosted trap is real.
+
+The devcontainer runs 24/7; the testbench and DUT may not. An unreachable
+bench is an **unmet precondition**: the job reports `not done` with the
+reason and publishes nothing — power the bench, re-run the job. Never retry
+blind.
+
+**Shipped = release published AND the journey green on the exact bytes users
+download.** Dev builds never mint tags — `git describe` identifies them — so
+the tag namespace stays what users browse: releases only.
+
 ## Keep the docs true
 
 When a gate lands or its scope changes, the project's build contract changes with

@@ -964,7 +964,10 @@ Claude Code loads skills at session start, so restart your session after copying
 | `signal-generator` · `sdr-receiver` | RF transmit · RF receive, decode, reverse-engineering |
 | `workbench-test-handling` | The test execution protocol, live progress, operator prompts, `WorkbenchDriver` |
 | `workbench-integration` | Add workbench support to an existing ESP32 project |
-| `fsd-engineer` | Requirements, verification contracts, test specifications, traceability, and the Method/Handbook planes |
+| `define` | Phase 0 — the FSD: requirements, verification contracts, state models, the three planes |
+| `harness` | Phase 1 — one-time project setup: planes, plan, capabilities, CI, runner |
+| `commission` | Phase 2 — prove the testbench; burn down the debugging agenda |
+| `build` | Phase 3 — the loop driver: test design, the plan, audit, reconcile, change requests |
 
 Most `workbench-*` skills assume the bench is at `workbench.local`, or the IP in
 `SERIAL_PI` — override that in your shell or devcontainer if your network differs.

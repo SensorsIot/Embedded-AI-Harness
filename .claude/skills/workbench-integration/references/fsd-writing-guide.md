@@ -12,7 +12,7 @@ workbench-specific operational content. This chapter becomes a standalone
 **operations guide** -- how to interact with the device through the workbench. It
 contains no test cases.
 
-If the fsd-engineer left a generic Operational Procedures chapter, replace it
+If the `define` skill left a generic Operational Procedures chapter, replace it
 entirely. The workbench operations are the operational procedures for this project.
 
 ### 8a. Hardware setup

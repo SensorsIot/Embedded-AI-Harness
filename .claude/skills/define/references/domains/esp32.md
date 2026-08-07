@@ -145,9 +145,10 @@ your deadlines. Bind each one when the tests are adopted:
 The "typical" column is a starting point for the conversation, **not** a default to
 apply silently — the same rule as the requirements themselves.
 
-### Spec files
+### Test-case libraries
 
-All under `references/domains/esp32/`:
+All under `../../../build/references/domains/esp32/` — they live with the
+Method skill because they are test proposals, consumed at declaration time:
 
 **These files are a library of proposed test cases, not a specification format.**
 Take the cases that apply, declare each as an entry in the project's plan file

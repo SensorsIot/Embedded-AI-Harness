@@ -21,7 +21,7 @@ High-complexity production FSD before being adopted as the standard.
   behavior, and failure modes live together — not scattered across a global FR
   list and a separate interfaces section that drift apart as the FSD evolves.
 - **The test strategy falls out of the architecture.** Layer → tier mapping
-  (the §x.0 Test Architecture / `references/test-architecture.md`) applies chapter
+  (the §x.0 Test Architecture / `../../build/references/test-architecture.md`) applies chapter
   by chapter.
 
 ---
@@ -52,7 +52,7 @@ High-complexity production FSD before being adopted as the standard.
   library/managed client to an external service = foundation; a hand-written
   decoder/driver/handler = interface.
 - Include a layered component diagram (stacked layer boxes, components on one row
-  per layer). See `references/test-architecture.md` for profiles (embedded /
+  per layer). See `../../build/references/test-architecture.md` for profiles (embedded /
   cloud / mobile), the diagram convention, the Mermaid layout gotcha, and the
   ASCII fallback.
 - State the **source-layout convention** so the implementation mirrors these
@@ -60,7 +60,7 @@ High-complexity production FSD before being adopted as the standard.
   into the consumer that uses it); lower layers never depend on higher ones (invert
   via a callback/registration hook wired at the composition root); each interface's
   pure core is extracted as a free function for the fast tier. The FSD advises how
-  to code, not just what to build — see `references/test-architecture.md`.
+  to code, not just what to build — see `../../build/references/test-architecture.md`.
 
 ## 3. Implementation Phases
 ### 3.1 Phase 1 — Infrastructure Foundation
@@ -120,7 +120,7 @@ chapters.)
 - Map tiers to the §2.4 layers: L0 tested **transitively**; L1 = pure core at the
   fast tier + wire/flow above; L2 = fast tier as pure functions.
 - Reference a **generated** component × tier coverage matrix (rows = §2.4
-  components by layer, columns = tiers). See `references/test-architecture.md`.
+  components by layer, columns = tiers). See `../../build/references/test-architecture.md`.
 ### 18.1 Acceptance Tests
 - End-to-end scenarios; performance / load / reliability (if applicable).
 ### 18.2 Traceability
@@ -216,7 +216,7 @@ in one FSD.
 ## Traceability (generated, not hand-filled)
 
 §18.2 must **point at generated artifacts**, mirroring §18.0 and
-`references/test-architecture.md`:
+`../../build/references/test-architecture.md`:
 
 - The FSD's job: every **Must**/**Should** FR & NFR is stated in its chapter with
   a stable ID, and the test specs reference those IDs. That is the linkage.
@@ -257,7 +257,7 @@ dependency order (application-most first → foundation last), still followed by
 cross-cutting Part and Part E. E.g. a system that splits application logic into
 orchestration over domain logic, or inserts a shared-services layer, would carry
 an extra Part for it. Add layers only where a real one-way dependency boundary
-exists — see `references/test-architecture.md` ("Scale the layer count to the
+exists — see `../../build/references/test-architecture.md` ("Scale the layer count to the
 system").
 
 **Scale the Parts to complexity** (see `references/complexity-scaling.md`):

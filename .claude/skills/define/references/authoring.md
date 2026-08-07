@@ -206,22 +206,15 @@ If the user does not specify a target path:
 
 ```text
 docs/
+├── 00-Overview.md                the plane map — at the docs root
 ├── Functionality/                WHAT — the FSD + the interface specs it cites
-├── Method/                      HOW  — 00-Overview, AI-Workflow, standards/, project/
-├── UserDocumentation/            OPERATE — 00-Overview from the first commit,
-│                                 even when nothing is deployable yet
-├── decisions.md                  settled decisions with provenance — not a plane
-└── open-issues.md                unresolved product/architecture decisions
+├── Method/                       HOW  — 00-Overview, AI-Workflow, standards/, project/
+└── UserDocumentation/            OPERATE — 00-Overview from the first commit,
+                                  even when nothing is deployable yet
 
-verification/                     machine-readable WHAT + verification design
-├── requirements.yaml
-├── states.yaml
-├── interfaces.yaml
-├── configuration.yaml
-├── test-plan.yaml
-├── traceability.yaml
-├── implementation-handoff.yaml
-└── gaps.md
+testing/
+└── test-plan.yaml                every test, the requirements it verifies, what
+                                  it needs, what it last produced (/build owns)
 
 tests/{host,target,bench}/        executable tests (written by dev skills)
 test-results/<run-id>/            evidence (captured by workbench skills)
@@ -231,9 +224,11 @@ test-results/<run-id>/            evidence (captured by workbench skills)
 └── evidence/
 ```
 
-`verification/` is not a fourth plane — it is the machine-readable form of the
-WHAT plane, and `test-results/` is evidence, not documentation. Small projects may
-use fewer files; the **information model stays the same**.
+There is **no decisions file** — a settled decision leaves its effect as
+present-state content in the plane it governs (SKILL.md §2). The plan is not a
+fourth plane — it is the machine-readable join between the WHAT and its tests,
+and `test-results/` is evidence, not documentation. A heavier project may split
+the plan into per-area yaml files; the **information model stays the same**.
 
 Match the repo if it already uses `Documents/` or another convention — do not
 impose one.
@@ -267,7 +262,7 @@ writing if it was auto-detected.
 Start a new FSD from scratch.
 
 ```
-/fsd-engineer
+/define
 <rough description text>
 ```
 
@@ -283,7 +278,7 @@ Behavior:
 Update, expand, refactor, or correct an already existing FSD.
 
 ```
-/fsd-engineer update <path-to-existing-fsd>
+/define update <path-to-existing-fsd>
 <delta description — changes, additions, clarifications, new constraints>
 ```
 
@@ -299,8 +294,8 @@ Behavior:
 3. Ask clarifying questions only if the delta introduces architectural ambiguity.
 4. Apply changes surgically — preserve all unaffected sections verbatim.
 5. Regenerate only the sections affected by the delta.
-6. Maintain numbering and cross-references; the traceability matrix is
-   **regenerated** by the traceability tool, never hand-edited in the FSD.
+6. Maintain numbering and cross-references; traceability is computed by
+   `/build`'s report from the plan, never hand-edited in the FSD.
 7. Write the updated file using the **Edit** tool (preferred) or **Write** tool
    (if changes are too extensive for surgical edits).
 
@@ -313,7 +308,7 @@ questions per round and infer aggressively; Mode C escalates that into a
 depth-first interview that resolves the design tree branch by branch.
 
 ```
-/fsd-engineer --grill
+/define --grill
 <rough description text>
 ```
 
@@ -341,7 +336,7 @@ Create the Method and UserDocumentation alongside the FSD, or split an existing 
 set into the three planes (§6.11).
 
 ```
-/fsd-engineer --planes [<path-to-existing-fsd-or-docs-dir>]
+/define --planes [<path-to-existing-fsd-or-docs-dir>]
 ```
 
 Behaviour:
@@ -368,44 +363,9 @@ status line: an unwritten plane that exists is a visible gap, while one that was
 never created is invisible. What you must not do is manufacture *content* for a
 plane that has no reader.
 
-### 2.5 Mode E — Tests (design or refresh test specifications)
+### 2.5 Former modes E–G — tests, audit, reconcile
 
-```
-/fsd-engineer tests <fsd-path>
-```
-
-Creates or refreshes detailed test specifications without rewriting unaffected
-FSD content. Runs the clause inventory, tier allocation, controllability
-analysis, and the required test classes
-(`references/test-design.md`), emitting specs in the canonical schema
-(`testing/test-plan.yaml`) plus a regenerated report.
-
-Use when the FSD is stable but its verification is not — or after a `tests`-only
-delta such as adding boundary cases.
-
-### 2.6 Mode F — Audit (what is actually verified?)
-
-```
-/fsd-engineer audit
-```
-
-Compares the FSD, requirement inventory, test specifications, executable tests,
-source mappings, and available evidence, then reports the **lifecycle state of
-every requirement** (`test-lifecycle.md` §2) and the gaps by category.
-
-This is the mode that answers "are we done?" honestly. Expect most requirements
-to sit below *Requirement verified*; that is information, not failure.
-
-### 2.7 Mode G — Reconcile (documents and code drifted)
-
-```
-/fsd-engineer reconcile
-```
-
-Used when code, tests, or documents changed independently. Identifies
-undocumented behaviour, obsolete tests, stale evidence, missing mappings, and
-contradictions, then **proposes** FSD changes.
-
-It does not silently adopt what the code happens to do — detected behaviour is
-adjudicated per `references/requirement-quality.md` §2, and the four outcomes are
-document / demote to Method / fix the code / delete it.
+These are `/build` modes now — the loop's concerns, not the spec's. `/define`
+receives their upward findings (spec defects, undocumented behaviour) as update
+deltas and adjudicates per `references/requirement-quality.md` §2: document /
+demote to Method / fix the code / delete it.

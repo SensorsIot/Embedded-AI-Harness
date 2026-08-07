@@ -67,4 +67,4 @@ The **layer count itself scales with complexity**: three layers (L0/L1/L2) is th
 common default, but a High-complexity system may warrant more (L0..Ln) — e.g. an
 orchestration layer over domain logic, or a shared-services layer. Each layer is
 one body Part; add layers only where a real one-way dependency boundary exists
-(see `references/test-architecture.md`, "Scale the layer count to the system").
+(see `../../build/references/test-architecture.md`, "Scale the layer count to the system").
