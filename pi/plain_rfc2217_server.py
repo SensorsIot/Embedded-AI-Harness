@@ -46,7 +46,10 @@ def main():
 
     ser = serial.serial_for_url(args.SERIALPORT, do_not_open=True,
                                 exclusive=False)
-    ser.timeout = 3
+    # Read timeout doubles as the reader thread's shutdown latency (it only
+    # re-checks its alive flag between blocking reads), which in turn gates
+    # how soon the next client can attach after a disconnect. Keep it short.
+    ser.timeout = 0.25
     ser.dtr = False
     ser.rts = False
     ser.open()
@@ -87,58 +90,91 @@ def main():
         except KeyboardInterrupt:
             break
 
-        logging.info("Client connected from %s", addr)
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        handle_client(conn, addr, ser, settings, args.verbosity)
 
-        class Sender:
-            def write(self_, data):
-                try:
-                    conn.sendall(data)
-                except (BrokenPipeError, OSError):
-                    pass
 
-        try:
-            pm = serial.rfc2217.PortManager(
-                ser, Sender(),
-                logger=logging.getLogger("rfc2217") if args.verbosity > 0
-                else None,
-            )
-        except (BrokenPipeError, OSError):
-            logging.info("Client disconnected during negotiation")
-            conn.close()
-            continue
+def handle_client(conn, addr, ser, settings, verbosity):
+    """One client session. All session state (conn, PortManager, alive
+    flag) lives in this call's scope, and the reader thread is joined
+    before returning.
 
-        alive = True
+    These used to be main()-loop variables shared across sessions via the
+    reader closure, and the reader was never joined — a reader blocked in
+    ser.read() (3s port timeout) survived its own session's teardown, and
+    when the next client attached within those 3s the loop's rebinding of
+    alive/conn/pm resurrected it against the NEW session's socket. Two
+    readers then raced the same serial port, interleaving chunks
+    (transposed characters in the client's capture) and splitting RFC2217
+    escape sequences badly enough to wedge the client's telnet parser into
+    permanent silence. Reproduced deterministically on a live bench
+    2026-07-18: a monitor session started <3s after the previous one
+    always corrupted, >3s always clean.
+    """
+    logging.info("Client connected from %s", addr)
+    conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-        def reader():
-            nonlocal alive
-            while alive:
-                try:
-                    data = ser.read(ser.in_waiting or 1)
-                    if data:
-                        conn.sendall(b"".join(pm.escape(data)))
-                except Exception:
-                    break
-            alive = False
+    class Sender:
+        def write(self_, data):
+            try:
+                conn.sendall(data)
+            except (BrokenPipeError, OSError):
+                pass
 
-        t = threading.Thread(target=reader, daemon=True)
-        t.start()
-
-        try:
-            while alive:
-                data = conn.recv(1024)
-                if not data:
-                    break
-                ser.write(b"".join(pm.filter(data)))
-        except Exception:
-            pass
-
-        alive = False
+    try:
+        pm = serial.rfc2217.PortManager(
+            ser, Sender(),
+            logger=logging.getLogger("rfc2217") if verbosity > 0
+            else None,
+        )
+    except (BrokenPipeError, OSError):
+        logging.info("Client disconnected during negotiation")
         conn.close()
-        logging.info("Client disconnected")
-        ser.dtr = False
-        ser.rts = False
-        ser.apply_settings(settings)
+        return
+
+    # Drop bytes that arrived between sessions — they belong to no client,
+    # and a stale partial line would otherwise mangle this session's first
+    # captured line.
+    try:
+        ser.reset_input_buffer()
+    except Exception:
+        pass
+
+    alive = True
+
+    def reader():
+        nonlocal alive
+        while alive:
+            try:
+                data = ser.read(ser.in_waiting or 1)
+                if data:
+                    conn.sendall(b"".join(pm.escape(data)))
+            except Exception:
+                break
+        alive = False
+
+    t = threading.Thread(target=reader, daemon=True)
+    t.start()
+
+    try:
+        while alive:
+            data = conn.recv(1024)
+            if not data:
+                break
+            ser.write(b"".join(pm.filter(data)))
+    except Exception:
+        pass
+
+    alive = False
+    conn.close()
+    # The reader wakes from its blocking ser.read() within the port's read
+    # timeout, sees alive=False, and exits. Waiting for it here guarantees
+    # exactly one reader ever touches the port, no matter how quickly the
+    # next client attaches.
+    t.join(timeout=1)
+    logging.info("Client disconnected")
+    ser.dtr = False
+    ser.rts = False
+    ser.apply_settings(settings)
 
 
 if __name__ == "__main__":
