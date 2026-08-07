@@ -22,13 +22,11 @@
 | C | [Implementation Tasks & Deliverables](#appendix-c-implementation-tasks--deliverables) | |
 | D | [HTTP API & MCP Reference](#appendix-d-http-api--mcp-reference) | **Complete endpoint and tool reference** |
 
-This document is the **WHAT** plane: what must be true of the bench. Two companion
-documents answer the other questions, and nothing here duplicates them —
-
-- **HOW** it is built and changed: [`Method/`](Method/00-Overview.md) — the
-  build contract, source layout, conventions, and testing standard.
-- **OPERATE** — building the Pi, wiring, and driving each service:
-  [User Manual](Embedded-Workbench-User-Manual.md).
+This document is the **WHAT** plane: what must be true of the bench. The plane
+map is [`00-Overview.md`](00-Overview.md); the other planes are
+[`Method/`](Method/00-Overview.md) (HOW) and the
+[User Manual](Embedded-Workbench-User-Manual.md) (OPERATE). Nothing here
+duplicates them.
 
 ---
 
@@ -36,8 +34,33 @@ documents answer the other questions, and nothing here duplicates them —
 
 ### 1.1 Purpose
 
-Combined serial interface and WiFi test instrument running on a single
-Raspberry Pi Zero W.  The serial interface exposes USB serial devices to
+The workbench is the physical subsystem of the **Harness** — the instrument
+through which **AI Closed-Loop Programming** reaches real hardware. In AICLP
+the AI develops a product's firmware in a closed loop: code, build, flash,
+verify against tests derived from the product's FSD, correct — exiting only
+when the tests run clean. The workbench is the loop's hands and eyes: it
+flashes the DUT, resets it, watches its serial and UDP output, surrounds it
+with WiFi, MQTT, BLE and RF peers, and reports every observation over one
+HTTP API.
+
+A harnessed project moves through five phases; each ends at a milestone that
+is **derived from project state, never declared**:
+
+| Phase | Command | Exit milestone |
+|-------|---------|----------------|
+| 0 · Definition | `/define` | **Load defined** — every requirement states how it will be proven |
+| 1 · Harness | `/harness` | **AI harnessed** — a session can open, state its position, and act |
+| 2 · Commissioning | `/commission` | **Testbench trusted** — a failing test means the code, not the setup |
+| 3 · Build | `/build` | **Ready for shipment** — every requirement met, journey green |
+| ⚑ Shipment | `git tag` | **Shipped** — release published, journey green on the released bytes |
+
+Two rules bind the loop. **No code without a clause** — work no requirement
+covers enters through Definition or not at all. **A change is done when its
+requirement is met and the journey still runs** — its own tests green,
+including prohibited outcomes, and the standard end-to-end run green.
+
+The instrument itself: a combined serial interface and WiFi test instrument on
+a single Raspberry Pi.  The serial interface exposes USB serial devices to
 network clients via RFC2217 protocol with event-driven hotplug and slot-based
 port assignment.  The WiFi workbench uses the Pi's onboard wlan0 radio as a
 test instrument — starting SoftAP, joining networks, scanning, relaying HTTP,
