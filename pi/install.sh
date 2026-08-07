@@ -39,6 +39,12 @@ if [ "$UPDATE_ONLY" = false ]; then
         raspi-config nonint do_i2c 0 2>/dev/null || true
     fi
 
+    # Debian 13 (trixie) soft-blocks bluetooth via rfkill on a fresh image,
+    # which leaves hci0 DOWN and every /api/ble/* call failing. Unblock once —
+    # systemd-rfkill persists the state across reboots.
+    rfkill unblock bluetooth 2>/dev/null || true
+    hciconfig hci0 up 2>/dev/null || true
+
     # OpenOCD for ESP32 (GDB debug support)
     if ! command -v openocd-esp32 >/dev/null 2>&1; then
         echo "Installing openocd-esp32..."
