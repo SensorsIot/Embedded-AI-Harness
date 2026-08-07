@@ -54,6 +54,22 @@ or to what was let past. "Mostly done" is a shut gate.
 | 3 · Build | **Ready for shipment** — every requirement met, journey green, reconcile empty | this skill §4 audit + §5 reconcile |
 | ⚑ Shipment | **Shipped** — release published *and* the journey green on the released bytes | the release-verify job (§6) |
 
+### What each gate demands of the four artefact layers
+
+The layers are not all produced in one phase, and a gate only demands what its
+phase owes:
+
+| Layer | Lives in | Produced in | Demanded by |
+|---|---|---|---|
+| **Verification contract** | the FSD, beside the requirement | Phase 0 | **Load defined** — every Must/Should has one |
+| **Test case (declaration)** | `testing/test-plan.yaml` | journey tests in Phase 1; each requirement's own during Build | **AI harnessed** (journey tests present) · then per requirement in the chain |
+| **Executable** (`impl:` filled) | `tests/{host,target,bench}/` | Phase 3, before the code | **Ready for shipment** — every declared test executable |
+| **Result** (status + commit) | back in the plan entry | every run in Phase 3; once more at release | **Ready for shipment** (all successful) · **Shipped** (journey green on the released bytes) |
+
+A declaration without an executable is the backlog; an executable without a
+result is `not done`; a result without a commit is not evidence. The gate that
+demands each is the one that will not open without it.
+
 ## 0. Open every session by saying where the project is
 
 Read `testing/test-plan.yaml` and the FSD, derive the position, and open with
