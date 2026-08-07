@@ -17,6 +17,18 @@ can be entered by its own name; the phase itself is always derived from state.
 If the debugging agenda is already burned down, say so and continue as
 `/build` — typing the "wrong" door costs nothing.
 
+## Commission with the reference firmware, never with project code
+
+**Phase 2 must not depend on firmware that Phase 3 builds.** The probe that
+proves bench capabilities is the harness's own reference firmware
+(`test-firmware/` in the Embedded-AI-Harness repo — it exercises association,
+provisioning, UDP logging, HTTP, OTA and MQTT), flashed to the DUT as
+known-good equipment. Every bench capability is proven against it in minutes;
+nothing waits for the product to exist, and no capability "folds forward" into
+Wave 1. Once the testbench is trusted, the project's firmware runs against it
+— and any failure is unambiguously the project's. Commissioning that iterates
+on project firmware is measuring two unknowns with one instrument.
+
 ## What commissioning is
 
 The debugging agenda (`../build/references/test-design.md` §5, first question)
