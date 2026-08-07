@@ -26,7 +26,7 @@ phase, a `/build` session can open, state its position, and act.
 | 1 | **Definition first.** No FSD → run Phase 0 now: `/define` (grill → create). FSD exists → verify every Must/Should carries a verification contract; missing ones are the first act | `/define` |
 | 2 | Three planes installed or bound: FSD home, `docs/Method/`, `docs/UserDocumentation/` + `docs/00-Overview.md` at the docs root | `/define` planes mode |
 | 3 | Testing standard stamped (setup/teardown/evidence rules + shared procedures, one file) | `/define` templates |
-| 4 | `testing/test-plan.yaml` created; **testbench capabilities declared** — slot assignment, what the bench can and cannot do. Blocked is computed from these, never typed | this skill |
+| 4 | `testing/test-plan.yaml` created; **capabilities declared** — bench capabilities copied from what the bench reports (`available: yes` as declared — a project never proves them), plus this project's own peers and equipment. Blocked is computed from these, never typed | this skill |
 | 5 | Firmware integration — **only the modules the FSD requires.** UDP logging always (the loop's eyes inside the DUT); WiFi provisioning, OTA, BLE hooks only when the FSD carries the corresponding requirements. A module the spec never asked for is silent pack adoption | `workbench-integration` |
 | 6 | CI: build on push, release on tag **plus the release-verify job** (flash the released artifact to the testbench, run the journey; red journey = no release) | `setup-action` |
 | 7 | Devcontainer and toolchain, with the **GitHub Actions runner inside it** — see below | `esp-idf-handling` / `esp-pio-handling` (project + toolchain setup) |
@@ -58,9 +58,11 @@ release-verification:
 Asked at the end, when the user knows the system's shape — and never
 harvestable from any document:
 
-1. **What has to be debugged before testing starts?** Which parts — of the
-   system *and* of the testbench — have never been observed doing their job
-   here. Becomes the **debugging agenda** that `/commission` burns down.
+1. **What has to be debugged before testing starts?** Which **project-side**
+   parts — this board, its wiring, its peers and simulators — have never been
+   observed doing their job here. Becomes the **debugging agenda** that
+   `/commission` burns down. **The workbench is not on this list**: a project
+   depends on its quality, never proves it (`../commission/SKILL.md`).
 2. **What does one ordinary successful run look like, end to end?** Ordered
    steps, an observable at each. Becomes the **journey tests** — one test per
    step, seeded into the plan as the gate every hardware session runs behind,
