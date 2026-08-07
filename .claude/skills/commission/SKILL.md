@@ -8,7 +8,7 @@ description: >
   fixed in its own repo only when DUT testing disproves it. Use this skill
   when the user mentions commissioning, bring-up, a new board or peer, wiring
   or polarity doubts, or wants to burn down the debugging agenda. Exit
-  gate: Testbench trusted.
+  gate: DUT ready.
 ---
 
 # Commission — Phase 2 door
@@ -156,7 +156,8 @@ back to the act that owns it — a DUT that is not the expected unit, a peer
 that will not answer, a forward path that does not reach its marker — and the
 whole check runs again. Wave 1 does not start on a partial commissioning.
 
-**Testbench trusted** — derived, never declared: the workbench by law, the
-project-side parts by the records above. From here `/build` runs the journey
+**DUT ready** — derived, never declared: the testbench commissioned (by law,
+not by proof), the DUT connected and verified as the unit the FSD names, the
+project's peers answering, and the forward path proven to deliver code to it. From here `/build` runs the journey
 tests as the gate and the loop proper begins. For a project with no new
 hardware and no peers, this phase is minutes, not days.

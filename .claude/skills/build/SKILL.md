@@ -50,7 +50,7 @@ or to what was let past. "Mostly done" is a shut gate.
 |---|---|---|
 | 0 · Definition (`/define`) | **Load defined** — every Must/Should carries a verification contract; three planes exist | `/define` §12.5 + `finalisation.md` §1 |
 | 1 · Harness (`/harness`) | **AI harnessed** — a `/build` session opens, states its position, and acts without asking | `/harness` Exit — dry run of the next session |
-| 2 · Commissioning | **Testbench trusted** — a failing test means the code, not the setup | `/commission` Exit — four checks, six records |
+| 2 · Commissioning | **DUT ready** — the testbench is commissioned, the DUT is connected and verified, and the forward path delivers code to it; a failing test means the code, not the setup | `/commission` Exit — four checks, six records |
 | 3 · Build | **Ready for shipment** — every requirement met, journey green, reconcile empty | this skill §4 audit + §5 reconcile |
 | ⚑ Shipment | **Shipped** — release published *and* the journey green on the released bytes | the release-verify job (§6) |
 

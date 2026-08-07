@@ -227,7 +227,7 @@ one before it is green.
 
 | Wave | Builds | Tests written | Gate to enter — derived, never declared |
 |---|---|---|---|
-| **1 · Build the running prototype** | The features | `standard` only | Testbench trusted |
+| **1 · Build the running prototype** | The features | `standard` only | DUT ready |
 | **2 · Cover the normal variants** | Breadth of normal life | `deviation` | Journey green **and** every standard test green — *the prototype runs* |
 | **3 · Build the error handling** | Fault and abuse behaviour | `negative` + adversarial `security` | All standard **and** deviation tests green |
 

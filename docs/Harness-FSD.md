@@ -52,7 +52,7 @@ gate.
 |-------|---------|----------------|
 | 0 · Definition | `/define` | **Load defined** — every requirement states how it will be proven |
 | 1 · Harness | `/harness` | **AI harnessed** — a session can open, state its position, and act |
-| 2 · Commissioning | `/commission` | **Testbench trusted** — a failing test means the code, not the setup |
+| 2 · Commissioning | `/commission` | **DUT ready** — the testbench is commissioned, the DUT is connected and verified, and the forward path delivers code to it; a failing test means the code, not the setup |
 | 3 · Build | `/build` | **Ready for shipment** — every requirement met, journey green |
 | ⚑ Shipment | `git tag` | **Shipped** — release published, journey green on the released bytes |
 

@@ -56,7 +56,7 @@ real silicon, and the only way the AI gets to stop.
 |-------|--------|---------|------|
 | **0 · Definition** — `/define` | Describe the product; answer an interview, one question at a time | An FSD where every requirement already says how it will be proven | Load defined |
 | **1 · Harness** — `/harness` | One command; answer the two questions only you can | The project strapped in: docs, test plan, firmware hooks, CI, runner | AI harnessed |
-| **2 · Commissioning** — `/commission` | Plug the board into a slot, wire any peers | Your board and peers proven working here — a failing test now means the code | Testbench trusted |
+| **2 · Commissioning** — `/commission` | Plug the board into a slot, wire any peers | Your board and peers proven working here — a failing test now means the code | DUT ready |
 | **3 · Build** — `/build` | Start sessions; approve the occasional spec question | Requirements turning green, one by one, on real hardware | Ready for shipment |
 | **⚑ Shipment** — `git tag` | Push the version tag — the one act that stays human | A release built in a pinned container and verified on the testbench: the journey runs once more on the exact bytes users download | Shipped |
 
