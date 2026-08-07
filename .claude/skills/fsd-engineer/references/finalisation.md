@@ -23,7 +23,7 @@ did about it.
       document that *names* the banned words in order to ban them will otherwise
       report itself as failing.
 - [ ] **Typed** — architecture decisions and implementation recommendations are in
-      the Harness, not written as functional requirements.
+      the Method, not written as functional requirements.
 - [ ] **Provenance tagged**; nothing a pack proposed was adopted unaccepted;
       declines recorded under *Explicitly out of scope*. No unbound
       `{{parameters}}`.

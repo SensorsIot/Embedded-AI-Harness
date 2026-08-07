@@ -48,7 +48,7 @@ There is no ruff or mypy configuration file; both run on defaults.
 
 Skills under `.claude/skills/` are part of the product, not scratch notes. They
 belong to this plane: a skill constrains how the bench is driven, which is a HOW
-question, and the same rules apply to it as to any Harness document.
+question, and the same rules apply to it as to any Method document.
 
 **A skill links to Appendix D; it never restates it.** Endpoint lists, request
 and response shapes, field defaults and state tables are the FSD's to state. What

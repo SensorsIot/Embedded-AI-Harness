@@ -1,6 +1,6 @@
-# Embedded Workbench — Harness (HOW)
+# Embedded Workbench — Method (HOW)
 
-The Harness is the **build contract**: the rules for how this project is built and
+The Method is the **build contract**: the rules for how this project is built and
 changed. Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
 
 ## Layout
@@ -19,9 +19,9 @@ changed. Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
 | **HOW** | How is it built and changed? | This directory |
 | **OPERATE** | How do I run it? | [`../Embedded-Workbench-User-Manual.md`](../Embedded-Workbench-User-Manual.md) |
 
-The FSD defines the target; the Harness defines the method; the Handbook describes
+The FSD defines the target; the Method defines the way there; the Handbook describes
 the running system. On conflict the FSD wins on *what must be true* and the
-Harness wins on *how to get there*. If the Handbook disagrees with either, the
+Method wins on *how to get there*. If the Handbook disagrees with either, the
 Handbook is stale.
 
 `CLAUDE.md` is **not** a plane. It configures the AI assistant and points here; it
@@ -29,16 +29,16 @@ holds no project rules of its own.
 
 ## What belongs here
 
-A rule belongs in the Harness when it constrains **how the code is written,
+A rule belongs in the Method when it constrains **how the code is written,
 structured, or verified** without being observable from outside the running
 system.
 
 | Sentence | Plane | Why |
 |----------|-------|-----|
 | "Serial reconnects within 2 s of replug" | FSD | A black-box tester can verify it |
-| "One controller module per instrument" | Harness | Invisible from outside; would not survive a rewrite |
+| "One controller module per instrument" | Method | Invisible from outside; would not survive a rewrite |
 | "Flash the SD card with Raspberry Pi Imager" | Handbook | The reader is holding hardware |
-| "Deploy with `scp portal.py … && systemctl restart`" | Harness | It is how the system is changed |
+| "Deploy with `scp portal.py … && systemctl restart`" | Method | It is how the system is changed |
 
 ## Documentation rule
 

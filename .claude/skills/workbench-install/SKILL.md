@@ -120,7 +120,7 @@ curl -s $WORKBENCH_URL/api/info
 every operation has an HTTP endpoint and `pytest/workbench_driver.py` wraps them
 all. Reaching for SSH to *do* something means the API is missing a capability —
 add the endpoint instead. This is a project rule, not a preference; see
-[`docs/Harness/AI-Workflow.md`](../../../docs/Harness/AI-Workflow.md#deploying-a-change-to-the-bench).
+[`docs/Method/AI-Workflow.md`](../../../docs/Method/AI-Workflow.md#deploying-a-change-to-the-bench).
 
 ## Things that only bite in practice
 
@@ -167,5 +167,5 @@ first present device, so on an empty bench it fails with `no device found`
 instead of exercising what it claims to.
 
 If the change altered externally observable behaviour, it belongs in the FSD; if
-it changed how the bench is built or deployed, it belongs in the Harness. See
-[`docs/Harness/AI-Workflow.md`](../../../docs/Harness/AI-Workflow.md).
+it changed how the bench is built or deployed, it belongs in the Method. See
+[`docs/Method/AI-Workflow.md`](../../../docs/Method/AI-Workflow.md).

@@ -8,16 +8,16 @@ itself within a release.
 | Plane | Question | Document | Reader |
 |-------|----------|----------|--------|
 | **WHAT** | What must be true of this system? | **FSD** | Anyone judging whether the system is correct — reviewer, tester, auditor, future maintainer |
-| **HOW** | How is this system built and changed? | **Harness** | Whoever writes the next change — a person or an AI agent |
+| **HOW** | How is this system built and changed? | **Method** | Whoever writes the next change — a person or an AI agent |
 | **OPERATE** | How do I run it? | **User documentation** (`docs/UserDocumentation/`) | Whoever installs, drives, or recovers the running system |
 
 ## Authority order
 
 1. **FSD (WHAT)** defines the target. It is the contract.
-2. **Harness (HOW)** defines the method. It cannot change the target.
+2. **Method (HOW)** defines the way there. It cannot change the target.
 3. **User documentation (OPERATE)** describes the running system as built.
 
-On conflict: the FSD wins on *what must be true*; the Harness wins on *how to get
+On conflict: the FSD wins on *what must be true*; the Method wins on *how to get
 there*. If the user documentation disagrees with either, it is stale — it
 describes reality, so a disagreement means either reality or the spec moved.
 
@@ -33,7 +33,7 @@ Ask in order; the first "yes" wins:
    running system? → **FSD**. ("Reconnects within 30 s." "Rejects payloads over
    1 KB with `-1`.")
 2. Does it constrain **how the code is written, structured, or verified**, without
-   being observable from outside? → **Harness**. ("One module per component."
+   being observable from outside? → **Method**. ("One module per component."
    "Lower layers never import higher ones." "Every change ships its test.")
 3. Does it tell a human **how to run, install, or recover** the system? →
    **UserDocumentation**. ("Flash the SD card." "If the dongle wedges, POST /api/sdr/reset.")
@@ -59,7 +59,7 @@ their contracts, requirements (atomic, falsifiable, provenance-tagged), the stat
 model, acceptance criteria and verification tiers, risks and assumptions. It names
 the tier a requirement is verified at; it does not contain test steps.
 
-**Harness (HOW)** — the build contract:
+**Method (HOW)** — the build contract:
 - `00-Overview.md` — the plane map and authority order.
 - `AI-Workflow.md` — the loop every change follows. This is the entry point.
 - `standards/` — portable rules reusable on any project (engineering conventions,
@@ -81,7 +81,7 @@ has rather than forcing new files:
 | Role | Typical binding |
 |------|-----------------|
 | `[SPEC]` | `docs/Functionality/` — the FSD, or a set of per-component FSDs |
-| `[HARNESS]` | `docs/Harness/` (must be committed — an untracked harness is unshared, therefore undocumented) |
+| `[METHOD]` | `docs/Method/` (must be committed — an untracked Method plane is unshared, therefore undocumented) |
 | `[OPERATE]` | `docs/UserDocumentation/` — **one user manual with chapters**, created from the first commit even when empty |
 
 The WHAT plane may be a single FSD or a set of per-component FSDs; the other two
@@ -107,9 +107,9 @@ role, **bind to it** — do not create a competing parallel file.
 | Pattern | Why it fails |
 |---------|--------------|
 | A fourth plane ("Design", "Notes", "Architecture") | Content that fits none of three fits none at all — it is HOW with a different hat. |
-| Harness kept untracked or in a private config | Unversioned ⇒ unshared ⇒ effectively undocumented. |
+| Method kept untracked or in a private config | Unversioned ⇒ unshared ⇒ effectively undocumented. |
 | The same fact stated in two planes | They diverge on the first edit. Link, never restate. |
 | Operations split across several documents | The reader has no single starting point, and the one they miss is the one that goes stale. One manual, chapters not files. |
 | Test steps in the FSD | The FSD names the tier and criterion; the test skills own the steps. |
 | History in any plane | "Previously the API used X" belongs in `git log`. |
-| `CLAUDE.md` used as the Harness | It is assistant configuration, not project documentation, and is often gitignored. |
+| `CLAUDE.md` used as the Method | It is assistant configuration, not project documentation, and is often gitignored. |

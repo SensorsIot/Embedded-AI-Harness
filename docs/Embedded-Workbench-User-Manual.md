@@ -10,7 +10,7 @@ It is one of three documents, each answering a different question:
 | Plane | Question | Document |
 |-------|----------|----------|
 | WHAT | What must be true of the bench? | [`Embedded-Workbench-FSD.md`](Embedded-Workbench-FSD.md) — **[Appendix D](Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)** is the complete HTTP API and MCP tool reference |
-| HOW | How is it built and changed? | [`Harness/`](Harness/00-Overview.md) |
+| HOW | How is it built and changed? | [`Method/`](Method/00-Overview.md) |
 | **OPERATE** | **How do I run it?** | **this manual** |
 
 When this manual shows a call, the FSD defines its exact contract. If the two
@@ -964,7 +964,7 @@ Claude Code loads skills at session start, so restart your session after copying
 | `signal-generator` · `sdr-receiver` | RF transmit · RF receive, decode, reverse-engineering |
 | `workbench-test-handling` | The test execution protocol, live progress, operator prompts, `WorkbenchDriver` |
 | `workbench-integration` | Add workbench support to an existing ESP32 project |
-| `fsd-engineer` | Requirements, verification contracts, test specifications, traceability, and the Harness/Handbook planes |
+| `fsd-engineer` | Requirements, verification contracts, test specifications, traceability, and the Method/Handbook planes |
 
 Most `workbench-*` skills assume the bench is at `workbench.local`, or the IP in
 `SERIAL_PI` — override that in your shell or devcontainer if your network differs.

@@ -3,7 +3,7 @@ name: fsd-engineer
 description: >
   Engineers a system's specification and its verification together — what the
   system must do, and how compliance will be demonstrated. Writes and evolves the
-  FSD, the Harness (build contract) and the user documentation (operations); turns vague
+  FSD, the Method (build contract) and the user documentation (operations); turns vague
   intent into atomic, falsifiable, provenance-tagged requirements with state
   models, interface and configuration catalogues, a security profile, complete
   test specifications, host/target/bench tiers, and traceability that never
@@ -57,7 +57,7 @@ version-controlled artefacts. Chat history is not authoritative.
 create it as the first act — `git init`, the §10 skeleton, an initial commit —
 and commit each artefact as it is finished rather than in one heap at the end. A
 specification written into a scratch directory is not a deliverable yet, and an
-untracked Harness is unshared and therefore undocumented. Where `gh` cannot
+untracked Method is unshared and therefore undocumented. Where `gh` cannot
 create the remote, create the local repository, set the `origin` URL, and say
 plainly what is left for the user to do.
 
@@ -86,7 +86,7 @@ Seven modes. Pick by what already exists and what the user is asking for.
 | **create** | `/fsd-engineer` + description | No FSD yet. **Harvest first** (§4), then ask only what is still open — 1–3 questions per round — and generate. |
 | **update** | `/fsd-engineer update <path>` + delta | An FSD exists. Apply the delta surgically — never regenerate the whole file, never renumber a stable ID. |
 | **grill** | `/fsd-engineer --grill` + description | **Cold start only** — invoked with no prior conversation and no decisions file, on a brief too thin to infer architecture from. If step 2 above already happened, use `create` instead. One question at a time, depth-first, each with a recommended answer. |
-| **planes** | `/fsd-engineer --planes [path]` | Write the Harness and UserDocumentation, or retrofit an existing doc set into the three planes. Preview the move plan and get confirmation **before** moving anything. |
+| **planes** | `/fsd-engineer --planes [path]` | Write the Method and UserDocumentation, or retrofit an existing doc set into the three planes. Preview the move plan and get confirmation **before** moving anything. |
 | **tests** | `/fsd-engineer tests <path>` | The FSD is stable but its verification is not. **Opens by asking for the standard end-to-end run** (§6.9), then clause inventory → tier allocation → controllability → test classes, emitting specs plus an updated matrix. |
 | **audit** | `/fsd-engineer audit` | Answers "are we actually done?" — reports the lifecycle state of every requirement and the gaps by category. Expect most requirements to sit below *verified*; that is information, not failure. |
 | **reconcile** | `/fsd-engineer reconcile` | Code, tests, and documents drifted apart. Identifies undocumented behaviour, obsolete tests, stale evidence, contradictions — and **proposes**, never silently adopts. |
@@ -309,7 +309,7 @@ The FSD body mirrors these layers: each component is a self-contained chapter
 grouped under layer Parts. §x.0 Test Architecture then maps layers to tiers and
 references a generated component × tier matrix.
 
-**Source-layout rules are HOW, so they live in the Harness**, not here — one
+**Source-layout rules are HOW, so they live in the Method**, not here — one
 module per component, lower layers never importing higher ones, pure cores
 extracted. None is observable from outside a running system.
 
@@ -324,11 +324,11 @@ specs rot. Route every sentence to exactly one:
 | Plane | Question | Document |
 |-------|----------|----------|
 | **WHAT** | What must be true? | `docs/Functionality/` |
-| **HOW** | How is it built and changed? | `docs/Harness/` |
+| **HOW** | How is it built and changed? | `docs/Method/` |
 | **OPERATE** | How do I run it? | `docs/UserDocumentation/` |
 
 Ask in order, first yes wins: externally observable ⇒ **FSD**; constrains how
-code is written or verified ⇒ **Harness**; tells a human how to run or recover it
+code is written or verified ⇒ **Method**; tells a human how to run or recover it
 ⇒ **UserDocumentation**; about collaborating with the assistant ⇒ `CLAUDE.md`, which is not
 a plane; why a past decision was made ⇒ commit message or ADR.
 
@@ -336,7 +336,7 @@ Two questions settle the hard cases: *could a black-box tester verify it?* (yes 
 WHAT) and *would it survive a rewrite in another language?* (no ⇒ HOW).
 
 Planes are roles, not filenames — bind to a document that already fills the role
-rather than creating a competitor. The Harness must be committed. Never invent a
+rather than creating a competitor. The Method must be committed. Never invent a
 fourth plane; content fitting none of the three is HOW wearing a hat.
 
 Full model, retrofit procedure, anti-patterns, and the templates to instantiate:
@@ -395,7 +395,7 @@ The repository comes first (§0) — this is the skeleton to create it with.
 
 ```text
 docs/Functionality/       WHAT   — the FSD, plus the interface specs it cites
-docs/Harness/             HOW    — 00-Overview · AI-Workflow · standards/ · project/
+docs/Method/             HOW    — 00-Overview · AI-Workflow · standards/ · project/
 docs/UserDocumentation/   OPERATE— one user manual with chapters, from day one
 docs/decisions.md · docs/open-issues.md      inputs and rationale — not planes
 
@@ -462,7 +462,7 @@ passed is worth nothing.
 | `references/test-design.md` | What to build: the two opening questions, clause inventory, controllability (Drive/Feed/Emulate/Observe/Rig), observability, the four test kinds and their order, cleanup, seams |
 | `references/test-lifecycle.md` | When and what it means: the write-order, where a project sits on it, test status, computed blocking, reconciliation, gap categories |
 | `references/three-planes.md` | WHAT / HOW / OPERATE model, routing rule, retrofit procedure |
-| `references/templates/` | `00-Overview` (the plane map, at `docs/` root), the Harness set, and the user-manual stub |
+| `references/templates/` | `00-Overview` (the plane map, at `docs/` root), the Method set, and the user-manual stub |
 | `references/canonical-fsd-structure.md` | The Parts scheme and chapter skeleton |
 | `references/test-architecture.md` | Layering, tier profiles, component × tier matrix |
 | `references/complexity-scaling.md` | Depth scaling by inferred complexity |

@@ -11,7 +11,7 @@ via Appendix D for anything API-shaped. If no rule covers it, the work starts by
 defining the **WHAT** (a new atomic, falsifiable requirement), not by writing
 code.
 
-**2. Build per the Harness.** Follow [`standards/`](standards/) and
+**2. Build per the Method.** Follow [`standards/`](standards/) and
 [`project/`](project/). Reuse an existing endpoint, controller, or skill before
 adding new code. Make the smallest change that satisfies the rule.
 
@@ -27,7 +27,7 @@ A bug fix reproduces the failure first.
   requirement.
 - **Handbook** absorbs anything an operator would notice — a new command, a new
   failure mode, a new troubleshooting row.
-- **Harness** changes only when the lesson is universally true for this project.
+- **Method** changes only when the lesson is universally true for this project.
 - All present-state. No "now uses", no "previously".
 
 **5. Verify both directions.** Every endpoint in `pi/portal.py` appears in
@@ -69,6 +69,6 @@ add the endpoint instead.
 
 ## Roles
 
-Any change may touch the FSD and Handbook. Changing the Harness itself is a
+Any change may touch the FSD and Handbook. Changing the Method itself is a
 deliberate act: it re-scopes every future change, so state what rule you are
 adding and why it is universal, not local to the task in hand.

@@ -19,7 +19,7 @@ actually needs — not all of them for every project, but each one that applies.
 
 Major components and their ownership boundaries. Layers may be used, but they are
 presented as **architecture**, not as external behaviour — so the layering lives
-in §2.4 of the FSD while the rules that make source mirror it live in the Harness
+in §2.4 of the FSD while the rules that make source mirror it live in the Method
 (`three-planes.md`).
 
 ---

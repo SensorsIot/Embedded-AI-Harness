@@ -11,7 +11,7 @@ falsifiable requirement — not by writing code. A change with no rule behind it
 either scope creep or an undocumented requirement; both need resolving before
 implementation.
 
-**2. Build per the Harness.** Follow `standards/` and `project/`. Reuse an
+**2. Build per the Method.** Follow `standards/` and `project/`. Reuse an
 existing module, helper, or skill before adding new code. Make the smallest change
 that satisfies the rule — no speculative scope, no drive-by refactors.
 
@@ -27,7 +27,7 @@ nothing.
   the code deviates from the intended spec, fix the code; do not enshrine the
   defect as a requirement.
 - The **user documentation** absorbs anything an operator would notice.
-- The **Harness stays put** unless the change taught a rule that is *universally*
+- The **Method stays put** unless the change taught a rule that is *universally*
   true for this project, not just for this change.
 - All present-state. No "now uses", no "previously".
 

@@ -199,7 +199,7 @@ Three documents, one per question, and everything is in one of them:
 |----------|----------|-------------|
 | **How do I run it?** | **[User Manual](docs/Embedded-Workbench-User-Manual.md)** | Building the Pi, wiring, and driving every service — install, serial, flashing, debug, WiFi, RF, test automation, troubleshooting. |
 | **What must be true?** | **[Functional Specification](docs/Embedded-Workbench-FSD.md)** | What the bench does, clause by clause. [Appendix D](docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference) is the complete HTTP API and MCP tool reference. |
-| **How is it built?** | **[Harness](docs/Harness/00-Overview.md)** | The build contract for contributors and AI agents — [workflow](docs/Harness/AI-Workflow.md), [architecture](docs/Harness/project/architecture.md), conventions, testing standard. |
+| **How is it built?** | **[Method](docs/Method/00-Overview.md)** | The build contract for contributors and AI agents — [workflow](docs/Method/AI-Workflow.md), [architecture](docs/Method/project/architecture.md), conventions, testing standard. |
 
 ## 🙏 Attributions
 

@@ -1,4 +1,4 @@
-# {{PROJECT}} — Harness (HOW)
+# {{PROJECT}} — Method (HOW)
 
 The **build contract**: the rules for how this project is built and changed.
 Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.

@@ -25,7 +25,7 @@
 This document is the **WHAT** plane: what must be true of the bench. Two companion
 documents answer the other questions, and nothing here duplicates them —
 
-- **HOW** it is built and changed: [`Harness/`](Harness/00-Overview.md) — the
+- **HOW** it is built and changed: [`Method/`](Method/00-Overview.md) — the
   build contract, source layout, conventions, and testing standard.
 - **OPERATE** — building the Pi, wiring, and driving each service:
   [User Manual](Embedded-Workbench-User-Manual.md).

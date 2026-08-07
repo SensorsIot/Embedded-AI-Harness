@@ -207,7 +207,7 @@ If the user does not specify a target path:
 ```text
 docs/
 ├── Functionality/                WHAT — the FSD + the interface specs it cites
-├── Harness/                      HOW  — 00-Overview, AI-Workflow, standards/, project/
+├── Method/                      HOW  — 00-Overview, AI-Workflow, standards/, project/
 ├── UserDocumentation/            OPERATE — 00-Overview from the first commit,
 │                                 even when nothing is deployable yet
 ├── decisions.md                  settled decisions with provenance — not a plane
@@ -240,8 +240,8 @@ impose one.
 
 **Bind before creating.** If a document already fills a plane's role — a user
 manual, a runbook, an existing spec — bind to it and extend it. Never create a
-second file competing for the same role. The Harness must be committed to the
-repo; an untracked harness is unshared and therefore undocumented.
+second file competing for the same role. The Method must be committed to the
+repo; an untracked Method plane is unshared and therefore undocumented.
 
 Examples:
 - `Documents/esp32-ble-hid-keyboard-fsd.md`
@@ -337,7 +337,7 @@ Mode B (evolve) for incremental changes.
 
 ### 2.4 Mode D — Planes (write or retrofit HOW / OPERATE)
 
-Create the Harness and UserDocumentation alongside the FSD, or split an existing document
+Create the Method and UserDocumentation alongside the FSD, or split an existing document
 set into the three planes (§6.11).
 
 ```
@@ -348,7 +348,7 @@ Behaviour:
 
 1. **Inventory.** List every existing document and the plane role it currently
    fills. A single "spec" almost always fills two or three at once.
-2. **Bind roles to files.** `[SPEC]`, `[HARNESS]`, `[OPERATE]` — bind to what
+2. **Bind roles to files.** `[SPEC]`, `[METHOD]`, `[OPERATE]` — bind to what
    already exists before proposing new files. An existing user manual *is* the
    OPERATE plane; do not create a second one beside it.
 3. **Triage each section** with the §6.11 routing rule. Produce a move plan:
@@ -408,4 +408,4 @@ contradictions, then **proposes** FSD changes.
 
 It does not silently adopt what the code happens to do — detected behaviour is
 adjudicated per `references/requirement-quality.md` §2, and the four outcomes are
-document / demote to Harness / fix the code / delete it.
+document / demote to Method / fix the code / delete it.

@@ -19,8 +19,8 @@ behaviour.
 | **Quality requirement** | Measurable performance, reliability, accuracy, security, maintainability | FSD |
 | **Constraint** | Mandatory restriction on platform, technology, environment, regulation, operation | FSD |
 | **Verification requirement** | Mandatory method, tier, evidence, or acceptance rule | FSD |
-| **Architecture decision** | Approved structural design choice | Harness |
-| **Implementation recommendation** | Non-normative advice; may be accepted, changed, or rejected | Harness |
+| **Architecture decision** | Approved structural design choice | Method |
+| **Implementation recommendation** | Non-normative advice; may be accepted, changed, or rejected | Method |
 | **Assumption** | Treated as true, not yet established | FSD §5 Risks |
 | **Open decision** | Product or architecture decision still unresolved | `open-issues.md` |
 
@@ -73,7 +73,7 @@ pending       blocked on an open decision
 does something proves only that it does it. Ask which of four things it is:
 
 1. documented as intended behaviour → becomes `approved`;
-2. retained only as an implementation detail → goes to the Harness, not the FSD;
+2. retained only as an implementation detail → goes to the Method, not the FSD;
 3. non-compliant → the *code* changes, not the spec;
 4. orphaned → deleted.
 

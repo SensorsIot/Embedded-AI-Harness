@@ -18,7 +18,7 @@ has no way to tell which is current.
 **Routed by plane.** Before writing a sentence, decide which plane owns it:
 
 1. Externally observable and must be true → **FSD**
-2. Constrains how code is written or verified → **Harness**
+2. Constrains how code is written or verified → **Method**
 3. Tells a human how to run or recover the system → **Handbook**
 4. About collaborating with the AI assistant → `CLAUDE.md` (not a plane, not
    project documentation)
@@ -31,7 +31,7 @@ chapter (create one only if none fits), and link rather than restate anything
 already documented elsewhere.
 
 **B — After a change.** The WHAT absorbs new behaviour (verify against the code,
-don't transcribe it); the Handbook absorbs anything an operator sees; the Harness
+don't transcribe it); the Handbook absorbs anything an operator sees; the Method
 changes only if the lesson is universally true for the project. Then reconcile:
 walk the doc against the implementation and classify each rule as compliant,
 deviating, or missing. Deviations fix the code. Finally, scrub tense.
