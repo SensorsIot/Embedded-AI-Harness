@@ -23,11 +23,18 @@ If the debugging agenda is already burned down, say so and continue as
 proves bench capabilities is the harness's own reference firmware
 (`test-firmware/` in the Embedded-AI-Harness repo — it exercises association,
 provisioning, UDP logging, HTTP, OTA and MQTT), flashed to the DUT as
-known-good equipment. Every bench capability is proven against it in minutes;
-nothing waits for the product to exist, and no capability "folds forward" into
-Wave 1. Once the testbench is trusted, the project's firmware runs against it
-— and any failure is unambiguously the project's. Commissioning that iterates
-on project firmware is measuring two unknowns with one instrument.
+known-good equipment. Nothing waits for the product to exist, and commissioning
+that iterates on project firmware is measuring two unknowns with one
+instrument.
+
+**Prove now only what the journey's first tests consume** — flash, serial,
+AP, portal automation, UDP, relay, broker. A capability consumed only by
+*late* tests (the bench serving OTA images, say) is proven **just-in-time**,
+still with the reference probe, immediately before its first consuming test —
+minutes then, zero on the critical path now. The plan records it as
+`unproven, proven before <test>` so the deferral is a statement, not a gap.
+Once the testbench is trusted, the project's firmware runs against it — and
+any failure is unambiguously the project's.
 
 ## What commissioning is
 
