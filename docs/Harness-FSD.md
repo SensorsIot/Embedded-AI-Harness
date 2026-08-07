@@ -1095,6 +1095,9 @@ of a WiFiManager DUT onto a NAT-bridged AP, verifying it reaches the LAN:
 The Pi's wlan0 runs hostapd + dnsmasq to create a SoftAP:
 
 - **SSID/password/channel** configurable per `POST /api/wifi/ap_start`
+- **WiFi power save is forced off on every AP start** — brcmfmac re-enables it
+  when the interface cycles, and a power-saving AP sleeps between beacons:
+  stations associate, lose the AP, and report `NO_AP_FOUND` for minutes
 - **IP addressing:** AP IP is `192.168.4.1/24`
 - **DHCP range:** `192.168.4.2` – `192.168.4.20`, 1-hour leases
 - **Station tracking:** dnsmasq calls `wifi-lease-notify.sh` on DHCP events

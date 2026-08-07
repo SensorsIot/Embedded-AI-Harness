@@ -341,6 +341,14 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
             out = _ap_hostapd_proc.stdout.read().decode(errors="replace")
             raise RuntimeError(f"hostapd failed to start: {out[:500]}")
 
+        # brcmfmac re-enables WiFi power save whenever the interface cycles
+        # (logged as "power save enabled"), and a power-saving AP sleeps
+        # between beacons: stations associate, lose the AP, and report
+        # NO_AP_FOUND for minutes. Force it off every AP start. iw lives in
+        # /usr/sbin, which is not on PATH for the service.
+        _run(["/usr/sbin/iw", "dev", WLAN_IF, "set", "power_save", "off"],
+             check=False)
+
         # Start dnsmasq
         _ap_dnsmasq_proc = subprocess.Popen(
             ["dnsmasq", "-C", DNSMASQ_CONF],
