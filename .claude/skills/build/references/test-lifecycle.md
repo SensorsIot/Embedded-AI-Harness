@@ -60,14 +60,14 @@ capabilities:
     available: unproven  # the bench declares it; nobody has seen it work HERE
 ```
 
-**`available` has three values, and the third is the load-bearing one:**
-`yes` means *observed working here, on this bench, for this project*; `no`
-means it cannot be done; **`unproven`** means the bench declares it but nobody
-has seen it do its job here — treated as unavailable for blocking, and every
-`unproven` entry is an item on the debugging agenda. Proving the item is what
-flips it to `yes`; nothing is typed twice. A capability assumed available is
-how a session spends an afternoon debugging firmware against a rig that was
-never wired the way everyone believed.
+**`available` has three values.** `yes` — for the workbench's declared
+capabilities, taken at face value: *no project tests the testbench; a project
+depends on its quality* (fixed in the bench's own repo only when DUT evidence
+disproves it). `no` — it cannot be done; state the consequence.
+**`unproven`** — for **project-side equipment only** (peers, simulators, the
+DUT's own wiring): declared but never observed doing its job here — treated
+as unavailable for blocking, and every `unproven` entry is a debugging-agenda
+item. Proving it flips it to `yes`; nothing is typed twice.
 
 This is where the model earns its keep. On one project a safety requirement
 rendered as *"needs button-gpio, ota-relay"* — because observing it required
