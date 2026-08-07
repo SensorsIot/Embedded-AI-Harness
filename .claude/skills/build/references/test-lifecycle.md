@@ -81,9 +81,13 @@ across several cycles and require one good one"* changes how tests get written.
 
 Two lists, both of which must end empty:
 
-- declared in the plan, absent from the code → the backlog
-- **implemented, absent from the plan** → a test verifying something nobody wrote
-  down, or a duplicate about to be written for a requirement already covered
+- declared in the plan with an empty `impl:` → the backlog
+- **an executable that no entry's `impl:` points at** → a test verifying
+  something nobody wrote down, or a duplicate about to be written for a
+  requirement already covered
+
+Both lists are computed from `impl:` (`test-design.md` §5a), never from
+matching names.
 
 The second is the one people forget, and it silently produces duplicate work.
 

@@ -342,8 +342,22 @@ TC-<area>-<nn>           atomic — one requirement's behaviour
   `TC-NULL-07-zero` and `TC-NULL-07-over` are two boundary values of one
   requirement and read correctly forever.
 
-Each plan entry carries `verifies:` — the requirement ids it discharges —
-which is what makes traceability computable in both directions.
+Each plan entry carries two links, and both are what make traceability
+computable instead of guessed:
+
+- **`verifies:`** — the requirement ids this test discharges. Upward, to the
+  FSD.
+- **`impl:`** — where the executable lives, in the runner's own addressing
+  (`tests/bench/test_journey.py::test_jrn_01`,
+  `tests/host/test_decode.c:decode_rejects_short_frame`). Downward, to the
+  code. Empty while the test is only declared; filled the moment it is
+  written.
+
+Without `impl:`, reconciliation degrades to matching names, and the direction
+people already forget — *implemented but not declared* — cannot be computed at
+all. With it, both lists in `test-lifecycle.md` §1 fall out of the file: plan
+entries whose `impl` is empty are the backlog; executables no `impl` points at
+are tests nobody wrote down.
 
 ---
 
