@@ -33,8 +33,15 @@ AP, portal automation, UDP, relay, broker. A capability consumed only by
 still with the reference probe, immediately before its first consuming test —
 minutes then, zero on the critical path now. The plan records it as
 `unproven, proven before <test>` so the deferral is a statement, not a gap.
-Once the testbench is trusted, the project's firmware runs against it — and
-any failure is unambiguously the project's.
+
+**Testbench trust is established here minimally and maintained in Phase 3
+continuously — never guaranteed upfront.** Real work exercises paths no
+upfront procedure can, so Phase 3 *will* surface bench deficiencies. A red is
+attributed to the product first; when evidence exonerates the product, the
+bench fault is fixed at its source (a workbench change request), the
+capability note absorbs what was learned, and every future project inherits
+the improvement. Attempting exhaustive bench verification upfront — when
+nothing yet exists that could expose the errors — buys ceremony, not trust.
 
 ## What commissioning is
 
