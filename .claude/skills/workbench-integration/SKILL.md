@@ -12,8 +12,9 @@ description: >
 # ESP32 Workbench Integration
 
 This is a procedure. When triggered, read the project's existing FSD, integrate
-the firmware with the workbench infrastructure (UDP logging, OTA, BLE command
-handling, strategic log messages), then write the operational, testing, and
+the firmware with the workbench infrastructure — each module **only when the
+FSD requires it** (UDP logging always; OTA, BLE command handling, provisioning
+per scope; strategic log messages always), then write the operational, testing, and
 appendix chapters into the FSD.
 
 **Prerequisite:** The project must already have an FSD with at least a System
@@ -81,7 +82,7 @@ All template code lives in `Embedded-AI-Harness/test-firmware/`. When adding mod
 The workbench actively drives the device through BLE commands, HTTP relay, captive portal automation, and serial/UDP log parsing. The firmware must conform to two contracts:
 
 - **Contract 1: Required Log Messages** -- 17 exact format strings the workbench greps for (e.g. `"Init complete"`, `"STA got IP"`, `"OTA succeeded"`). Missing or reformatted strings break workbench detection.
-- **Contract 2: Required Process Flows** -- WiFi provisioning (SoftAP captive portal), WiFi reset (BLE-triggered), OTA (HTTP `/ota` endpoint), BLE commands (NimBLE NUS), and the canonical boot sequence.
+- **Contract 2: Process Flows** -- only the flows the FSD puts in scope: WiFi provisioning (SoftAP captive portal), OTA (HTTP `/ota` endpoint), BLE commands and BLE-triggered WiFi reset (NimBLE NUS) **only when the product uses BLE**, and the canonical boot sequence (always). A flow the spec never asked for is silent pack adoption.
 
 For the complete log pattern table, process flow sequences, and compatibility validation rules, read `references/compatibility-contract.md`.
 
