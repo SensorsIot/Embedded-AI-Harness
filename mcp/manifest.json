@@ -1,9 +1,9 @@
 {
   "manifest_version": "0.2",
-  "name": "universal-embedded-workbench",
-  "display_name": "Universal Embedded Workbench",
+  "name": "embedded-ai-harness-workbench",
+  "display_name": "Embedded AI Harness Workbench",
   "version": "1.1.0",
-  "description": "Drive a Universal Embedded Workbench (Raspberry Pi ESP32 test bench) from Claude: SDR, signal generator, flashing, OTA, serial, WiFi/provisioning, MQTT, BLE, GPIO, GDB debug.",
+  "description": "Drive the Embedded AI Harness workbench (Raspberry Pi ESP32 test bench) from Claude: SDR, signal generator, flashing, OTA, serial, WiFi/provisioning, MQTT, BLE, GPIO, GDB debug.",
   "long_description": "Exposes the workbench HTTP API as MCP tools so Claude can operate the bench conversationally. Zero Python dependencies (standard library only) — you only need Python 3 on this machine and network reach to the workbench. Set the workbench URL when you install.",
   "author": {
     "name": "SensorsIot",

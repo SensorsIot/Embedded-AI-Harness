@@ -23,7 +23,7 @@ None of the three carries history or rationale narrative. Those live in `git log
 | Making a change | [`Method/AI-Workflow.md`](Method/AI-Workflow.md) — the loop every change follows |
 | Judging correctness | `Functionality/{{FSD_FILE}}` — requirements, state model, verification contracts |
 | Installing or running it | [`UserDocumentation/`](UserDocumentation/) |
-| Wondering why | [`decisions.md`](decisions.md) — settled decisions with provenance, and the alternatives rejected |
+| Wondering why | `git log` — a decision leaves its effect in a plane and its reason in the commit |
 
 ## Routing a new sentence
 
@@ -33,7 +33,7 @@ Ask in order; the first yes wins:
 2. Constrains how code is written or verified → **Method**
 3. Tells a human how to run or recover the system → **UserDocumentation**
 4. About collaborating with an AI assistant → `CLAUDE.md`, which is not a plane
-5. Why a past decision was made → [`decisions.md`](decisions.md) or the commit message
+5. Why a past decision was made → the commit message
 
 Two questions settle the hard cases. *Could a black-box tester verify it?* — yes
 means WHAT. *Would it survive a rewrite in another language?* — no means HOW.
@@ -43,12 +43,12 @@ Worked examples: *"reconnects within 30 s"* and *"rejects oversized payloads wit
 import higher ones"* are Method. *"Flash the SD card with Raspberry Pi Imager"*
 is UserDocumentation.
 
-## The document that is not a plane
+## There is no decisions file
 
-[`decisions.md`](decisions.md) records what was settled and why, including the
-alternatives that were considered and rejected. Consult it before proposing a
-change that reverses one — a rejected alternative usually looks like an obvious
-improvement in isolation, which is why the reason is written down.
+A settled decision leaves its **effect** as present-state content in the plane
+it governs — a load-bearing "must not" becomes a stated negative requirement —
+and its reason in the commit message. Nothing else is recorded: a fossilised
+decision outlives the environment that justified it and then hinders new work.
 
 ## Writing rules
 

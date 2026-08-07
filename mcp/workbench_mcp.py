@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP server for the Universal Embedded Workbench — zero dependencies.
+"""MCP server for the Embedded AI Harness workbench — zero dependencies.
 
 Exposes the workbench HTTP API (http://<host>:8080/api/...) as MCP tools, so any
 MCP client (Claude Code, Claude Desktop, ...) can drive the bench — SDR, signal

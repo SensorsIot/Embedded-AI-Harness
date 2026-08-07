@@ -46,7 +46,7 @@ Clean, under the selection pinned in `pyproject.toml`. Getting there took fixing
 `except e:` that raises `NameError` instead of logging. Its defects are
 upstream's, and restyling it would conflict on the next vendor bump.
 
-`pytest/`, `mcp/`, `test-firmware/` and `container/` were already clean.
+`pytest/`, `mcp/` and `test-firmware/` were already clean.
 
 ## What is not gated
 

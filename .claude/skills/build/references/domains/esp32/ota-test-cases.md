@@ -1,4 +1,4 @@
-# OTA Test Specification for ESP32 Projects
+# OTA Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 Over-The-Air firmware update functionality. Copy relevant sections into project FSDs.
 

@@ -983,7 +983,7 @@ The server runs on the machine running the MCP client (your laptop), **not** on
 the Pi. It just needs network reach to the bench, pointed by `WORKBENCH_URL`.
 
 **Claude Desktop, one click.** Download
-[`mcp/universal-embedded-workbench.mcpb`](../mcp/universal-embedded-workbench.mcpb),
+[`mcp/embedded-ai-harness-workbench.mcpb`](../mcp/embedded-ai-harness-workbench.mcpb),
 then in Claude Desktop go to **Settings → Extensions** and drag the file onto the
 window. When prompted, enter your workbench URL — e.g.
 `http://workbench.local:8080`, or `http://workbench.local:8080` if mDNS resolves.
@@ -1030,7 +1030,7 @@ Then **fully restart** Claude Desktop — quit, not just close the window.
 
 ```bash
 cd mcp
-npx @anthropic-ai/mcpb pack . universal-embedded-workbench.mcpb
+npx @anthropic-ai/mcpb pack . embedded-ai-harness-workbench.mcpb
 npx @anthropic-ai/mcpb validate manifest.json
 ```
 

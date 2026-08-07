@@ -1,4 +1,4 @@
-# NVS Test Specification for ESP32 Projects
+# NVS Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 Non-Volatile Storage functionality (configuration persistence, credentials, factory reset). Copy relevant sections into project FSDs.
 

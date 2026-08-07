@@ -1,5 +1,5 @@
 {
-    "name": "Universal Embedded Workbench - Python Development",
+    "name": "Embedded AI Harness - Python Development",
     "build": {
         "dockerfile": "Dockerfile",
         "context": ".."

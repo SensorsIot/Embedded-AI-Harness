@@ -64,5 +64,5 @@ beside a skill are code and are wrong in the same way a skill is: check them
 against the handler, not against the skill's prose.
 
 `.claude/skills/` is the list — each skill's `description` states when it
-applies, which is also how it gets selected. The FSD and Handbook describe what
+applies, which is also how it gets selected. The FSD and User Manual describe what
 each drives.

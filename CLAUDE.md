@@ -30,7 +30,7 @@ pi/            Portal + one controller module per instrument
 pytest/        WorkbenchDriver, host tier, and the bench suite
 mcp/           MCP server + Claude Desktop .mcpb
 test-firmware/ ESP-IDF firmware that exercises the whole bench
-.claude/       skills/ (method + instruments) + agents/
+.claude/       skills/ — method (define · harness · commission · build) + instruments
 docs/          00-Overview · FSD · Method/ · User Manual
 ```
 

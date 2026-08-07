@@ -19,7 +19,7 @@ has no way to tell which is current.
 
 1. Externally observable and must be true → **FSD**
 2. Constrains how code is written or verified → **Method**
-3. Tells a human how to run or recover the system → **Handbook**
+3. Tells a human how to run or recover the system → **User Manual**
 4. About collaborating with the AI assistant → `CLAUDE.md` (not a plane, not
    project documentation)
 5. Why a past decision was made → commit message or ADR
@@ -31,7 +31,7 @@ chapter (create one only if none fits), and link rather than restate anything
 already documented elsewhere.
 
 **B — After a change.** The WHAT absorbs new behaviour (verify against the code,
-don't transcribe it); the Handbook absorbs anything an operator sees; the Method
+don't transcribe it); the User Manual absorbs anything an operator sees; the Method
 changes only if the lesson is universally true for the project. Then reconcile:
 walk the doc against the implementation and classify each rule as compliant,
 deviating, or missing. Deviations fix the code. Finally, scrub tense.

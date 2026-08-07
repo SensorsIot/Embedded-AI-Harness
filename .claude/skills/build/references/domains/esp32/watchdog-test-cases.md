@@ -1,4 +1,4 @@
-# Watchdog Test Specification for ESP32 Projects
+# Watchdog Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 watchdog timer functionality (software and hardware). Copy relevant sections into project FSDs.
 

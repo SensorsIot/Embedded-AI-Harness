@@ -1,4 +1,4 @@
-# Embedded Workbench — AI Workflow (the build contract)
+# The Harness — AI Workflow (the build contract)
 
 Read this before any change. It is how new functionality is built and how the
 documentation stays in sync with it.
@@ -25,7 +25,7 @@ A bug fix reproduces the failure first.
 - **FSD** absorbs new or changed behaviour — new endpoints go in the owning FR
   *and* Appendix D. Verify against the code; do not transcribe a defect into a
   requirement.
-- **Handbook** absorbs anything an operator would notice — a new command, a new
+- **User Manual** absorbs anything an operator would notice — a new command, a new
   failure mode, a new troubleshooting row.
 - **Method** changes only when the lesson is universally true for this project.
 - All present-state. No "now uses", no "previously".
@@ -69,6 +69,6 @@ add the endpoint instead.
 
 ## Roles
 
-Any change may touch the FSD and Handbook. Changing the Method itself is a
+Any change may touch the FSD and User Manual. Changing the Method itself is a
 deliberate act: it re-scopes every future change, so state what rule you are
 adding and why it is universal, not local to the task in hand.

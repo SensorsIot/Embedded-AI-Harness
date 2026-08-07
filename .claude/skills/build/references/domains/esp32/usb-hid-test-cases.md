@@ -1,4 +1,4 @@
-# USB HID Test Specification for ESP32 Projects
+# USB HID Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 USB Human Interface Device functionality (keyboard, mouse, gamepad). Copy relevant sections into project FSDs.
 

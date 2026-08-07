@@ -1,4 +1,4 @@
-# Captive Portal Test Specification for ESP32 Projects
+# Captive Portal Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 WiFi Access Point and captive portal provisioning. Copy relevant sections into project FSDs.
 

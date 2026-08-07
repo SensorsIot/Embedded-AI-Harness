@@ -26,7 +26,7 @@ stimulus cannot be stated is not finished.
 never edits them. Spec-defect findings flow up — when a declaration or an
 executable test proves a contract unsatisfiable, `/build` reports and this
 skill amends. A change request's Definition delta lands here
-(`/build` → `references/../../build/references/change-request.md`).
+(`/build` → `../build/references/change-request.md`).
 
 ## 0. Scope — what this skill does and does not do
 

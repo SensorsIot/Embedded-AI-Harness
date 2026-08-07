@@ -19,7 +19,6 @@
 | 13 | [Revision History](#13-revision-history) | |
 | A | [Technical Details](#appendix-a-technical-details) | Implementation notes |
 | B | [Slot Learning Workflow](#appendix-b-slot-learning-workflow) | |
-| C | [Implementation Tasks & Deliverables](#appendix-c-implementation-tasks--deliverables) | |
 | D | [HTTP API & MCP Reference](#appendix-d-http-api--mcp-reference) | **Complete endpoint and tool reference** |
 
 This document is the **WHAT** plane: what must be true of the bench. The plane
@@ -76,7 +75,7 @@ and reporting station events — all controlled over the same HTTP API.
        │                                               │
        ▼                                               ▼
 ┌─────────────────────────┐              ┌─────────────────────────────────┐
-│  Embedded Workbench     │              │  VM Host (192.168.0.160)        │
+│  Workbench              │              │  VM Host (192.168.0.160)        │
 │  workbench.local        │              │                                 │
 │                         │              │  ┌─────────────────────┐        │
 │  ┌───────────┐          │              │  │ Container A         │        │
@@ -2727,7 +2726,7 @@ Python standard library (stdio JSON-RPC + `urllib`), so it needs **no dependency
 install** — only Python 3. It ships two ways, both covered in the
 [User Manual §15.2](Harness-User-Manual.md#152-mcp-server):
 
-- **`mcp/universal-embedded-workbench.mcpb`** — a Claude Desktop extension (built
+- **`mcp/embedded-ai-harness-workbench.mcpb`** — a Claude Desktop extension (built
   from `mcp/manifest.json` + the server via `npx @anthropic-ai/mcpb pack`).
   Installed by drag-and-drop; the `workbench_url` user-config field prompts for
   `WORKBENCH_URL` at install.
@@ -3369,185 +3368,6 @@ Add this to /etc/rfc2217/workbench.json:
 4. Add to config as SLOT1 with `tcp_port: 4001`
 5. Repeat for each hub connector
 6. Restart portal service
-
----
-
-## Appendix C: Implementation Tasks & Deliverables
-
-### C.1 Tasks
-
-**Serial:**
-- [x] TASK-001: Create slot-based configuration loader
-- [x] TASK-002: Implement sequence counter in portal
-- [x] TASK-003: Implement per-slot locking (threading.Lock)
-- [x] TASK-004: Implement POST /api/hotplug endpoint
-- [x] TASK-005: Implement device settle checks in start_proxy
-- [x] TASK-006: Create rfc2217-udev-notify.sh script
-- [x] TASK-007: Create 99-rfc2217-hotplug.rules (systemd-run based)
-- [x] TASK-008: Create rfc2217-learn-slots tool
-- [x] TASK-009: Update web UI to show slot-based view
-- [x] TASK-010: Boot scan for already-plugged devices
-- [ ] TASK-011: Test all test cases
-- [ ] TASK-012: Deploy to Serial Pi (workbench.local)
-
-**Serial Services (v6.0):**
-- [ ] TASK-050: Implement `POST /api/serial/reset` (FR-008)
-- [ ] TASK-051: Implement `POST /api/serial/monitor` (FR-009)
-- [ ] TASK-052: Rewrite enter-portal as composite serial operation
-- [ ] TASK-053: Update flapping recovery to use serial reset (FR-007.3)
-
-**Native USB (ESP32-C3):**
-- [x] TASK-030: Create plain_rfc2217_server.py for ttyACM devices
-- [x] TASK-031: Auto-detect ttyACM vs ttyUSB and select proxy server
-- [x] TASK-032: Controlled boot sequence in plain_rfc2217_server.py
-- [x] TASK-033: Skip os.open() in wait_for_device() for ttyACM
-- [x] TASK-034: Add NATIVE_USB_BOOT_DELAY_S hotplug delay for ttyACM
-- [x] TASK-035: USB flap detection (FLAP_WINDOW/THRESHOLD/COOLDOWN)
-- [x] TASK-036: Flap detection UI (red FLAPPING badge + warning)
-
-**WiFi:**
-- [x] TASK-020: Implement wifi_controller.py (AP, STA, scan, relay, events)
-- [x] TASK-021: Add WiFi API routes to portal.py
-- [x] TASK-022: Implement mode switching (wifi-testing / serial-interface)
-- [x] TASK-023: Create wifi-lease-notify.sh for dnsmasq callbacks
-- [x] TASK-024: Create workbench_driver.py (HTTP test driver)
-- [x] TASK-025: Create conftest.py + test_instrument.py (WT-xxx tests)
-- [x] TASK-026: Add WiFi section to web UI with mode toggle
-- [x] TASK-027: Activity log system (deque, `log_activity()`, `GET /api/log`)
-- [x] TASK-028: Enter-portal endpoint (`POST /api/enter-portal`, rapid-reset via serial)
-- [x] TASK-029: Activity log UI panel with enter-portal button
-- [x] TASK-040: WiFi Workbench stale wpa_supplicant socket cleanup
-- [x] TASK-041: wpa_passphrase ctrl_interface fix for wpa_cli compatibility
-
-**Human Interaction (v6.1):**
-- [x] TASK-060: Implement `POST /api/human-interaction` with blocking Event (FR-017)
-- [x] TASK-061: Implement `GET /api/human/status`, `POST /api/human/done`, `POST /api/human/cancel`
-- [x] TASK-062: Human interaction modal in web UI (pulsing orange overlay, Done/Cancel)
-- [x] TASK-063: Switch to `ThreadingHTTPServer` for concurrent request handling
-- [x] TASK-064: Add `human_interaction()` method to `workbench_driver.py`
-- [x] TASK-065: Add `Cache-Control: no-cache` to UI HTML response
-
-**GPIO Control (v6.2):**
-- [x] TASK-070: Implement `POST /api/gpio/set` with pin allowlist and gpiod v2 API (FR-018)
-- [x] TASK-071: Implement `GET /api/gpio/status` for active pin readback (FR-018)
-- [x] TASK-072: Add `gpio_set()` and `gpio_get()` methods to `workbench_driver.py`
-- [ ] TASK-073: Implement WT-800–806 GPIO test cases in `test_instrument.py`
-
-**Test Progress (v6.2):**
-- [x] TASK-080: Implement `POST /api/test/update` and `GET /api/test/progress` (FR-019)
-- [x] TASK-081: Test progress panel in web UI (progress bar, current step, results)
-- [x] TASK-082: Add `test_start/step/result/end()` methods to `workbench_driver.py`
-- [ ] TASK-083: Implement WT-900–903 test progress test cases
-
-**UDP Log Receiver (v7.0):**
-- [ ] TASK-090: Implement UDP socket listener thread in portal.py (FR-020)
-- [ ] TASK-091: Implement `GET /api/udplog` and `DELETE /api/udplog` endpoints
-- [ ] TASK-092: Add `udplog()` and `udplog_clear()` methods to `workbench_driver.py`
-- [ ] TASK-093: Implement WT-1000–1005 UDP log test cases
-
-**OTA Firmware Repository (v7.0):**
-- [ ] TASK-100: Create firmware directory and path-safe file serving (FR-021)
-- [ ] TASK-101: Implement `GET /firmware/<project>/<filename>` binary serving
-- [ ] TASK-102: Implement `GET /api/firmware/list`, `POST /api/firmware/upload`, `DELETE /api/firmware/delete`
-- [ ] TASK-103: Add `firmware_list/upload/delete()` methods to `workbench_driver.py`
-- [ ] TASK-104: Update install.sh to create firmware directory
-- [ ] TASK-105: Implement WT-1100–1105 firmware test cases
-
-**BLE Proxy (v7.0):**
-- [ ] TASK-110: Create `ble_controller.py` with asyncio event loop thread (FR-022)
-- [ ] TASK-111: Implement BLE scan with optional name filter
-- [ ] TASK-112: Implement BLE connect/disconnect with state tracking
-- [ ] TASK-113: Implement BLE write to GATT characteristic
-- [ ] TASK-114: Add BLE API routes to portal.py (`/api/ble/*`)
-- [ ] TASK-115: Add `ble_scan/connect/disconnect/status/write()` methods to `workbench_driver.py`
-- [ ] TASK-116: Update install.sh to install bleak dependency
-- [ ] TASK-117: Implement WT-1200–1207 BLE proxy test cases
-
-**Signal Generator (v7.2 → v9.0):**
-- [x] TASK-120: Implement `signal_generator.py` (Si5351 + PE4302, GPCLK fallback, Morse keyer)
-- [x] TASK-121: Add `/api/siggen/{start,stop,freq,atten,status,frequencies}` endpoints to portal.py
-- [x] TASK-122: Add `siggen_*` methods to driver
-- [x] TASK-123: Deploy to Pi and verify API endpoints
-- [x] TASK-124: Implement WT-1300–1304 signal generator test cases
-- [x] TASK-125: Retire `/api/cw/*` and `cw_beacon.py` (v9.0 cleanup — superseded by `/api/siggen/*`)
-
-**SDR Receiver (v9.2):**
-- [x] TASK-180: Implement `sdr_controller.py` (RTL-SDR + rtl_433 decode/analyze, single-instance) (FR-028)
-- [x] TASK-181: Add `/api/sdr/{status,capture,analyze,stop}` endpoints to portal.py (FR-028)
-- [x] TASK-182: Add `sdr_*` methods to `workbench_driver.py`
-- [x] TASK-183: Update install.sh to install `rtl-sdr` + `rtl-433` and copy `sdr_controller.py`
-- [x] TASK-184: Deploy to Pi and verify API endpoints against the RTL-SDR dongle
-- [x] TASK-185: Implement WT-1900–1905 SDR receiver test cases
-
-**Auto-Debug (v8.1):**
-- [x] TASK-160: Auto-start OpenOCD on hotplug add (in _bg_start)
-- [x] TASK-161: Auto-stop OpenOCD on hotplug remove
-- [x] TASK-162: Auto-start OpenOCD on boot (scan_existing_devices)
-- [x] TASK-163: Report debug status in /api/devices response
-- [x] TASK-164: Hotplug suppression via is_debugging() check
-- [x] TASK-165: Auto-fallback from USB JTAG to ESP-Prog probe
-- [ ] TASK-166: Implement WT-1700–1709 auto-debug test cases
-
-**JTAG Reset Integration (v8.2):**
-- [x] TASK-170: Implement JTAG reset path in `/api/serial/reset` (send `reset run` via OpenOCD telnet when debugging)
-- [ ] TASK-171: Implement JTAG halt in flapping recovery
-- [x] TASK-172: Test JTAG reset with ESP32-C6 via USB JTAG
-
-**GDB Debug: USB JTAG (v8.0):**
-- [x] TASK-130: Install esp-openocd (aarch64) on Pi
-- [x] TASK-131: Add `Debugging` state to slot state machine
-- [x] TASK-132: Implement `POST /api/debug/start` and `POST /api/debug/stop`
-- [x] TASK-133: Implement `GET /api/debug/status`
-- [x] TASK-134: Suppress hotplug proxy restarts during `Debugging` state
-- [x] TASK-135: Add `gdb_port` and `openocd_telnet_port` to workbench.json schema
-- [x] TASK-136: Add `debug_start/stop/status()` methods to driver
-- [ ] TASK-137: Implement WT-1400–1406 USB JTAG debug test cases
-
-**GDB Debug: Dual-USB (v8.0):**
-- [x] TASK-140: Implement slot grouping (`group` and `role` fields in workbench.json)
-- [x] TASK-141: Implement `GET /api/debug/group` endpoint
-- [x] TASK-142: Allow OpenOCD + RFC2217 to coexist on `debug`-role slots
-- [x] TASK-143: Add `debug_groups()` method to driver
-- [ ] TASK-144: Implement WT-1500–1503 Dual-USB debug test cases
-
-**GDB Debug: ESP-Prog (v8.0):**
-- [x] TASK-150: Add `debug_probes` configuration to workbench.json
-- [x] TASK-151: Implement probe discovery and allocation
-- [x] TASK-152: Implement `GET /api/debug/probes` endpoint
-- [x] TASK-153: OpenOCD launch with FTDI interface config
-- [x] TASK-154: Add `debug_probes()` method to driver
-- [ ] TASK-155: Implement WT-1600–1605 ESP-Prog debug test cases
-
-### C.2 Deliverables
-
-| Deliverable | Description |
-|-------------|-------------|
-| `portal.py` | HTTP server with serial slot management, WiFi API, BLE API, SDR receiver API, UDP log, firmware serving, process supervision, hotplug handling |
-| `wifi_controller.py` | WiFi instrument backend (hostapd, dnsmasq, wpa_supplicant, iw, HTTP relay) |
-| `ble_controller.py` | BLE proxy backend (bleak, scan, connect, write to GATT characteristics) |
-| `plain_rfc2217_server.py` | RFC2217 server with direct DTR/RTS passthrough (all devices) |
-| `rfc2217-udev-notify.sh` | Posts udev events to portal API via curl |
-| `wifi-lease-notify.sh` | Posts dnsmasq DHCP lease events to portal API |
-| `rfc2217-learn-slots` | CLI tool to discover slot_key for physical connectors |
-| `99-rfc2217-hotplug.rules` | udev rules using systemd-run to invoke notify script |
-| `rfc2217-portal.service` | systemd unit for the portal |
-| `workbench.json` | Slot configuration file |
-| `workbench_driver.py` | HTTP driver for running WT-xxx tests against the instrument |
-| `conftest.py` | Pytest fixtures (`esp32_workbench`, `wifi_network`, `--wt-url`, `--run-dut`) |
-| `workbench_test.py` | End-to-end workbench tests (WT-100 through WT-1805) |
-| `signal_generator.py` | Unified RF source — Si5351 + optional PE4302 attenuator, GPCLK fallback, Morse keyer |
-| `sdr_controller.py` | RTL-SDR receiver — rtl_433 decode/analyze/power/acquire, live console, session log, USB reset (receive-side of `signal_generator`) |
-| `tools/sdr_acquire.py` | Interactive CLI for the phased `acquire` (locate→level→decode→classify) with live operator prompts |
-| `config/rtl_433.conf` | rtl_433 flex-decoder database (installed to `/etc/rtl_433/rtl_433.conf`); ships the Euromot Awning remote |
-| `mqtt_controller.py` | On-demand mosquitto test broker (open, all-interfaces) for DUT MQTT-client testing (FR-029) |
-| `si5351.py` | Si5351A I²C clock-generator driver |
-| `pe4302.py` | PE4302 3-wire serial step-attenuator driver |
-| `gpclk.py` | BCM2835/7 GPCLK hardware clock primitive (GPIO 5/6) |
-| `morse.py` | Backend-agnostic Morse keyer used by `signal_generator` |
-| `debug_controller.py` | GDB debug manager — OpenOCD lifecycle, probe allocation, slot state coordination |
-| `mcp/workbench_mcp.py` | MCP server exposing the whole HTTP API as 70 MCP tools (stdio proxy, `WORKBENCH_URL`, stdlib-only) |
-| `mcp/manifest.json`, `mcp/*.mcpb` | Claude Desktop extension manifest + packed bundle for one-click install |
-| `scripts/espota.py` | ArduinoOTA push tool used by `POST /api/ota` |
 
 ---
 

@@ -1,4 +1,4 @@
-# Logging Test Specification for ESP32 Projects
+# Logging Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 logging and debug output functionality (serial, UDP, log levels). Copy relevant sections into project FSDs.
 

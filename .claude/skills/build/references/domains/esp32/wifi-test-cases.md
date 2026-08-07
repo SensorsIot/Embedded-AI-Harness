@@ -1,4 +1,4 @@
-# WiFi Test Specification for ESP32 Projects
+# WiFi Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 WiFi STA functionality. Copy relevant sections into project FSDs.
 
@@ -11,7 +11,7 @@ Standard test cases for ESP32 WiFi STA functionality. Copy relevant sections int
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | WIFI-001 | System SHALL connect to configured WiFi network in STA mode | Must |
-| WIFI-002 | WiFi credentials SHALL be stored per the project's security profile — see NVS-010..013 in `nvs-test-spec.md`, which owns this requirement | Must |
+| WIFI-002 | WiFi credentials SHALL be stored per the project's security profile — see NVS-010..013 in `nvs-test-cases.md`, which owns this requirement | Must |
 | WIFI-003 | System SHALL automatically reconnect on WiFi disconnect | Must |
 | WIFI-004 | System SHALL log WiFi connection status changes | Should |
 | WIFI-005 | System SHALL support WPA2/WPA3 authentication | Must |

@@ -1,4 +1,4 @@
-# BLE Test Specification for ESP32 Projects
+# BLE Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 Bluetooth Low Energy functionality. Copy relevant sections into project FSDs.
 

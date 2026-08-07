@@ -192,7 +192,7 @@ An MCP server exposes the whole API as **70 tools**, so Claude Desktop or
 Claude Code can operate the bench conversationally — "flash this to slot 1
 and tell me why it's crashing". Pure Python standard library, so there's
 nothing to `pip install`. For Claude Desktop, drag
-[`mcp/universal-embedded-workbench.mcpb`](mcp/universal-embedded-workbench.mcpb)
+[`mcp/embedded-ai-harness-workbench.mcpb`](mcp/embedded-ai-harness-workbench.mcpb)
 onto **Settings → Extensions** and enter your workbench URL.
 
 The AICLP skills (`/define`, `/harness`, `/commission`, `/build`) and the

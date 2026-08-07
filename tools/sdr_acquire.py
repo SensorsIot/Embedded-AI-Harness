@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Interactive guided SDR acquisition for the Universal Embedded Workbench.
+"""Interactive guided SDR acquisition for the Embedded AI Harness workbench.
 
 Runs the four-phase receive procedure — locate → level → decode → classify —
 against the workbench SDR HTTP API, printing live instructions and results so
@@ -232,7 +232,7 @@ def main() -> int:
     gains = ([float(x) for x in args.gains.split(",")] if args.gains
              else GAIN_STEPS)
 
-    print(c("1;37", "Universal Embedded Workbench — SDR guided acquisition"))
+    print(c("1;37", "Embedded AI Harness — SDR guided acquisition"))
     print(f"Target {args.freq:.3f} MHz   via {args.url}")
     try:
         st = api.get("/api/sdr/status", timeout=5)

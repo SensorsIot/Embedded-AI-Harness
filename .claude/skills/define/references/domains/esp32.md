@@ -2,7 +2,7 @@
 
 Domain-specific guidance for ESP32 projects (ESP-IDF or Arduino-ESP32). Load this
 pack **only** when the project matches the detection signals below; otherwise the
-platform-independent core (`references/test-architecture.md`) is enough.
+platform-independent core (`../../../build/references/test-architecture.md`) is enough.
 
 ## Detection signals
 
@@ -48,7 +48,7 @@ an external service = foundation; hand-written decoder/driver/handler = interfac
 
 These three are the common default. A project may **add layers** if it genuinely
 has more one-way-dependent tiers (e.g. a device-orchestration layer above several
-control loops) — see `../test-architecture.md` ("Scale the layer count to the
+control loops) — see `../../../build/references/test-architecture.md` ("Scale the layer count to the
 system"). Each layer becomes its own body Part, and the source layout mirrors it
 (one module per component; see "Source layout mirrors the layers").
 
@@ -75,19 +75,19 @@ acknowledgement, or a configuration button.
 Silent adoption is how a 12-requirement device acquires 60 requirements nobody
 asked for, each of which then demands tests, implementation, and maintenance.
 
-| Feature | Detection Patterns | Test Spec | Include |
+| Feature | Detection Patterns | Test-case library | Include |
 |---------|-------------------|-----------|---------|
-| **WiFi STA** | `WiFi.begin`, `esp_wifi_connect`, "STA mode" | `esp32/wifi-test-spec.md` | WIFI-001–005, EC-100–101, EC-110–111, EC-115 |
-| **Captive Portal** | `WiFi.softAP`, "captive portal", "AP mode" | `esp32/captive-portal-test-spec.md` | AP-001–006, CP-001–006, TC-CP-100–102 |
-| **MQTT** | `PubSubClient`, `esp_mqtt`, "MQTT broker" | `esp32/mqtt-test-spec.md` | MQTT-001–031, TC-MQTT-100–103 |
-| **BLE** | `NimBLE`, `esp_ble`, `BLEDevice`, "BLE", "GATT" | `esp32/ble-test-spec.md` | BLE-001–032, TC-BLE-100–103 |
-| **BLE NUS** | `NUS`, `6E400001`, "Nordic UART" | `esp32/ble-test-spec.md` | BLE-020–023, TC-BLE-101 |
-| **OTA** | `esp_ota`, `httpUpdate`, "firmware update", "OTA" | `esp32/ota-test-spec.md` | OTA-001–013, TC-OTA-100–102 |
-| **USB HID** | `tinyusb`, `tusb_`, "HID", "keyboard", "USB device" | `esp32/usb-hid-test-spec.md` | HID-001–022, TC-HID-100–103 |
-| **NVS** | `Preferences`, `nvs_`, "NVS", "stored credentials" | `esp32/nvs-test-spec.md` | NVS-001–024, TC-NVS-100–103 |
-| **Watchdog** | `esp_task_wdt`, `TWDT`, "watchdog" | `esp32/watchdog-test-spec.md` | WDT-001–022, TC-WDT-100–102 |
-| **Logging** | `ESP_LOG`, `udp_log`, "UDP logging", "serial log" | `esp32/logging-test-spec.md` | LOG-001–026, TC-LOG-100–103 |
-| **Ethernet** | `W5500`, `ETH.begin`, "dual network" | `esp32/wifi-test-spec.md` | TEST-001–005, EC-100 |
+| **WiFi STA** | `WiFi.begin`, `esp_wifi_connect`, "STA mode" | `esp32/wifi-test-cases.md` | WIFI-001–005, EC-100–101, EC-110–111, EC-115 |
+| **Captive Portal** | `WiFi.softAP`, "captive portal", "AP mode" | `esp32/captive-portal-test-cases.md` | AP-001–006, CP-001–006, TC-CP-100–102 |
+| **MQTT** | `PubSubClient`, `esp_mqtt`, "MQTT broker" | `esp32/mqtt-test-cases.md` | MQTT-001–031, TC-MQTT-100–103 |
+| **BLE** | `NimBLE`, `esp_ble`, `BLEDevice`, "BLE", "GATT" | `esp32/ble-test-cases.md` | BLE-001–032, TC-BLE-100–103 |
+| **BLE NUS** | `NUS`, `6E400001`, "Nordic UART" | `esp32/ble-test-cases.md` | BLE-020–023, TC-BLE-101 |
+| **OTA** | `esp_ota`, `httpUpdate`, "firmware update", "OTA" | `esp32/ota-test-cases.md` | OTA-001–013, TC-OTA-100–102 |
+| **USB HID** | `tinyusb`, `tusb_`, "HID", "keyboard", "USB device" | `esp32/usb-hid-test-cases.md` | HID-001–022, TC-HID-100–103 |
+| **NVS** | `Preferences`, `nvs_`, "NVS", "stored credentials" | `esp32/nvs-test-cases.md` | NVS-001–024, TC-NVS-100–103 |
+| **Watchdog** | `esp_task_wdt`, `TWDT`, "watchdog" | `esp32/watchdog-test-cases.md` | WDT-001–022, TC-WDT-100–102 |
+| **Logging** | `ESP_LOG`, `udp_log`, "UDP logging", "serial log" | `esp32/logging-test-cases.md` | LOG-001–026, TC-LOG-100–103 |
+| **Ethernet** | `W5500`, `ETH.begin`, "dual network" | `esp32/wifi-test-cases.md` | TEST-001–005, EC-100 |
 
 ### Workflow — propose, then gate
 
@@ -112,8 +112,9 @@ asked for, each of which then demands tests, implementation, and maintenance.
    rather than overlooked.
 6. Bind every `{{parameter}}` the accepted items carry (next section). An unbound
    parameter is an incomplete FSD — the finalisation checklist fails on it.
-7. Place accepted tests in the spec files mirroring their chapters; the generated
-   traceability matrix picks them up (never hand-edit the matrix).
+7. Accepted cases become entries in the project's test plan, declared by
+   `/build` with their tier, equipment and expectations; traceability is
+   computed from the plan, never hand-maintained.
 
 ### Provenance — every requirement says where it came from
 
@@ -159,12 +160,12 @@ tests are described.
 
 | File | Coverage |
 |------|----------|
-| `wifi-test-spec.md` | WiFi STA connection, signal, DHCP, ethernet test mode |
-| `captive-portal-test-spec.md` | AP mode, captive portal, provisioning, credential change |
-| `mqtt-test-spec.md` | Broker connection, pub/sub, QoS, LWT, reconnect, buffering |
-| `ble-test-spec.md` | BLE advertising, GATT, NUS, pairing, coexistence |
-| `ota-test-spec.md` | OTA download, rollback, integrity, power loss recovery |
-| `usb-hid-test-spec.md` | USB enumeration, keyboard layouts, latency, stuck key prevention |
-| `nvs-test-spec.md` | Config persistence, factory reset, corruption recovery, credentials |
-| `watchdog-test-spec.md` | Software/hardware WDT, memory watchdog, false trigger prevention |
-| `logging-test-spec.md` | Serial logging, UDP logging, log levels, crash capture |
+| `wifi-test-cases.md` | WiFi STA connection, signal, DHCP, ethernet test mode |
+| `captive-portal-test-cases.md` | AP mode, captive portal, provisioning, credential change |
+| `mqtt-test-cases.md` | Broker connection, pub/sub, QoS, LWT, reconnect, buffering |
+| `ble-test-cases.md` | BLE advertising, GATT, NUS, pairing, coexistence |
+| `ota-test-cases.md` | OTA download, rollback, integrity, power loss recovery |
+| `usb-hid-test-cases.md` | USB enumeration, keyboard layouts, latency, stuck key prevention |
+| `nvs-test-cases.md` | Config persistence, factory reset, corruption recovery, credentials |
+| `watchdog-test-cases.md` | Software/hardware WDT, memory watchdog, false trigger prevention |
+| `logging-test-cases.md` | Serial logging, UDP logging, log levels, crash capture |

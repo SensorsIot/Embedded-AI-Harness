@@ -1,4 +1,4 @@
-# MQTT Test Specification for ESP32 Projects
+# MQTT Test Cases for ESP32 Projects
 
 Standard test cases for ESP32 MQTT client functionality. Copy relevant sections into project FSDs.
 

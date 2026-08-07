@@ -1,6 +1,6 @@
 ---
 name: signal-generator
-description: Drive the Universal Embedded Workbench's RF signal generator over `/api/siggen/*` — continuous carrier, Morse/CW beacon, retune, PE4302 attenuation, and frequency listing. Use this skill whenever the user wants to emit, key, retune, or attenuate an RF signal from the workbench, even if they only say "CW beacon", "carrier", "Morse", "Si5351", "GPCLK", "PE4302 attenuator", "DF test", "direction finder", or "80m beacon" — those are all this one API. Always check `/api/siggen/status` first to see which backend (Si5351 vs GPCLK fallback) and attenuator are physically present before choosing a backend.
+description: Drive the Embedded AI Harness workbench's RF signal generator over `/api/siggen/*` — continuous carrier, Morse/CW beacon, retune, PE4302 attenuation, and frequency listing. Use this skill whenever the user wants to emit, key, retune, or attenuate an RF signal from the workbench, even if they only say "CW beacon", "carrier", "Morse", "Si5351", "GPCLK", "PE4302 attenuator", "DF test", "direction finder", or "80m beacon" — those are all this one API. Always check `/api/siggen/status` first to see which backend (Si5351 vs GPCLK fallback) and attenuator are physically present before choosing a backend.
 ---
 
 # Signal Generator (`/api/siggen/*`)

@@ -1,4 +1,4 @@
-# Embedded Workbench — Method (HOW)
+# The Harness — Method (HOW)
 
 The Method is the **build contract**: the rules for how this project is built and
 changed. Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
@@ -19,10 +19,10 @@ changed. Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
 | **HOW** | How is it built and changed? | This directory |
 | **OPERATE** | How do I run it? | [`../Harness-User-Manual.md`](../Harness-User-Manual.md) |
 
-The FSD defines the target; the Method defines the way there; the Handbook describes
+The FSD defines the target; the Method defines the way there; the User Manual describes
 the running system. On conflict the FSD wins on *what must be true* and the
-Method wins on *how to get there*. If the Handbook disagrees with either, the
-Handbook is stale.
+Method wins on *how to get there*. If the User Manual disagrees with either, the
+the User Manual is stale.
 
 `CLAUDE.md` is **not** a plane. It configures the AI assistant and points here; it
 holds no project rules of its own.
@@ -37,7 +37,7 @@ system.
 |----------|-------|-----|
 | "Serial reconnects within 2 s of replug" | FSD | A black-box tester can verify it |
 | "One controller module per instrument" | Method | Invisible from outside; would not survive a rewrite |
-| "Flash the SD card with Raspberry Pi Imager" | Handbook | The reader is holding hardware |
+| "Flash the SD card with Raspberry Pi Imager" | User Manual | The reader is holding hardware |
 | "Deploy with `scp portal.py … && systemctl restart`" | Method | It is how the system is changed |
 
 ## Documentation rule
