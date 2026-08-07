@@ -33,6 +33,34 @@ phase, a `/build` session can open, state its position, and act.
 | 8 | **Generate this project's gate checks** — one file per gate under `testing/gates/`, filled with this project's paths, ids, DUT, capabilities, markers and CI. A generic checklist cannot catch a project-specific omission | this skill · `../build/references/gate-checks.md` |
 | 9 | **Close with the two questions only the user can answer** — see below | this skill |
 
+## Step 5 — a skeleton, and the DUT is not touched
+
+**The DUT is completely out of Phase 1.** Not flashed, not reset, not read.
+No `chip/info`, no serial monitor, no esptool, no slot claimed. The board
+belongs to `/commission`, which discovers it, verifies it is the unit the FSD
+names, and proves the forward path to it. A harness session that has touched
+the DUT has done Phase 2's work without Phase 2's gate watching.
+
+**The firmware is a skeleton that proves the pipeline, nothing more.** It
+compiles, it produces an artifact, and it emits one marker. It implements no
+requirement and verifies no requirement — those are `/build`'s waves, run
+against the journey. The gate asks only that CI went green once and that no
+module exists which the FSD never asked for; both are satisfied by a
+composition root and a printed marker.
+
+The pull that breaks this is always the same shape: **the skeleton needs a
+hardware fact to compile.** Flash size, partition offsets, a pin, a clock. The
+answer is never to go and read it off the chip — that is Phase 2 arriving
+early because Phase 0 left a hole. **Send it back to `/define`**: a constraint
+the build depends on belongs in the FSD, and a spec that omits one will pull
+hardware work forward into whichever phase first hits the wall.
+
+Symptoms that Phase 1 has drifted:
+
+- a capability whose `observed:` evidence could only have come from the board
+- a host test that asserts product behaviour rather than that the tier runs
+- a build fixed by measuring the hardware instead of by amending the spec
+
 ## Step 7 — the runner lives in the project's devcontainer
 
 One project, one container — no separate infrastructure. The devcontainer

@@ -161,6 +161,26 @@ justify a protection, record an accepted risk in §5 — an honest "we do not
 claim confidentiality at rest" beats a requirement nobody implements.
 **Obfuscation is never encryption.** Checklist: `references/system-models.md` §7.
 
+#### 6.5.2 State the constraints the build reads
+
+**If a build can fail on a number, the spec states the number.** Flash size,
+partition offsets, pin assignments, clock frequency, voltage, memory ceiling,
+image size limit — anything a toolchain will otherwise supply from a default.
+
+These are **constraints** (§1), not descriptions: "the DUT has 4 MB of flash"
+is a note, while "a unit with less than 4 MB cannot run this firmware" is
+falsifiable and can be checked against hardware.
+
+The failure mode is indirect, which is why it survives review. A missing
+figure does not produce a missing requirement — it produces a **later phase
+arriving early**. The build breaks on a tool default, whoever is holding it
+goes to the hardware for the answer, and hardware discovery has now happened
+in whatever phase first hit the wall, outside the gate that was meant to watch
+it. The spec looked complete throughout.
+
+Ask it directly while writing §2.2: *which numbers will the build read, and
+does this document state them, or is a default about to choose?*
+
 ### 6.9 Verification contracts — the WHAT side of testing
 
 On every approved Must/Should, beside the requirement in the FSD:
