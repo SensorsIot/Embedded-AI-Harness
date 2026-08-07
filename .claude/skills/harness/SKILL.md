@@ -59,7 +59,9 @@ harvestable from any document:
    here. Becomes the **debugging agenda** that `/commission` burns down.
 2. **What does one ordinary successful run look like, end to end?** Ordered
    steps, an observable at each. Becomes the **journey tests** — one test per
-   step, seeded into the plan as the gate every hardware session runs behind.
+   step, seeded into the plan as the gate every hardware session runs behind,
+   and the first tests of Wave 1 (*Build the running prototype* —
+   `../build/references/test-design.md` §5).
 
 These two answers are worth more than everything else typed this month; take
 them slowly. Full rationale: `../build/references/test-design.md` §5.

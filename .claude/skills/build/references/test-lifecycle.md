@@ -123,8 +123,11 @@ prohibited outcomes were never checked · coverage present without behavioural
 assertions
 
 ### Also listed, so they are not mistaken for gaps
-clauses marked `pending: true` (the FSD itself is unresolved) and
-`testability: philosophical` (no rig can decide them).
+clauses marked `pending: true` (the FSD itself is unresolved),
+`testability: philosophical` (no rig can decide them), and **wave-locked
+tests** — deviation/negative tests unwritten because their wave has not
+opened (`test-design.md` §5) are by design, not neglect; report them under
+the wave they wait for, never as verification gaps.
 
 **The skill proposes resolutions. It does not silently decide product questions.**
 

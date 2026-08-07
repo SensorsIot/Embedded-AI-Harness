@@ -211,21 +211,53 @@ The bring-up work that *is* a test case is `standard` in kind — not a fifth bi
 just the first standard tests, ordered ahead of the journey because the journey
 cannot be read without them.
 
-### The four kinds
+### The four kinds, gated in three waves
 
-Every test declares which it is, and the balance is a design property to watch
-rather than an accident.
+Every test declares its kind, and the kinds are **gated, not merely ordered**:
+tests exist to pull the prototype forward, so each wave is locked until the
+one before it is green.
 
-| Kind | Is | Build |
-|---|---|---|
-| **standard** | The ordinary case — the product doing its job | first |
-| **deviation** | Still normal, just not the simplest case | second |
-| **negative** | A fault or malfunction is injected | third, and only the ones that matter |
-| **security** | Derived from the threat profile, not from a feature | alongside, from §6.5.1 |
+| Kind | Is |
+|---|---|
+| **standard** | The ordinary case — the product doing its job |
+| **deviation** | Still normal, just not the simplest case |
+| **negative** | A fault or malfunction is injected |
+| **security** | Derived from the threat profile, not from a feature |
 
-**Keep the volume tilted towards the first two.** A suite heavy on negatives has
-never checked the product works. Negatives accumulate one at a time, each
-individually justified, and nobody notices the ordinary case is missing.
+| Wave | Builds | Tests written | Gate to enter — derived, never declared |
+|---|---|---|---|
+| **1 · Build the running prototype** | The features | `standard` only | Testbench trusted |
+| **2 · Cover the normal variants** | Breadth of normal life | `deviation` | Journey green **and** every standard test green — *the prototype runs* |
+| **3 · Build the error handling** | Fault and abuse behaviour | `negative` + adversarial `security` | All standard **and** deviation tests green |
+
+**The gates lock authoring, not just execution.** During Wave 1 a deviation or
+negative test is not merely skipped — it is **not written**: an unwritten test
+cannot turn red as noise, cannot rot against a still-moving interface, and does
+not bloat the plan. One exception: a later-wave test that needs a *capability
+or seam* is **declared** (never implemented) as soon as it is known — equipment
+and seams have lead time, and discovering "we need a clock-set command" in
+Wave 3 is too late.
+
+**The cheap tier runs in full, always — but its authoring is wave-locked too.**
+One principled escape: when the contract makes a limit part of the standard
+path (a parser that must reject over-length input to parse correctly at all),
+that rejection is Wave 1 — the standard path is meaningless without it.
+Everything else — DST days, empty sets, malformed frames — waits for its wave
+even on the host tier.
+
+**Security is built in Wave 1 and attacked in Wave 3.** Security
+*functionality* the threat profile demands — the ordinary connection is TLS,
+provisioning requires auth — is part of the standard path: the prototype is
+born secure or it is not a prototype of the product. *Attack resistance* —
+malformed packets, replay, downgrade, credential extraction — is Wave 3,
+mechanically the same bin as error handling. Tests keep the `security` kind
+tag so the threat profile's coverage stays auditable as its own list; there is
+no security wave.
+
+**Keep the volume tilted towards the first two kinds.** A suite heavy on
+negatives has never checked the product works. Negatives accumulate one at a
+time, each individually justified, and nobody notices the ordinary case is
+missing — the wave gates exist precisely to make that impossible.
 
 Measured on one project: 108 declared tests, and the standard end-to-end journey
 was still unwritten. The bench suite ran corrupted checksums, silent lines, noise
@@ -245,7 +277,9 @@ tests normal operation.
 ### Then, per clause
 
 Once the standard run and its variations exist, derive per clause every class
-that applies:
+that applies — **each carries its kind, and its kind decides its wave**: the
+minimum-enforcement list below defines what *fully verified* means by the end
+of Wave 3, not what Wave 1 writes.
 
 positive · negative/rejection · lower and upper boundary · invalid-format ·
 error-handling · state-transition · persistence · recovery · timeout ·
