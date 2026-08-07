@@ -5,7 +5,7 @@ develops firmware in a closed loop — code, build, flash, verify on real
 hardware, correct — until the tests, derived from the FSD, run clean. The
 Harness is everything that closes that loop: the FSD discipline, the test
 plan, the workbench, and the skills. The journey, its five phases, and their
-normative milestones are defined in the
+normative gates are defined in the
 [FSD §1.1](Harness-FSD.md#11-purpose).
 
 | Plane | Question | Document |

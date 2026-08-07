@@ -52,16 +52,18 @@ real silicon, and the only way the AI gets to stop.
 
 ## 🗺️ The Journey — from idea to shipped product
 
-| Phase | You do | You get |
-|-------|--------|---------|
-| **0 · Definition** — `/define` | Describe the product; answer an interview, one question at a time | An FSD where every requirement already says how it will be proven |
-| **1 · Harness** — `/harness` | One command; answer the two questions only you can | The project strapped in: docs, test plan, firmware hooks, CI, runner |
-| **2 · Commissioning** — `/commission` | Plug the board into a slot, wire the rig, hands when prompted | A trusted testbench — a failing test now means the code, not the wiring |
-| **3 · Build** — `/build` | Start sessions; approve the occasional spec question | Requirements turning green, one by one, on real hardware |
-| **⚑ Shipment** — `git tag` | Push the version tag — the one act that stays human | A release built in a pinned container and verified on the testbench: the journey runs once more on the exact bytes users download |
+| Phase | You do | You get | Gate |
+|-------|--------|---------|------|
+| **0 · Definition** — `/define` | Describe the product; answer an interview, one question at a time | An FSD where every requirement already says how it will be proven | Load defined |
+| **1 · Harness** — `/harness` | One command; answer the two questions only you can | The project strapped in: docs, test plan, firmware hooks, CI, runner | AI harnessed |
+| **2 · Commissioning** — `/commission` | Plug the board into a slot, wire any peers | Your board and peers proven working here — a failing test now means the code | Testbench trusted |
+| **3 · Build** — `/build` | Start sessions; approve the occasional spec question | Requirements turning green, one by one, on real hardware | Ready for shipment |
+| **⚑ Shipment** — `git tag` | Push the version tag — the one act that stays human | A release built in a pinned container and verified on the testbench: the journey runs once more on the exact bytes users download | Shipped |
 
-Each milestone is **derived from project state, never declared** — nobody ever
-types "phase complete". And after shipment the same journey repeats in
+Each phase ends at a **gate**, derived from project state and never declared —
+nobody types "phase complete". A gate is not a marker you pass: if anything it
+requires is unmet, the work loops back to the step that owns it and the whole
+check runs again. And after shipment the same journey repeats in
 miniature for every new feature: describe it in a sentence, the loop refuses
 to code anything no requirement covers, the spec absorbs the delta, and the
 phases collapse to minutes. **No code without a clause** is what keeps the

@@ -10,7 +10,7 @@ description: >
   cloud, mobile, networking, and SDR projects. Use this skill whenever the
   user mentions an FSD, functional spec, requirements, a spec delta or
   amendment, the three planes, a runbook or handbook — even if they never say
-  "FSD". Exit milestone: Load defined. Test design, the test plan, audit and
+  "FSD". Exit gate: Load defined. Test design, the test plan, audit and
   reconcile live in /build, not here.
 ---
 
@@ -282,6 +282,12 @@ contract nobody could execute is a specification defect, not a test problem.
 Finally run the full quality checklist in `references/finalisation.md` §1 —
 the 13 checks, weasel words, provenance, unbound `{{parameters}}` — and
 **report each failure rather than shipping past it**.
+
+**The gate loops, it does not wave through.** Any check that fails sends the
+work back to the step that owns it — a requirement without a contract returns
+to requirement writing, a failed finalisation item to the section it belongs
+to — and the whole check runs again afterwards. Phase 1 does not start on a
+partial FSD.
 
 **Load defined** — derived, never declared: every Must/Should has a contract,
 the three planes exist and are committed, and no `(assumed)` marker remains on

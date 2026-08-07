@@ -9,7 +9,7 @@ description: >
   with release verification, and the devcontainer with its per-repo runner.
   Use this skill for a new project, "set up this project", "harness this
   project", "integrate with the workbench", or when a project has an FSD but
-  none of the machinery to build against it. Exit milestone: AI harnessed.
+  none of the machinery to build against it. Exit gate: AI harnessed.
 ---
 
 # Harness — Phase 1 sequencer
@@ -98,6 +98,10 @@ can state its position and name the next act without asking you anything.**
 If it can — the plan is readable, the capabilities are declared, the agenda
 exists — the AI is harnessed. If it stalls, the missing input is the finding,
 and it belongs to whichever step above left it out.
+
+**The gate loops, it does not wave through.** If the dry run stalls, or a
+deliverable is missing, go back to the step above that owns it, fix it, and
+re-run the whole check. Commissioning does not start on a partial harness.
 
 **AI harnessed** — derived, never declared. The next session starts with
 `/commission`.

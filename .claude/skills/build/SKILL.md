@@ -31,12 +31,22 @@ This skill drives Phases 2 and 3 of the journey. `/commission` and `/build` are
 two doors into it; the phase is **derived from state, never chosen by the
 command typed**.
 
-Every milestone is **derived, never declared**, and every one is *checked* —
-the owning skill states its deliverables and the check that closes it. Never
-enter a phase whose predecessor's check has not passed; if it has not, say so
-and go back.
+Each phase ends at a **gate** — not a milestone. A milestone is a marker you
+pass; a gate has to open, and it can send you back. Every gate is **derived,
+never declared**, and every one is *checked*: the owning skill states its
+deliverables and the check that opens it.
 
-| Phase | Milestone | Checked by |
+> **Run the check. If any requirement of the gate is unmet, name it, loop
+> back to the step that owns it, fix it, and re-run the whole check** — not
+> only the part that failed. Never carry a known deficiency forward, and
+> never enter a phase whose predecessor's gate is still shut.
+
+This is the loop's own discipline applied to itself: a deficiency waved
+through is found later at many times the cost, and every result produced
+after it is suspect — nobody can tell whether a red belongs to the new work
+or to what was let past. "Mostly done" is a shut gate.
+
+| Phase | Gate | Checked by |
 |---|---|---|
 | 0 · Definition (`/define`) | **Load defined** — every Must/Should carries a verification contract; three planes exist | `/define` §12.5 + `finalisation.md` §1 |
 | 1 · Harness (`/harness`) | **AI harnessed** — a `/build` session opens, states its position, and acts without asking | `/harness` Exit — dry run of the next session |

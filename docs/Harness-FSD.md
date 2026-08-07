@@ -42,10 +42,13 @@ flashes the DUT, resets it, watches its serial and UDP output, surrounds it
 with WiFi, MQTT, BLE and RF peers, and reports every observation over one
 HTTP API.
 
-A harnessed project moves through five phases; each ends at a milestone that
-is **derived from project state, never declared**:
+A harnessed project moves through five phases; each ends at a **gate** that
+is **derived from project state, never declared**. A gate is not a marker to
+pass: if any of its requirements is unmet, the work loops back to the step
+that owns it and the whole check runs again — a phase never starts on a shut
+gate.
 
-| Phase | Command | Exit milestone |
+| Phase | Command | Exit gate |
 |-------|---------|----------------|
 | 0 · Definition | `/define` | **Load defined** — every requirement states how it will be proven |
 | 1 · Harness | `/harness` | **AI harnessed** — a session can open, state its position, and act |

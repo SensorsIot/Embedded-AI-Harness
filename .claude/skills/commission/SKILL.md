@@ -8,7 +8,7 @@ description: >
   fixed in its own repo only when DUT testing disproves it. Use this skill
   when the user mentions commissioning, bring-up, a new board or peer, wiring
   or polarity doubts, or wants to burn down the debugging agenda. Exit
-  milestone: Testbench trusted.
+  gate: Testbench trusted.
 ---
 
 # Commission — Phase 2 door
@@ -149,7 +149,12 @@ is prose in a document nobody reads again.
 | **Capability updates** | every project-side `unproven` resolved to `yes` or `no`; each `no` carries its consequence, each `yes` its observation |
 | **Agenda** | empty of project-side items; anything left is bench-side and belongs to the workbench repo, named with its issue |
 
-### The milestone
+### The gate
+
+**The gate loops, it does not wave through.** A failed check sends the work
+back to the act that owns it — a DUT that is not the expected unit, a peer
+that will not answer, a forward path that does not reach its marker — and the
+whole check runs again. Wave 1 does not start on a partial commissioning.
 
 **Testbench trusted** — derived, never declared: the workbench by law, the
 project-side parts by the records above. From here `/build` runs the journey
