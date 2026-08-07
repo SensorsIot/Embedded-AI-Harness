@@ -1,4 +1,4 @@
-# Universal Embedded Workbench
+# The Harness — AI Closed-Loop Programming for Embedded Systems
 
 [![host tests](https://img.shields.io/github/actions/workflow/status/SensorsIot/Universal-Embedded-Workbench/ci.yml?branch=main&label=host%20tests)](https://github.com/SensorsIot/Universal-Embedded-Workbench/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -7,49 +7,82 @@
 ![ESP32](https://img.shields.io/badge/ESP32-supported-green)
 ![MCP](https://img.shields.io/badge/MCP-70%20tools-8a63d2)
 
-## 🎯 The Problem
+*Spec to silicon, hands off.*
 
-Working on an ESP32 means being physically attached to it. The board has to be
-plugged into the machine you're typing on, so you can't develop from a laptop in
-another room, and a container or VM can't reach it at all without fighting USB
-passthrough. Testing it properly needs a second pile of hardware — a spare WiFi
-network, a Bluetooth radio, a signal generator, an SDR — and a person sitting
-there to press the reset button.
+A horse is strong, fast, and willing — and useless for heavy loads until you
+harness it. The harness is not a part of the horse and not a part of the cart:
+it is the coupling that turns raw strength into pulled weight.
 
-## 💡 The Solution
+An AI is the same. It can write firmware all day — but it can't flash a board,
+can't see it boot, can't know whether its fix actually worked on real
+hardware. Unharnessed, it generates code and hopes. This repository is the
+harness: strap the AI in, and it pulls — writes the code, compiles it, flashes
+it onto a real ESP32, tests it against real WiFi, MQTT, BLE and RF, reads the
+failures, corrects itself, and goes again — until the tests run clean.
 
-Put the boards on a Raspberry Pi instead, and reach everything over the network.
-Plug an ESP32 into the Pi's USB hub and it appears instantly as a network serial
-port, a GDB target, and a set of HTTP endpoints. The Pi's own radios stand in for
-the missing test equipment, and its GPIO pins press the buttons for you.
+## 🔄 AI Closed-Loop Programming
 
-```bash
-curl http://workbench.local:8080/api/devices    # what's plugged in right now
+Today's AI coding is **open-loop**: prompt → code → hope. No feedback, so
+errors accumulate uncorrected — which is exactly why people don't trust
+AI-written firmware. **AI Closed-Loop Programming (AICLP)** closes the loop
+with reality:
+
+```
+            FSD  ──────  the setpoint: what "done" means
+             │
+             ▼
+   ┌──── code → build → flash ────┐        forward path
+   │                              ▼
+   │                        real hardware
+   │                              │
+   └── correct ◄── tests ◄────────┘        feedback path
+
+        the loop exits when the error signal is zero: tests green
 ```
 
-## ✨ What It Does
+Every embedded engineer knows this diagram — it's a control loop. The spec
+(FSD) is the setpoint, the firmware on the chip is the plant, the tests are
+the sensor, failing tests are the error signal, and the AI is the controller
+that corrects until the error reaches zero.
 
-- **Plug in a board → it's ready.** Auto-detected in seconds and mapped to a fixed
-  port by which USB connector it's in — same connector, same port, always.
-- **Serial over the network** at `rfc2217://workbench.local:4001`, working with
-  esptool, PlatformIO, ESP-IDF, and anything else built on pyserial.
-- **Debugging out of the box.** OpenOCD starts by itself for chips with USB-JTAG;
-  connect GDB to port 3333.
-- **Flash three ways** — over the network, locally on the Pi (for bridge-chip
-  boards whose auto-reset can't be driven remotely), or over the air.
-- **The Pi is the test equipment.** Its WiFi becomes an access point your board
-  joins, its Bluetooth scans and connects, and optional SDR and Si5351 hardware
-  receive and transmit on 433 MHz. Boards can log to it over UDP when the USB
-  port is busy doing something else.
-- **It presses the buttons.** GPIO wired to reset and boot forces download mode
-  and rescues boards stuck in a boot loop, with nobody in the room.
-- **Claude can drive all of it** through 70 MCP tools or the bundled skills.
+**True TDD, enabled by AI.** For twenty-five years, developers drove and tests
+advised — written after the code, skipped under deadline, tuned until they
+passed. Here the tests drive for the first time: derived from the spec, run on
+real silicon, and the only way the AI gets to stop.
 
-Honest limits: **one serial client per board at a time** (that's RFC2217, not a
-choice), the SDR is **one dongle, one user**, and the API has **no
-authentication** — keep the bench on a network you trust.
+## 🗺️ The Journey — from idea to shipped product
 
-## 🏗️ How It Works
+| Phase | You do | You get |
+|-------|--------|---------|
+| **0 · Definition** — `/define` | Describe the product; answer an interview, one question at a time | An FSD where every requirement already says how it will be proven |
+| **1 · Harness** — `/harness` | One command; answer the two questions only you can | The project strapped in: docs, test plan, firmware hooks, CI, runner |
+| **2 · Commissioning** — `/commission` | Plug the board into a slot, wire the rig, hands when prompted | A trusted testbench — a failing test now means the code, not the wiring |
+| **3 · Build** — `/build` | Start sessions; approve the occasional spec question | Requirements turning green, one by one, on real hardware |
+| **⚑ Shipment** — `git tag` | Push the version tag — the one act that stays human | A release built in a pinned container and verified on the testbench: the journey runs once more on the exact bytes users download |
+
+Each milestone is **derived from project state, never declared** — nobody ever
+types "phase complete". And after shipment the same journey repeats in
+miniature for every new feature: describe it in a sentence, the loop refuses
+to code anything no requirement covers, the spec absorbs the delta, and the
+phases collapse to minutes. **No code without a clause** is what keeps the
+spec true for the product's whole life.
+
+## 🧰 What the Harness consists of
+
+- **The method** — four Claude Code skills, one per phase: `/define` (the
+  FSD: atomic, falsifiable requirements, each with its verification
+  contract), `/harness` (one-time setup), `/commission` and `/build` (the
+  loop's driver: test design, the plan, audit, what's next).
+- **The workbench** — a Raspberry Pi test instrument that gives the AI hands
+  and eyes on real hardware. Described below.
+- **The dev skills** — ESP-IDF and PlatformIO lifecycles, logging, WiFi,
+  BLE, MQTT, debugging, RF, CI — the loop's individual muscles.
+
+## 🔌 The Workbench — the loop's hands and eyes
+
+Working on an ESP32 normally means being physically attached to it — and an
+AI can't hold a USB cable. The workbench puts the boards on a Raspberry Pi
+and turns everything into HTTP:
 
 ```
  LAN (192.168.0.x)
@@ -67,23 +100,35 @@ authentication** — keep the bench on a network you trust.
  SLOT1 SLOT2 SLOT3 SLOT4  <- one per detected hub port
 ```
 
-The idea that makes it work is **slot-based identity**. A slot is a physical hole
-in the USB hub, not a device. On boot the Pi walks its own USB topology, creates
-one slot per usable port, and hands each a permanent TCP port. Whatever you plug
-into that hole answers on that port — so your scripts and your `platformio.ini`
-never go stale, even after you swap boards or the kernel renames `/dev/ttyACM0`
-to `/dev/ttyACM3`.
+- **Plug in a board → it's ready.** Auto-detected in seconds and mapped to a
+  fixed port by which USB connector it's in — same connector, same port,
+  always. That's **slot-based identity**: a slot is a physical hole in the
+  hub, so scripts and `platformio.ini` never go stale when boards swap or the
+  kernel renames `/dev/ttyACM0`.
+- **Serial over the network** at `rfc2217://workbench.local:4001` — esptool,
+  PlatformIO, ESP-IDF and anything on pyserial speak it natively.
+- **Flash three ways** — over the network, locally on the Pi, or over the air.
+- **Debugging out of the box** — OpenOCD starts itself for USB-JTAG chips;
+  GDB connects to port 3333.
+- **The Pi is the test equipment.** Its WiFi becomes the access point your
+  board joins, its Bluetooth scans and connects, optional SDR and Si5351
+  hardware receive and transmit on 433 MHz, and boards log to it over UDP
+  when USB is busy.
+- **It presses the buttons.** GPIO wired to reset and boot forces download
+  mode and rescues boot-looping boards with nobody in the room.
+- **Claude drives all of it** through 70 MCP tools or the bundled skills.
 
-The two interfaces never mix: **eth0** carries your traffic to the bench, **wlan0**
-is dedicated to testing and free to become whatever network a test needs.
+Honest limits: **one serial client per board at a time** (that's RFC2217, not
+a choice), the SDR is **one dongle, one user**, and the API has **no
+authentication** — keep the bench on a network you trust.
 
-## 🚀 Quick Start
+## 🚀 Quick Start — building the bench
 
-You need a Raspberry Pi with onboard WiFi and Bluetooth running Raspberry Pi OS
-Lite (64-bit). A Pi Zero 2 W also needs a USB hub and a USB Ethernet adapter,
-since wlan0 is reserved for testing; a Pi 3/4/5 has both built in. An RTL-SDR
-dongle, an Si5351 + PE4302, and jumper wires to the board's EN/BOOT pins are all
-optional.
+You need a Raspberry Pi with onboard WiFi and Bluetooth running Raspberry Pi
+OS Lite (64-bit). A Pi Zero 2 W also needs a USB hub and a USB Ethernet
+adapter, since wlan0 is reserved for testing; a Pi 3/4/5 has both built in.
+An RTL-SDR dongle, an Si5351 + PE4302, and jumper wires to the board's
+EN/BOOT pins are all optional.
 
 ```bash
 git clone https://github.com/SensorsIot/Universal-Embedded-Workbench.git
@@ -92,22 +137,23 @@ sudo bash install.sh
 ```
 
 That installs every dependency (pyserial, hostapd, dnsmasq, bleak, esptool,
-OpenOCD, rtl-sdr/rtl_433, mosquitto), sets up the udev hotplug rules, and starts
-the portal as a systemd service. Plug in a board and check:
+OpenOCD, rtl-sdr/rtl_433, mosquitto), sets up the udev hotplug rules, and
+starts the portal as a systemd service. Plug in a board and check:
 
 ```bash
 curl http://workbench.local:8080/api/devices | jq
 ```
 
 Slots are auto-detected — no config file needed. Create
-`/etc/rfc2217/workbench.json` only to rename slots, pin ports, declare GPIO pins,
-or register an ESP-Prog probe; `sudo rfc2217-learn-slots` prints one for you.
+`/etc/rfc2217/workbench.json` only to rename slots, pin ports, declare GPIO
+pins, or register an ESP-Prog probe; `sudo rfc2217-learn-slots` prints one
+for you.
 
 > **On a Pi Zero 2 W, do the memory hardening first.** With 512 MB the board
 > OOM-crashes under load, and hard crashes corrupt the SD card. See
 > [User Manual §2.2](docs/Embedded-Workbench-User-Manual.md#22-first-boot--system-hardening).
 
-## 🔌 Usage
+## 🔧 Usage
 
 **Watch a board boot** — no client library, just HTTP:
 
@@ -117,16 +163,16 @@ curl -X POST http://workbench.local:8080/api/serial/reset \
 ```
 
 **Point your existing tools at it.** PlatformIO needs one line
-(`upload_port = rfc2217://workbench.local:4001`); esptool takes the same URL, and
-the binaries stay on your machine:
+(`upload_port = rfc2217://workbench.local:4001`); esptool takes the same URL,
+and the binaries stay on your machine:
 
 ```bash
 esptool --port rfc2217://workbench.local:4001 --chip esp32c3 \
   write-flash 0x10000 firmware.bin
 ```
 
-**Write a test that uses the whole bench** — reset the board, give it a network
-to join, wait for it to appear, then talk to it:
+**Write a test that uses the whole bench** — reset the board, give it a
+network to join, wait for it to appear, then talk to it:
 
 ```python
 from workbench_driver import WorkbenchDriver
@@ -142,16 +188,15 @@ wt.http_get(f"http://{station['ip']}/status")
 
 ## 🤖 Driving It From Claude
 
-An MCP server exposes the whole API as **70 tools**, so Claude Desktop or Claude
-Code can operate the bench conversationally — "flash this to slot 1 and tell me
-why it's crashing". Pure Python standard library, so there's nothing to
-`pip install`. For Claude Desktop, drag
+An MCP server exposes the whole API as **70 tools**, so Claude Desktop or
+Claude Code can operate the bench conversationally — "flash this to slot 1
+and tell me why it's crashing". Pure Python standard library, so there's
+nothing to `pip install`. For Claude Desktop, drag
 [`mcp/universal-embedded-workbench.mcpb`](mcp/universal-embedded-workbench.mcpb)
 onto **Settings → Extensions** and enter your workbench URL.
 
-The repo also carries Claude Code skills under `.claude/skills/` for the
-build/flash lifecycle, logging, WiFi, BLE, MQTT, debug, RF, and test workflows.
-Setup for both:
+The AICLP skills (`/define`, `/harness`, `/commission`, `/build`) and the
+instrument skills all live under `.claude/skills/`. Setup for both:
 [User Manual §15](docs/Embedded-Workbench-User-Manual.md#15-driving-the-bench-from-claude).
 
 ## 🩺 Troubleshooting
@@ -172,16 +217,16 @@ Full table, with the diagnostics to run on the Pi →
 ## 📡 Under the Hood
 
 Serial travels over **[RFC2217](https://www.rfc-editor.org/rfc/rfc2217)**, a
-Telnet extension that carries serial line control — baud rate, DTR, RTS — over
-TCP. That's why it needs no kernel modules and passes through firewalls, and why
-esptool and pyserial speak it natively.
+Telnet extension that carries serial line control — baud rate, DTR, RTS —
+over TCP. That's why it needs no kernel modules and passes through firewalls,
+and why esptool and pyserial speak it natively.
 
-Hotplug is event-driven, not polled: a **udev** rule fires on USB add/remove and
-POSTs to the portal, which starts or stops that slot's proxy. Station events on
-the test AP arrive the same way, via **dnsmasq** DHCP lease callbacks. Boards with
-native USB-Serial/JTAG need care — Linux asserts DTR and RTS the moment the port
-opens, dropping the chip into download mode mid-boot — so the portal delays
-opening and drives the reset sequence itself.
+Hotplug is event-driven, not polled: a **udev** rule fires on USB add/remove
+and POSTs to the portal, which starts or stops that slot's proxy. Station
+events on the test AP arrive the same way, via **dnsmasq** DHCP lease
+callbacks. Boards with native USB-Serial/JTAG need care — Linux asserts DTR
+and RTS the moment the port opens, dropping the chip into download mode
+mid-boot — so the portal delays opening and drives the reset sequence itself.
 
 Everything is one JSON HTTP API on `:8080`; every response carries `"ok"`.
 
@@ -193,13 +238,14 @@ curl -X POST .../api/sdr/capture   -d '{"freq_hz":433920000,"duration_s":10}'
 
 ## 📚 Documentation
 
-Three documents, one per question, and everything is in one of them:
+The plane map is [`docs/00-Overview.md`](docs/00-Overview.md) — three
+documents, one per question, and everything is in one of them:
 
 | Question | Document | Read it for |
 |----------|----------|-------------|
-| **How do I run it?** | **[User Manual](docs/Embedded-Workbench-User-Manual.md)** | Building the Pi, wiring, and driving every service — install, serial, flashing, debug, WiFi, RF, test automation, troubleshooting. |
-| **What must be true?** | **[Functional Specification](docs/Embedded-Workbench-FSD.md)** | What the bench does, clause by clause. [Appendix D](docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference) is the complete HTTP API and MCP tool reference. |
+| **What must be true?** | **[Functional Specification](docs/Embedded-Workbench-FSD.md)** | AICLP, the journey, and what the bench does clause by clause. [Appendix D](docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference) is the complete HTTP API and MCP tool reference. |
 | **How is it built?** | **[Method](docs/Method/00-Overview.md)** | The build contract for contributors and AI agents — [workflow](docs/Method/AI-Workflow.md), [architecture](docs/Method/project/architecture.md), conventions, testing standard. |
+| **How do I run it?** | **[User Manual](docs/Embedded-Workbench-User-Manual.md)** | Building the Pi, wiring, and driving every service — install, serial, flashing, debug, WiFi, RF, test automation, troubleshooting. |
 
 ## 🙏 Attributions
 
