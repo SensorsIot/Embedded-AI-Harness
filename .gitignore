@@ -9,8 +9,11 @@ __pycache__/
 .claude/settings.local.json
 *.log
 
-# ESP-IDF build artifacts
+# ESP-IDF build artifacts — but never the Method skill at .claude/skills/build/,
+# which this rule silently swallowed once (SKILL.md missing from the pushed repo)
 build/
+!.claude/skills/build/
+!.claude/skills/build/**
 sdkconfig
 sdkconfig.old
 

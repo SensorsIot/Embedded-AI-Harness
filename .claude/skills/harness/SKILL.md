@@ -37,10 +37,14 @@ phase, a `/build` session can open, state its position, and act.
 One project, one container — no separate infrastructure. The devcontainer
 already holds the pytest bench tier, WorkbenchDriver, discovery, and slot
 config, which is everything the verify job needs (it downloads an artifact and
-speaks HTTP; it never builds). Register **per-repo**, labels
-`[self-hosted, testbench]`, ephemeral registration in a restart loop,
-verify job triggered by tag push only, approval required for outside
-contributors. Declare it as a capability:
+speaks HTTP; it never builds). **Installation is automated; registration is a
+human grant** — a registered runner accepts and executes workflow code that
+then physically drives the bench, a standing outward-facing authority like
+the release tag itself. This skill installs the runner and the registration
+script, states what registering means, and waits for the user's yes.
+Register **per-repo**, labels `[self-hosted, testbench]`, ephemeral
+registration in a restart loop, verify job triggered by tag push only,
+approval required for outside contributors. Declare it as a capability:
 
 ```yaml
 release-verification:

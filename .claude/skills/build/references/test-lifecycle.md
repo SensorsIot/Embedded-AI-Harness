@@ -54,8 +54,20 @@ writing it down:
 capabilities:
   wifi-ap-outage:
     what:      Stopping and restarting the access point on demand
-    available: no
+    available: no        # cannot be done — state the consequence
+  captive-portal-automation:
+    what:      enter-portal parses and submits this DUT's provisioning form
+    available: unproven  # the bench declares it; nobody has seen it work HERE
 ```
+
+**`available` has three values, and the third is the load-bearing one:**
+`yes` means *observed working here, on this bench, for this project*; `no`
+means it cannot be done; **`unproven`** means the bench declares it but nobody
+has seen it do its job here — treated as unavailable for blocking, and every
+`unproven` entry is an item on the debugging agenda. Proving the item is what
+flips it to `yes`; nothing is typed twice. A capability assumed available is
+how a session spends an afternoon debugging firmware against a rig that was
+never wired the way everyone believed.
 
 This is where the model earns its keep. On one project a safety requirement
 rendered as *"needs button-gpio, ota-relay"* — because observing it required
