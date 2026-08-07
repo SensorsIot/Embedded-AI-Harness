@@ -279,6 +279,16 @@ verification contract, and could a competent stranger build a rig from it that
 returns pass or fail?** A requirement without a contract is unfinished; a
 contract nobody could execute is a specification defect, not a test problem.
 
+Then, per phase, the same question asked of §3: **can each phase be entered
+using only what an earlier phase delivered?** Walk the phases in order and, for
+each exit criterion, name the phase that supplies every capability it rests on.
+A phase whose exit needs something a later phase builds is a sequencing defect
+and returns to §3 — the requirements can all be perfect while the order in
+which they are met is impossible. The failure is invisible per-requirement,
+because each one is individually satisfiable; only the sequence is wrong. A
+device configured solely through a portal cannot publish before the portal
+exists, however well FR-PUB-01 is written.
+
 Finally run the full quality checklist in `references/finalisation.md` §1 —
 the 13 checks, weasel words, provenance, unbound `{{parameters}}` — and
 **report each failure rather than shipping past it**.
@@ -294,8 +304,8 @@ to — and the whole check runs again afterwards. Phase 1 does not start on a
 partial FSD.
 
 **Load defined** — derived, never declared: every Must/Should has a contract,
-the three planes exist and are committed, and no `(assumed)` marker remains on
-anything architecture-critical.
+every phase is enterable from the one before it, the three planes exist and are
+committed, and no `(assumed)` marker remains on anything architecture-critical.
 
 ## 13. Finalisation
 
