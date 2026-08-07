@@ -30,7 +30,8 @@ phase, a `/build` session can open, state its position, and act.
 | 5 | Firmware integration — **only the modules the FSD requires.** UDP logging always (the loop's eyes inside the DUT); WiFi provisioning, OTA, BLE hooks only when the FSD carries the corresponding requirements. A module the spec never asked for is silent pack adoption | `workbench-integration` |
 | 6 | CI: build on push, release on tag **plus the release-verify job** (flash the released artifact to the testbench, run the journey; red journey = no release) | `setup-action` |
 | 7 | Devcontainer and toolchain, with the **GitHub Actions runner inside it** — see below | `esp-idf-handling` / `esp-pio-handling` (project + toolchain setup) |
-| 8 | **Close with the two questions only the user can answer** — see below | this skill |
+| 8 | **Generate this project's gate checks** — one file per gate under `testing/gates/`, filled with this project's paths, ids, DUT, capabilities, markers and CI. A generic checklist cannot catch a project-specific omission | this skill · `../build/references/gate-checks.md` |
+| 9 | **Close with the two questions only the user can answer** — see below | this skill |
 
 ## Step 7 — the runner lives in the project's devcontainer
 
@@ -53,7 +54,7 @@ release-verification:
                    # bench at verify time is an unmet precondition (not done)
 ```
 
-## Step 8 — the two unharvestable questions
+## Step 9 — the two unharvestable questions
 
 Asked at the end, when the user knows the system's shape — and never
 harvestable from any document:
@@ -84,6 +85,7 @@ them slowly. Full rationale: `../build/references/test-design.md` §5.
 | **Firmware hooks** | only the modules the FSD requires; UDP logging always |
 | **CI** | build on push, release on tag, release-verify job present |
 | **Devcontainer + runner** | toolchain builds; runner installed, registration awaiting the user's grant |
+| **Gate checks** | `testing/gates/` — one generated file per gate, project-specific, run by a fresh checker at each gate |
 
 ### The check — a dry run of the next session
 
@@ -99,9 +101,16 @@ If it can — the plan is readable, the capabilities are declared, the agenda
 exists — the AI is harnessed. If it stalls, the missing input is the finding,
 and it belongs to whichever step above left it out.
 
-**The gate loops, it does not wave through.** If the dry run stalls, or a
-deliverable is missing, go back to the step above that owns it, fix it, and
-re-run the whole check. Commissioning does not start on a partial harness.
+**Run the check in a fresh checker, not in this session** — the session that
+built the harness is the worst judge of whether it landed
+(`../build/references/gate-checks.md`). Spawn it with `testing/gates/` and the
+repo, nothing else — **never memory, transcripts, or a summary of what this
+session did**: a checker told what was decided will confirm it was done.
+
+**The gate loops, it does not wave through.** If the checker returns `SHUT`,
+go back to the step above that owns each finding, fix it, and re-run the whole
+check with a **new** checker. Commissioning does not start on a partial
+harness.
 
 **AI harnessed** — derived, never declared. The next session starts with
 `/commission`.

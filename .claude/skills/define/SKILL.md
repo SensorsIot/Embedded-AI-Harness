@@ -283,6 +283,10 @@ Finally run the full quality checklist in `references/finalisation.md` §1 —
 the 13 checks, weasel words, provenance, unbound `{{parameters}}` — and
 **report each failure rather than shipping past it**.
 
+**Run it in a fresh checker** using this project's `testing/gates/` file once
+it exists (`../build/references/gate-checks.md`); on a project too young to
+have one, run the checklist yourself and say so.
+
 **The gate loops, it does not wave through.** Any check that fails sends the
 work back to the step that owns it — a requirement without a contract returns
 to requirement writing, a failed finalisation item to the section it belongs

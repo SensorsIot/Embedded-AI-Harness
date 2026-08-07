@@ -36,10 +36,13 @@ pass; a gate has to open, and it can send you back. Every gate is **derived,
 never declared**, and every one is *checked*: the owning skill states its
 deliverables and the check that opens it.
 
-> **Run the check. If any requirement of the gate is unmet, name it, loop
-> back to the step that owns it, fix it, and re-run the whole check** — not
-> only the part that failed. Never carry a known deficiency forward, and
-> never enter a phase whose predecessor's gate is still shut.
+> **Run the check in a fresh checker that did not author the work** — the
+> project's generated gate file plus the repo, nothing else, and **never
+> memory or a summary of the session's own work** (`references/gate-checks.md`). **If any requirement of the gate is unmet,
+> name it, loop back to the step that owns it, fix it, and re-run the whole
+> check with a new checker** — not only the part that failed. Never carry a
+> known deficiency forward, and never enter a phase whose predecessor's gate
+> is still shut.
 
 This is the loop's own discipline applied to itself: a deficiency waved
 through is found later at many times the cost, and every result produced
@@ -203,4 +206,5 @@ skill.
 | `references/test-lifecycle.md` | Test status, computed blocking, what artefacts prove, the code-exists retrofit, gap categories |
 | `references/test-architecture.md` | Layering, tier taxonomy, component × tier matrix |
 | `references/change-request.md` | Intake rule, routing, impact analysis, the done-criterion |
+| `references/gate-checks.md` | The fresh-checker protocol, what each gate file contains, and what the five gates demand |
 | `references/domains/esp32/` | Proposed test-case libraries (WiFi, MQTT, BLE, OTA, NVS, …) — a pack proposes, never adopts |

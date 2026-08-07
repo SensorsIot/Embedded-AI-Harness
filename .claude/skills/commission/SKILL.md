@@ -151,6 +151,10 @@ is prose in a document nobody reads again.
 
 ### The gate
 
+**Run the four checks in a fresh checker** with this project's gate file
+(`../build/references/gate-checks.md`) — the session that flashed the board is
+the one most likely to read a half-observed marker as proof.
+
 **The gate loops, it does not wave through.** A failed check sends the work
 back to the act that owns it — a DUT that is not the expected unit, a peer
 that will not answer, a forward path that does not reach its marker — and the
