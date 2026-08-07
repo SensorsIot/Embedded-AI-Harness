@@ -21,10 +21,14 @@ sdkconfig.old
 # dependencies.lock IS committed, so builds are reproducible.
 managed_components/
 
-# Scratch. CLAUDE.md says never commit it; this makes that true rather than
-# a rule someone has to remember, and it is where secrets get dropped.
+# Scratch. This makes the rule true rather than something someone has to
+# remember, and it is where secrets get dropped.
 tmp/
 *.env
+
+# Assistant configuration, not a repo artefact. It configures one person's
+# working copy; a committed copy becomes an instruction to everyone who clones.
+CLAUDE.md
 
 # Personal devcontainer variant (mounts host secrets/keys) — local only
 .devcontainer/personal/
