@@ -254,6 +254,39 @@ documents filling a plane's role rather than creating competitors.
 Worked FSD excerpt: `references/example-output.md`. Preserve / update / add /
 remove rules for deltas: `references/evolve-mode.md`.
 
+## 12.5 Exit — Load defined
+
+### Deliverables
+
+| Deliverable | Content |
+|---|---|
+| **FSD** | requirements — atomic, falsifiable, provenance-tagged — each Must/Should carrying its verification contract; architecture (§2.4 layers); data model; interface definitions; state model where the system is stateful; configuration catalogue; security profile |
+| **Method plane** | `docs/Method/` — build contract, standards, project bindings |
+| **User manual** | `docs/UserDocumentation/` — from day one, with an honest status line |
+| **Plane map** | `docs/00-Overview.md` |
+
+The test plan is **not** here — it is Phase 1's (`/harness` step 4).
+
+### The check — run it, report every failure
+
+```bash
+test -f docs/00-Overview.md && ls docs/Method/ docs/UserDocumentation/   # planes exist
+grep -c "shall" <fsd>                                                    # requirements present
+```
+
+Then, per requirement, the gate that cannot be automated: **does it carry a
+verification contract, and could a competent stranger build a rig from it that
+returns pass or fail?** A requirement without a contract is unfinished; a
+contract nobody could execute is a specification defect, not a test problem.
+
+Finally run the full quality checklist in `references/finalisation.md` §1 —
+the 13 checks, weasel words, provenance, unbound `{{parameters}}` — and
+**report each failure rather than shipping past it**.
+
+**Load defined** — derived, never declared: every Must/Should has a contract,
+the three planes exist and are committed, and no `(assumed)` marker remains on
+anything architecture-critical.
+
 ## 13. Finalisation
 
 Before delivering, run the quality gate and fill the lifecycle metadata block:

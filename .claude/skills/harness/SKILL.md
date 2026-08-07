@@ -72,8 +72,32 @@ harvestable from any document:
 These two answers are worth more than everything else typed this month; take
 them slowly. Full rationale: `../build/references/test-design.md` §5.
 
-## Exit
+## Exit — AI harnessed
 
-**AI harnessed** — derived, never declared: the planes exist, the plan holds
-the journey tests and the declared capabilities, the agenda is written, CI is
-wired, the runner answers. The next session starts with `/commission`.
+### Deliverables
+
+| Deliverable | Content |
+|---|---|
+| **Test plan** | `testing/test-plan.yaml` — capabilities (bench as declared, project equipment own-state), the journey tests seeded from question 2, `phase`/`wave` fields |
+| **Debugging agenda** | the project-side parts from question 1, each with *unproven because* and *proven by* |
+| **Testing standard** | one file: setup/teardown/evidence rules plus shared procedures |
+| **Firmware hooks** | only the modules the FSD requires; UDP logging always |
+| **CI** | build on push, release on tag, release-verify job present |
+| **Devcontainer + runner** | toolchain builds; runner installed, registration awaiting the user's grant |
+
+### The check — a dry run of the next session
+
+```bash
+test -f testing/test-plan.yaml && test -f testing/debugging-agenda.md
+ls .github/workflows/                       # build + release-verify present
+gh run list -L 1                            # CI has actually run green once
+```
+
+Then the only check that matters: **open a `/build` session and see whether it
+can state its position and name the next act without asking you anything.**
+If it can — the plan is readable, the capabilities are declared, the agenda
+exists — the AI is harnessed. If it stalls, the missing input is the finding,
+and it belongs to whichever step above left it out.
+
+**AI harnessed** — derived, never declared. The next session starts with
+`/commission`.

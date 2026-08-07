@@ -31,13 +31,18 @@ This skill drives Phases 2 and 3 of the journey. `/commission` and `/build` are
 two doors into it; the phase is **derived from state, never chosen by the
 command typed**.
 
-| Phase | Milestone — derived, never declared |
-|---|---|
-| 0 · Definition (`/define`) | **Load defined** — every requirement states how it will be proven |
-| 1 · Harness (`/harness`) | **AI harnessed** — a session can open, state its position, and act |
-| 2 · Commissioning | **Testbench trusted** — a failing test means the code, not the setup |
-| 3 · Build | **Ready for shipment** — every requirement met, journey green, reconcile empty |
-| ⚑ Shipment | **Shipped** — release published *and* the journey green on the released bytes |
+Every milestone is **derived, never declared**, and every one is *checked* —
+the owning skill states its deliverables and the check that closes it. Never
+enter a phase whose predecessor's check has not passed; if it has not, say so
+and go back.
+
+| Phase | Milestone | Checked by |
+|---|---|---|
+| 0 · Definition (`/define`) | **Load defined** — every Must/Should carries a verification contract; three planes exist | `/define` §12.5 + `finalisation.md` §1 |
+| 1 · Harness (`/harness`) | **AI harnessed** — a `/build` session opens, states its position, and acts without asking | `/harness` Exit — dry run of the next session |
+| 2 · Commissioning | **Testbench trusted** — a failing test means the code, not the setup | `/commission` Exit — four checks, six records |
+| 3 · Build | **Ready for shipment** — every requirement met, journey green, reconcile empty | this skill §4 audit + §5 reconcile |
+| ⚑ Shipment | **Shipped** — release published *and* the journey green on the released bytes | the release-verify job (§6) |
 
 ## 0. Open every session by saying where the project is
 
