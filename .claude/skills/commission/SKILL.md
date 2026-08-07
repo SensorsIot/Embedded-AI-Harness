@@ -89,6 +89,50 @@ workbench's instruments are **not** on this list.
 Nothing else. Items 1–3 are seconds; item 4 is one CI cycle. Everything
 beyond this list is bench-side and covered by the law.
 
+### Running the four checks
+
+Discover the bench, then hold its URL in `$WB` — never write an address into a
+committed file.
+
+```bash
+# 1 · testbench: answers, and in the mode the project needs
+curl -s $WB/api/info                     # hostname, slots configured/running
+curl -s $WB/api/wifi/mode                # wifi-testing, if the project uses WiFi
+
+# 2 · DUT: the right board, in a free slot
+curl -s $WB/api/devices                  # select by detected_chip, not by label
+curl -s -X POST $WB/api/chip/info -H 'Content-Type: application/json' \
+     -d '{"slot":"<SLOT>"}'              # chip, revision, flash size, MAC
+# Compare with the unit the FSD records. A mismatch stops the phase.
+# Check `debugging` as well as `state`: a live OpenOCD session holds the port
+# while the slot still reads idle, and on native-USB parts a session on ANY
+# such slot blocks the others (shared VID:PID).
+
+# 3 · project peers, if any: present, and answering one basic command
+
+# 4 · forward path: CI artifact → flash → observed marker
+gh run download <run-id> -D fw           # the same bytes CI built
+curl -s -X POST $WB/api/flash -F slot=<SLOT> -F chip=<chip> -F baud=460800 \
+     -F "bin@<offset>=@<image>" ...      # one part per image
+curl -s -X POST $WB/api/serial/monitor -H 'Content-Type: application/json' \
+     -d '{"slot":"<SLOT>","pattern":"<marker>","timeout":30}'
+```
+
+**Take the flash offsets from the build, never from memory.** An ESP-IDF
+build ships `flash_args` beside the images with the authoritative offsets;
+they move whenever the partition table changes — dropping a `factory`
+partition shifts the app from `0x10000` to `0x20000`, and `otadata` from
+`0xd000` to `0xf000`. Guessing produces a *successful* flash with a
+hash-verified write and a device that then reports `invalid magic byte
+(nothing flashed here?)` and refuses to boot. Read `flash_args`; the flash
+succeeding is not evidence that it landed where the partition table expects.
+
+**Monitor with a pattern and start it before the reset**, or match a periodic
+marker instead: a boot banner has already scrolled past by the time a monitor
+opened afterwards, so a missed match may mean *late*, not *absent*. A
+heartbeat line (`alive 1`, `alive 2`, …) is observable at any moment, which is
+why item 4's program prints one.
+
 ## Exit
 
 **Testbench trusted** — derived, never declared: the workbench by law, the
