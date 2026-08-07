@@ -632,6 +632,23 @@ curl -X POST http://workbench.local:8080/api/flash \
 The portal fixes `--before default_reset --after hard_reset`; the request
 carries no reset flags. No `POST /api/serial/reset` is needed afterwards.
 
+#### 6.7.1a Reading flash back via `POST /api/flash/read`
+
+The read counterpart to `/api/flash`: pulls a flash region off a slot's device
+without OpenOCD — a coredump partition, an NVS blob, the live partition table.
+
+**Request:** `POST /api/flash/read`, JSON body — `slot`/`slot_key` (required),
+`offset` and `length` (int or `0x…` string, required), `chip` (default
+`auto`), `baud` (default `460800`).
+
+**Response:** `{"ok": true, "offset", "length", "sha256", "data_b64"}` — the
+bytes base64-encoded with a SHA-256 to verify.
+
+**Behavior:** same proxy lifecycle as a flash — the portal stops the slot's
+proxy, runs `esptool read-flash` locally, restarts the proxy; the running
+firmware is disturbed exactly as by a flash. An active debug session must be
+stopped first: OpenOCD holds the port and esptool cannot open it.
+
 #### 6.7.2 Over-the-air flashing via `POST /api/ota`
 
 **When to use:** a board that is **no longer on a USB slot** — deployed on the
@@ -3468,6 +3485,7 @@ Allowlist `{16,17,18,19,20,21,22,23,24,25,26,27}` (others reserved for I²C/GPCL
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/flash` | Local-Pi esptool flash of a slot (bridge-chip boards). Multipart: `slot`, `chip`, `baud`, `erase?`, one `bin@<offset>` file part per image (§6.7.1) |
+| POST | `/api/flash/read` | Read a flash region back off a slot. JSON: `slot`, `offset`, `length`, `chip?`, `baud?` → `{"sha256", "data_b64"}` (§6.7.1a) |
 | POST | `/api/ota` | OTA a deployed on-LAN board (espota relayed by the Pi). Multipart: `firmware` file, `target`, `port?`, `auth?` (§6.7.2) |
 | POST | `/api/chip/info` | Chip and **physical** flash identity via `esptool flash_id` `{"slot", "chip?"}` → `{"chip", "revision", "features", "crystal", "usb_mode", "mac", "flash_size", "flash_manufacturer", "flash_device", "output"}`. Reboots the DUT (§6.7.3) |
 
