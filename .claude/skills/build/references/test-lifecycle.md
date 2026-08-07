@@ -55,9 +55,9 @@ capabilities:
   wifi-ap-outage:
     what:      Stopping and restarting the access point on demand
     available: no        # cannot be done — state the consequence
-  captive-portal-automation:
-    what:      enter-portal parses and submits this DUT's provisioning form
-    available: unproven  # the bench declares it; nobody has seen it work HERE
+  mbus-simulator:
+    what:      the project's meter simulator emits complete telegrams
+    available: unproven  # project-side peer; nobody has seen it work HERE
 ```
 
 **`available` has three values.** `yes` — for the workbench's declared
