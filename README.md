@@ -1,6 +1,6 @@
 # The Harness — AI Closed-Loop Programming for Embedded Systems
 
-[![host tests](https://img.shields.io/github/actions/workflow/status/SensorsIot/Embedded-Development-Harness/ci.yml?branch=main&label=host%20tests)](https://github.com/SensorsIot/Embedded-Development-Harness/actions/workflows/ci.yml)
+[![host tests](https://img.shields.io/github/actions/workflow/status/SensorsIot/Embedded-AI-Harness/ci.yml?branch=main&label=host%20tests)](https://github.com/SensorsIot/Embedded-AI-Harness/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-c51a4a)
@@ -131,8 +131,8 @@ An RTL-SDR dongle, an Si5351 + PE4302, and jumper wires to the board's
 EN/BOOT pins are all optional.
 
 ```bash
-git clone https://github.com/SensorsIot/Embedded-Development-Harness.git
-cd Embedded-Development-Harness/pi
+git clone https://github.com/SensorsIot/Embedded-AI-Harness.git
+cd Embedded-AI-Harness/pi
 sudo bash install.sh
 ```
 
@@ -151,7 +151,7 @@ for you.
 
 > **On a Pi Zero 2 W, do the memory hardening first.** With 512 MB the board
 > OOM-crashes under load, and hard crashes corrupt the SD card. See
-> [User Manual §2.2](docs/Embedded-Workbench-User-Manual.md#22-first-boot--system-hardening).
+> [User Manual §2.2](docs/Harness-User-Manual.md#22-first-boot--system-hardening).
 
 ## 🔧 Usage
 
@@ -197,7 +197,7 @@ onto **Settings → Extensions** and enter your workbench URL.
 
 The AICLP skills (`/define`, `/harness`, `/commission`, `/build`) and the
 instrument skills all live under `.claude/skills/`. Setup for both:
-[User Manual §15](docs/Embedded-Workbench-User-Manual.md#15-driving-the-bench-from-claude).
+[User Manual §15](docs/Harness-User-Manual.md#15-driving-the-bench-from-claude).
 
 ## 🩺 Troubleshooting
 
@@ -212,7 +212,7 @@ instrument skills all live under `.claude/skills/`. Setup for both:
 | Pi reboots at random | Out of memory (Pi Zero 2 W) | Apply the §2.2 hardening; check `free -h` |
 
 Full table, with the diagnostics to run on the Pi →
-[User Manual §17](docs/Embedded-Workbench-User-Manual.md#17-troubleshooting).
+[User Manual §17](docs/Harness-User-Manual.md#17-troubleshooting).
 
 ## 📡 Under the Hood
 
@@ -243,9 +243,9 @@ documents, one per question, and everything is in one of them:
 
 | Question | Document | Read it for |
 |----------|----------|-------------|
-| **What must be true?** | **[Functional Specification](docs/Embedded-Workbench-FSD.md)** | AICLP, the journey, and what the bench does clause by clause. [Appendix D](docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference) is the complete HTTP API and MCP tool reference. |
+| **What must be true?** | **[Functional Specification](docs/Harness-FSD.md)** | AICLP, the journey, and what the bench does clause by clause. [Appendix D](docs/Harness-FSD.md#appendix-d-http-api--mcp-reference) is the complete HTTP API and MCP tool reference. |
 | **How is it built?** | **[Method](docs/Method/00-Overview.md)** | The build contract for contributors and AI agents — [workflow](docs/Method/AI-Workflow.md), [architecture](docs/Method/project/architecture.md), conventions, testing standard. |
-| **How do I run it?** | **[User Manual](docs/Embedded-Workbench-User-Manual.md)** | Building the Pi, wiring, and driving every service — install, serial, flashing, debug, WiFi, RF, test automation, troubleshooting. |
+| **How do I run it?** | **[User Manual](docs/Harness-User-Manual.md)** | Building the Pi, wiring, and driving every service — install, serial, flashing, debug, WiFi, RF, test automation, troubleshooting. |
 
 ## 🙏 Attributions
 

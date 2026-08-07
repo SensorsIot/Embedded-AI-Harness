@@ -5,7 +5,7 @@
 #   sudo bash install.sh              # full install (first time)
 #   sudo bash install.sh --update     # update scripts only (no system changes)
 #
-# See docs/Embedded-Workbench-User-Manual.md section 2 for the full SD card rebuild procedure.
+# See docs/Harness-User-Manual.md section 2 for the full SD card rebuild procedure.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -6,7 +6,7 @@ documentation stays in sync with it.
 ## The loop
 
 **1. Locate the contract.** Find the FSD rule the work serves in
-[`../Embedded-Workbench-FSD.md`](../Embedded-Workbench-FSD.md) — by FR number, or
+[`../Harness-FSD.md`](../Harness-FSD.md) — by FR number, or
 via Appendix D for anything API-shaped. If no rule covers it, the work starts by
 defining the **WHAT** (a new atomic, falsifiable requirement), not by writing
 code.
@@ -36,7 +36,7 @@ mechanically checkable — do it rather than assuming:
 
 ```bash
 for p in $(grep -oE "/api/[a-zA-Z0-9_/-]+" pi/portal.py | sort -u); do
-  grep -qF "$p" docs/Embedded-Workbench-FSD.md || echo "UNDOCUMENTED $p"
+  grep -qF "$p" docs/Harness-FSD.md || echo "UNDOCUMENTED $p"
 done
 ```
 

@@ -1,4 +1,4 @@
-# Embedded Workbench — Functional Specification Document
+# The Harness — Functional Specification Document
 
 ## Contents
 
@@ -25,7 +25,7 @@
 This document is the **WHAT** plane: what must be true of the bench. The plane
 map is [`00-Overview.md`](00-Overview.md); the other planes are
 [`Method/`](Method/00-Overview.md) (HOW) and the
-[User Manual](Embedded-Workbench-User-Manual.md) (OPERATE). Nothing here
+[User Manual](Harness-User-Manual.md) (OPERATE). Nothing here
 duplicates them.
 
 ---
@@ -2725,7 +2725,7 @@ The server runs on the **client** machine (not the Pi) and reaches the workbench
 via the `WORKBENCH_URL` env var (default `http://<host>:8080`). It uses only the
 Python standard library (stdio JSON-RPC + `urllib`), so it needs **no dependency
 install** — only Python 3. It ships two ways, both covered in the
-[User Manual §15.2](Embedded-Workbench-User-Manual.md#152-mcp-server):
+[User Manual §15.2](Harness-User-Manual.md#152-mcp-server):
 
 - **`mcp/universal-embedded-workbench.mcpb`** — a Claude Desktop extension (built
   from `mcp/manifest.json` + the server via `npx @anthropic-ai/mcpb pack`).
@@ -3146,7 +3146,7 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | 9.3 | 2026-07-05 | Claude | Captive-portal provisioning + LAN bridge, verified against the LoRa32 awning (WiFiManager DUT). `enter-portal` parameterized for arbitrary portal forms (WiFiManager `/wifisave`, `s`/`p` + `extra` MQTT fields) with an `internet` option; AP mode gains NAT bridging to `eth0` (`ap_start internet=true`, FR-011) so a provisioned DUT reaches the LAN/internet; MQTT broker wired to the API (FR-029, `/api/mqtt/*`, `mqtt_controller.py`). SDR (FR-028) gains a `flex` `-X` custom-decoder param and `-M level` rssi/snr signal-vs-noise reporting. Test cases WT-1906–1908 (SDR flex/RSSI, RF path), WT-2000–2002 (broker), WT-2100–2102 (captive-portal provisioning). |
 | 9.4 | 2026-07-05 | Claude | SDR (FR-028) gains: fixed-gain (`-g`) + `peak_freq_hz`/`notch_hz` on power; phased `acquire` (locate→level→decode→classify) with `tools/sdr_acquire.py` CLI and live activity-log prompts; the interactive **live console** (persistent `rtl_433`, ring-buffer fast-poll `/api/sdr/live*`, RSSI meter, presets, `-A` in every mode so the signal meter is decode-independent); **AI Sherlock** session log (`/api/sdr/log*`) for AI reverse-engineering of unknown remotes; USB self-heal + `/api/sdr/reset`; and an `rtl_433` device database (`pi/config/rtl_433.conf`) shipping the Euromot Awning remote. New skill `sdr-receiver`. |
 | 9.5 | 2026-08-03 | Claude | MCP surface completed to 70 tools — added `firmware_upload/delete`, `udplog_get/clear`, `debug_group`, `test_update`, `wifi_events`, `human_interaction/done/cancel`; `DELETE` added as a transport method. Only the two udev callbacks (`/api/hotplug`, `/api/wifi/lease_event`) remain unexposed. |
-| 10.0 | 2026-08-03 | Claude | Documentation consolidated to two documents: this FSD (WHAT) and the User Manual (HOW). The separate user manual, WiFi HTTP manual, skill-testing guide, and the `pi/` and `mcp/` READMEs merged into `Embedded-Workbench-User-Manual.md`; root `README.md` reduced to a landing page. FSD sections regrouped by subsystem — FR-017–FR-021 out of "WiFi Service" into §5, BLE + MQTT into §6, the three GDB specs into §7, signal generator + SDR into §8, and the MCP interface promoted out of FR-006 into §9. FR numbers and clause text unchanged. |
+| 10.0 | 2026-08-03 | Claude | Documentation consolidated to two documents: this FSD (WHAT) and the User Manual (HOW). The separate user manual, WiFi HTTP manual, skill-testing guide, and the `pi/` and `mcp/` READMEs merged into `Harness-User-Manual.md`; root `README.md` reduced to a landing page. FSD sections regrouped by subsystem — FR-017–FR-021 out of "WiFi Service" into §5, BLE + MQTT into §6, the three GDB specs into §7, signal generator + SDR into §8, and the MCP interface promoted out of FR-006 into §9. FR numbers and clause text unchanged. |
 
 ---
 
@@ -3711,7 +3711,7 @@ args a JSON body, and `flash`/`ota`/`firmware_upload` upload local files. Adding
 endpoint above is one row in `SPECS`. The server is standard-library only (no
 `pip install`); it ships as a one-click Claude Desktop `.mcpb` extension
 (`mcp/manifest.json`) or via manual `claude mcp add` / `claude_desktop_config.json`.
-Install and client setup: [User Manual §15.2](Embedded-Workbench-User-Manual.md#152-mcp-server).
+Install and client setup: [User Manual §15.2](Harness-User-Manual.md#152-mcp-server).
 Verified with Claude Code
 (`claude mcp add` → `claude mcp list` → ✔ Connected).
 

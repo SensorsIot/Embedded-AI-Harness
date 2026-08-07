@@ -15,9 +15,9 @@ changed. Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
 
 | Plane | Question | Document |
 |-------|----------|----------|
-| **WHAT** | What must be true of the bench? | [`../Embedded-Workbench-FSD.md`](../Embedded-Workbench-FSD.md) |
+| **WHAT** | What must be true of the bench? | [`../Harness-FSD.md`](../Harness-FSD.md) |
 | **HOW** | How is it built and changed? | This directory |
-| **OPERATE** | How do I run it? | [`../Embedded-Workbench-User-Manual.md`](../Embedded-Workbench-User-Manual.md) |
+| **OPERATE** | How do I run it? | [`../Harness-User-Manual.md`](../Harness-User-Manual.md) |
 
 The FSD defines the target; the Method defines the way there; the Handbook describes
 the running system. On conflict the FSD wins on *what must be true* and the

@@ -7,10 +7,10 @@
   "long_description": "Exposes the workbench HTTP API as MCP tools so Claude can operate the bench conversationally. Zero Python dependencies (standard library only) — you only need Python 3 on this machine and network reach to the workbench. Set the workbench URL when you install.",
   "author": {
     "name": "SensorsIot",
-    "url": "https://github.com/SensorsIot/Embedded-Development-Harness"
+    "url": "https://github.com/SensorsIot/Embedded-AI-Harness"
   },
-  "homepage": "https://github.com/SensorsIot/Embedded-Development-Harness",
-  "documentation": "https://github.com/SensorsIot/Embedded-Development-Harness/blob/main/docs/Embedded-Workbench-User-Manual.md",
+  "homepage": "https://github.com/SensorsIot/Embedded-AI-Harness",
+  "documentation": "https://github.com/SensorsIot/Embedded-AI-Harness/blob/main/docs/Harness-User-Manual.md",
   "license": "MIT",
   "keywords": ["esp32", "embedded", "test-bench", "sdr", "rtl_433", "flashing", "ota", "raspberry-pi"],
   "server": {

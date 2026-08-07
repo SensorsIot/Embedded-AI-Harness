@@ -49,8 +49,8 @@ curl -X POST $WORKBENCH_URL/api/wifi/mode \
 
 ## Endpoints
 
-Request and response shapes: [FSD Appendix D.4](../../../docs/Embedded-Workbench-FSD.md#d4-wifi-instrument), plus
-`/api/enter-portal` in [D.2](../../../docs/Embedded-Workbench-FSD.md#d2-serial-management).
+Request and response shapes: [FSD Appendix D.4](../../../docs/Harness-FSD.md#d4-wifi-instrument), plus
+`/api/enter-portal` in [D.2](../../../docs/Harness-FSD.md#d2-serial-management).
 
 **AP and STA are mutually exclusive** — one radio. Starting the AP drops any STA
 association and vice versa, so a test that needs both must sequence them.

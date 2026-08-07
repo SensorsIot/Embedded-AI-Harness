@@ -351,7 +351,7 @@ cable — retrying at a lower baud will not help.
 
 ## API Endpoints
 
-Request and response shapes: [FSD Appendix D.3](../../../docs/Embedded-Workbench-FSD.md#d3-gdb-debug).
+Request and response shapes: [FSD Appendix D.3](../../../docs/Harness-FSD.md#d3-gdb-debug).
 
 **Note:** `POST /api/debug/start` and `POST /api/debug/stop` are optional overrides -- OpenOCD starts automatically when a device is plugged in. No API call is needed for normal use. All parameters are optional; the workbench auto-detects slot, chip, and probe.
 

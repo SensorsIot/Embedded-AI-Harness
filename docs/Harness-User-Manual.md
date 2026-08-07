@@ -1,6 +1,6 @@
-# Embedded Workbench — User Manual
+# The Harness — User Manual
 
-How to build, wire, and operate the Embedded Workbench: a Raspberry Pi that turns
+How to build, wire, and operate the Harness workbench: a Raspberry Pi that turns
 into a complete remote test instrument for ESP32 devices — serial, debug, WiFi,
 BLE, GPIO, MQTT, RF signal generation, and SDR receive — all over one HTTP API.
 
@@ -9,7 +9,7 @@ It is one of three documents, each answering a different question:
 
 | Plane | Question | Document |
 |-------|----------|----------|
-| WHAT | What must be true of the bench? | [`Embedded-Workbench-FSD.md`](Embedded-Workbench-FSD.md) — **[Appendix D](Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)** is the complete HTTP API and MCP tool reference |
+| WHAT | What must be true of the bench? | [`Harness-FSD.md`](Harness-FSD.md) — **[Appendix D](Harness-FSD.md#appendix-d-http-api--mcp-reference)** is the complete HTTP API and MCP tool reference |
 | HOW | How is it built and changed? | [`Method/`](Method/00-Overview.md) |
 | **OPERATE** | **How do I run it?** | **this manual** |
 
@@ -139,8 +139,8 @@ free -h                       # should show ~480 MB total + swap
 ### 2.3 Install the workbench
 
 ```bash
-git clone https://github.com/SensorsIot/Embedded-Development-Harness.git
-cd Embedded-Development-Harness/pi
+git clone https://github.com/SensorsIot/Embedded-AI-Harness.git
+cd Embedded-AI-Harness/pi
 sudo bash install.sh
 ```
 
@@ -844,7 +844,7 @@ curl 'http://workbench.local:8080/api/udplog?source=192.168.4.15'
 `WorkbenchDriver` wraps every API call. Install it and import:
 
 ```bash
-pip install -e Embedded-Development-Harness/pytest
+pip install -e Embedded-AI-Harness/pytest
 ```
 
 ```python
@@ -945,7 +945,7 @@ The repo ships project skills under `.claude/skills/` that teach Claude Code how
 to drive the bench. Install them on each dev machine:
 
 ```bash
-git clone https://github.com/SensorsIot/Embedded-Development-Harness.git /tmp/uew
+git clone https://github.com/SensorsIot/Embedded-AI-Harness.git /tmp/uew
 mkdir -p .claude/skills
 cp -r /tmp/uew/.claude/skills/. .claude/skills/
 rm -rf /tmp/uew
@@ -1001,7 +1001,7 @@ URL — no reinstall. To update, install a newer `.mcpb` over the old one.
 ```bash
 claude mcp add workbench \
   --env WORKBENCH_URL=http://workbench.local:8080 \
-  -- python3 /abs/path/to/Embedded-Development-Harness/mcp/workbench_mcp.py
+  -- python3 /abs/path/to/Embedded-AI-Harness/mcp/workbench_mcp.py
 
 claude mcp list      # look for: workbench … ✔ Connected
 ```
@@ -1017,7 +1017,7 @@ Windows `%APPDATA%\Claude\`, Linux `~/.config/Claude/`). Merge in:
   "mcpServers": {
     "workbench": {
       "command": "python3",
-      "args": ["/abs/path/to/Embedded-Development-Harness/mcp/workbench_mcp.py"],
+      "args": ["/abs/path/to/Embedded-AI-Harness/mcp/workbench_mcp.py"],
       "env": { "WORKBENCH_URL": "http://workbench.local:8080" }
     }
   }
@@ -1050,7 +1050,7 @@ the client machine must be able to see them. The two udev callbacks
 fire on the Pi itself and aren't client-callable.
 
 Full tool reference:
-**[FSD Appendix D](Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)**.
+**[FSD Appendix D](Harness-FSD.md#appendix-d-http-api--mcp-reference)**.
 
 ---
 
@@ -1318,4 +1318,4 @@ esptool --port 'rfc2217://workbench.local:4001?ign_set_control' write_flash 0x0 
 **Web portal:** `http://workbench.local:8080`
 
 **Full API and MCP tool reference:**
-[FSD Appendix D](Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)
+[FSD Appendix D](Harness-FSD.md#appendix-d-http-api--mcp-reference)

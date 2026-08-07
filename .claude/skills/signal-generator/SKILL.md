@@ -37,7 +37,7 @@ Skipping the status check is the most common failure mode of this skill — pick
 ## API summary
 
 Every endpoint, with its request and response shape:
-[FSD Appendix D.11](../../../docs/Embedded-Workbench-FSD.md#d11-signal-generator).
+[FSD Appendix D.11](../../../docs/Harness-FSD.md#d11-signal-generator).
 
 `freq` retunes an active carrier without restarting the Morse keyer — use it
 rather than stop/start when a test must not lose keying state.
@@ -181,7 +181,7 @@ The siggen service responds when the change is in effect. If a downstream measur
 
 ## Reference
 
-- Functional spec: `docs/Embedded-Workbench-FSD.md` §FR-027 (Signal Generator).
+- Functional spec: `docs/Harness-FSD.md` §FR-027 (Signal Generator).
 - Backend logic: `pi/signal_generator.py` (orchestrator), `pi/si5351.py`, `pi/gpclk.py`, `pi/pe4302.py`, `pi/morse.py`.
 - HTTP handlers: `pi/portal.py` (`_handle_siggen_*`).
 - Driver: `pytest/workbench_driver.py` (`siggen_*` methods).

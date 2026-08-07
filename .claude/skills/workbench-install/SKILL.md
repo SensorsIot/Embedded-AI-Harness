@@ -11,7 +11,7 @@ Pi — or on your laptop — changes nothing until they are copied across and th
 service is restarted. Every "my fix didn't work" report traces back to this.
 
 Full operator procedure lives in
-[`docs/Embedded-Workbench-User-Manual.md`](../../../docs/Embedded-Workbench-User-Manual.md)
+[`docs/Harness-User-Manual.md`](../../../docs/Harness-User-Manual.md)
 §2. This skill is the working procedure plus the things that only bite when you
 actually do it.
 
@@ -27,8 +27,8 @@ actually do it.
 ## Fresh install
 
 ```bash
-git clone https://github.com/SensorsIot/Embedded-Development-Harness.git
-cd Embedded-Development-Harness/pi
+git clone https://github.com/SensorsIot/Embedded-AI-Harness.git
+cd Embedded-AI-Harness/pi
 sudo bash install.sh
 ```
 

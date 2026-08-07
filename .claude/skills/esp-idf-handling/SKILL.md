@@ -122,7 +122,7 @@ the failure arrives later as corruption at whatever offset first exceeds the
 physical device — usually OTA or NVS, rarely the app.
 
 Ask the bench — it reads the chip directly
-([FSD §6.7.3](../../../docs/Embedded-Workbench-FSD.md#673-chip-identity-via-post-apichipinfo)):
+([FSD §6.7.3](../../../docs/Harness-FSD.md#673-chip-identity-via-post-apichipinfo)):
 
 ```bash
 curl -X POST $WORKBENCH_URL/api/chip/info \\
@@ -277,7 +277,7 @@ curl -s -X POST $WORKBENCH_URL/api/flash \
   -F 'bin@0x10000=@firmware.bin'
 ```
 
-Every field, its default, and the response shape: [FSD §6.7.1](../../../docs/Embedded-Workbench-FSD.md#671-local-flashing-via-post-apiflash).
+Every field, its default, and the response shape: [FSD §6.7.1](../../../docs/Harness-FSD.md#671-local-flashing-via-post-apiflash).
 
 #### Reading flash back: `POST /api/flash/read`
 
@@ -317,20 +317,20 @@ curl -X POST $WORKBENCH_URL/api/serial/reset \
 
 ### Workbench API endpoints
 
-The full endpoint reference is [FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference)
+The full endpoint reference is [FSD Appendix D](../../../docs/Harness-FSD.md#appendix-d-http-api--mcp-reference)
 — D.1 discovery, D.2 serial, D.8 firmware repository, D.9 flashing. Read it there
 rather than from memory: this skill states *which* call to reach for and what
 breaks, not the request shapes.
 
 ### Serial reset
 
-`POST /api/serial/reset` ([D.2](../../../docs/Embedded-Workbench-FSD.md#d2-serial-management)) pulses DTR/RTS and
+`POST /api/serial/reset` ([D.2](../../../docs/Harness-FSD.md#d2-serial-management)) pulses DTR/RTS and
 returns the boot output. Needed after driving esptool yourself over RFC2217 —
 **not** after `/api/flash`, which resets the device itself.
 
 ### Slot states
 
-Defined with their transitions in the [FSD](../../../docs/Embedded-Workbench-FSD.md#16-state-model). Only two accept a
+Defined with their transitions in the [FSD](../../../docs/Harness-FSD.md#16-state-model). Only two accept a
 flash: **`idle`** (via `/api/flash` or RFC2217) and **`download_mode`** (direct
 serial on the Pi). Anything else means wait or recover first — see
 Flapping & Automatic Recovery below.
@@ -361,7 +361,7 @@ curl "$WORKBENCH_URL/api/udplog?limit=50"
 
 ### Firmware repository management
 
-Upload, list and delete are [FSD Appendix D.8](../../../docs/Embedded-Workbench-FSD.md#d8-firmware-repository). The
+Upload, list and delete are [FSD Appendix D.8](../../../docs/Harness-FSD.md#d8-firmware-repository). The
 one detail this flow depends on: an uploaded image is served to the device at
 `$WORKBENCH_URL/firmware/<project>/<filename>`, and that URL is
 what step 3 above hands to the ESP32.

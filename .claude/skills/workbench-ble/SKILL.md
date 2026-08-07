@@ -25,7 +25,7 @@ variable `pytest --wt-url` falls back to.
 
 ## Endpoints
 
-Request and response shapes: [FSD Appendix D.5](../../../docs/Embedded-Workbench-FSD.md#d5-ble-proxy).
+Request and response shapes: [FSD Appendix D.5](../../../docs/Harness-FSD.md#d5-ble-proxy).
 
 **One BLE connection at a time** — connect to a second peripheral without
 disconnecting the first and the call fails rather than switching.

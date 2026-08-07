@@ -36,9 +36,9 @@ Two logging methods are available. Choose based on your situation:
 
 ## Endpoints
 
-Request and response shapes: serial in [FSD Appendix D.2](../../../docs/Embedded-Workbench-FSD.md#d2-serial-management),
-UDP log in [D.7](../../../docs/Embedded-Workbench-FSD.md#d7-udp-log), the portal's own activity log in
-[D.14](../../../docs/Embedded-Workbench-FSD.md#d14-activity-log).
+Request and response shapes: serial in [FSD Appendix D.2](../../../docs/Harness-FSD.md#d2-serial-management),
+UDP log in [D.7](../../../docs/Harness-FSD.md#d7-udp-log), the portal's own activity log in
+[D.14](../../../docs/Harness-FSD.md#d14-activity-log).
 
 Three different logs, and picking the wrong one wastes a test run: `/api/serial/*`
 is what the device printed over USB, `/api/udplog` is what it sent over the

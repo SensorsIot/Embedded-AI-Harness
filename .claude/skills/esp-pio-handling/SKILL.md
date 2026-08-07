@@ -84,7 +84,7 @@ python3 .claude/skills/esp-pio-handling/workbench-flash.py \
 ```
 
 Offsets: classic ESP32 → `0x1000`, C3/S3/C6/H2 → `0x0`. Fields and response:
-[FSD Appendix D.9](../../../docs/Embedded-Workbench-FSD.md#d9-flashing-usb--ota).
+[FSD Appendix D.9](../../../docs/Harness-FSD.md#d9-flashing-usb--ota).
 
 ### Fallback: RFC2217 upload (LAN clients only)
 

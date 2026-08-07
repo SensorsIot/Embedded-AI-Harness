@@ -27,7 +27,7 @@ The workbench can run an MQTT broker (mosquitto) for testing ESP32 devices that 
 
 ## Endpoints
 
-Request and response shapes: [FSD Appendix D.12](../../../docs/Embedded-Workbench-FSD.md#d12-mqtt-test-broker).
+Request and response shapes: [FSD Appendix D.12](../../../docs/Harness-FSD.md#d12-mqtt-test-broker).
 
 ## Examples
 

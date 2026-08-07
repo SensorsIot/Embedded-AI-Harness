@@ -60,7 +60,7 @@ Appendix chapters.
 
 ## Template Reference
 
-All template code lives in `Embedded-Development-Harness/test-firmware/`. When adding modules, copy from these templates and customize project-specific values:
+All template code lives in `Embedded-AI-Harness/test-firmware/`. When adding modules, copy from these templates and customize project-specific values:
 
 | Module | Template source | Customization |
 |--------|----------------|---------------|
@@ -297,7 +297,7 @@ After completing all steps, verify:
 ## Workbench Skills Reference
 
 Every endpoint these skills drive is specified in
-[FSD Appendix D](../../../docs/Embedded-Workbench-FSD.md#appendix-d-http-api--mcp-reference).
+[FSD Appendix D](../../../docs/Harness-FSD.md#appendix-d-http-api--mcp-reference).
 
 | Skill | Covers |
 |-------|--------|

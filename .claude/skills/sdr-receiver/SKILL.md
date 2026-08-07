@@ -37,7 +37,7 @@ one-shot, and vice-versa.
 ## API summary
 
 Every endpoint, with its request and response shape:
-[FSD Appendix D.10](../../../docs/Embedded-Workbench-FSD.md#d10-sdr-receiver).
+[FSD Appendix D.10](../../../docs/Harness-FSD.md#d10-sdr-receiver).
 
 Only the choice between them is this skill's: `capture` decodes, `analyze` gives
 raw pulse timing when nothing decodes, `power` measures a level, and `acquire`
@@ -219,7 +219,7 @@ AI Sherlock → analyze the log → append `decoder` line(s) to `pi/config/rtl_4
 
 ## Reference
 
-- Functional spec: `docs/Embedded-Workbench-FSD.md` §FR-028 (SDR Receiver).
+- Functional spec: `docs/Harness-FSD.md` §FR-028 (SDR Receiver).
 - Controller: `pi/sdr_controller.py`. HTTP handlers: `pi/portal.py` (`_handle_sdr_*`, the SDR Console panel).
 - Driver: `pytest/workbench_driver.py` (`sdr_*`). CLI: `tools/sdr_acquire.py`.
 - Device database: `pi/config/rtl_433.conf` → `/etc/rtl_433/rtl_433.conf`.
