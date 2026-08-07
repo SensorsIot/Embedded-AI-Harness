@@ -67,6 +67,23 @@ workbench's instruments are **not** on this list.
   reads a measurement by eye. If no instrument can make the observation, that
   is a workbench change request.
 
+## The worked shape — a typical ESP32 project on the workbench
+
+1. **Discover the testbench**; record hostname, last-seen IP and portal
+   version as dated observations. Tests still select by identity — the
+   record is memory, never a hardcoded address.
+2. **Find the DUT and verify it is what the project expects** — slot, chip
+   type and revision, flash size, MAC against the FSD's unit. Mismatch =
+   stop: wrong board in the slot.
+3. **Project peers**, if any (a meter simulator): present, answers one basic
+   command; record its slot.
+4. **First flash and first boot of the project's build on this unit** —
+   the boot marker on serial. The one project-side path that must be seen
+   once.
+
+Nothing else. Items 1–3 are seconds; item 4 is a minute. Everything beyond
+this list is bench-side and covered by the law.
+
 ## Exit
 
 **Testbench trusted** — derived, never declared: the workbench by law, the
