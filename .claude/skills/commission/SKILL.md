@@ -77,12 +77,15 @@ workbench's instruments are **not** on this list.
    stop: wrong board in the slot.
 3. **Project peers**, if any (a meter simulator): present, answers one basic
    command; record its slot.
-4. **First flash and first boot of the project's build on this unit** —
-   the boot marker on serial. The one project-side path that must be seen
-   once.
+4. **Prove the forward path with a trivial known-good program** — CI
+   compiles a blink/hello sketch, the artifact is flashed to the DUT's slot,
+   and its marker is observed on serial. One pass proves the whole pipeline
+   — toolchain, artifact flow, flash, boot, observation — with code that
+   cannot itself be the problem. When the project's first real build fails
+   later, the pipeline is above suspicion.
 
-Nothing else. Items 1–3 are seconds; item 4 is a minute. Everything beyond
-this list is bench-side and covered by the law.
+Nothing else. Items 1–3 are seconds; item 4 is one CI cycle. Everything
+beyond this list is bench-side and covered by the law.
 
 ## Exit
 
