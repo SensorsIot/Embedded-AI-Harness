@@ -36,6 +36,13 @@ environment.
   the device) is `standard` in kind, ordered ahead of the journey.
 - The DUT and testbench are not always powered. An unreachable bench is an
   unmet precondition — `not done` with the reason, never `failed`.
+- **The operator's hands are for physical acts — plug, wire, power, swap.
+  Observations belong to instruments.** Never design a step where a human
+  reads a measurement by eye (a phone checking whether an AP is visible). If
+  the testbench cannot make the observation, that is a missing capability:
+  raise the change request, or use a second bench as the observer — e.g. one
+  bench's wlan0 joins the other's AP via `sta_join` to discriminate AP-fault
+  from DUT-fault, no phone involved.
 
 ## Exit
 
