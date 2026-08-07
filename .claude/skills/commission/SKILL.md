@@ -135,8 +135,23 @@ why item 4's program prints one.
 
 ## Exit
 
+### Deliverables — what Phase 2 hands to Phase 3
+
+All of it lives in `testing/test-plan.yaml` as dated observations; none of it
+is prose in a document nobody reads again.
+
+| Deliverable | Content |
+|---|---|
+| **Testbench record** | hostname, last-seen IP, portal version, date. Memory, never an address tests connect to |
+| **DUT record** | slot, chip type and revision, flash size, MAC — the unit this project is verified against, matching the FSD |
+| **Peer records** | each project peer: what it is, its slot or address, the command it answered |
+| **Forward-path evidence** | the CI run id, the artifact, the flash offsets used (from `flash_args`), and the marker observed |
+| **Capability updates** | every project-side `unproven` resolved to `yes` or `no`; each `no` carries its consequence, each `yes` its observation |
+| **Agenda** | empty of project-side items; anything left is bench-side and belongs to the workbench repo, named with its issue |
+
+### The milestone
+
 **Testbench trusted** — derived, never declared: the workbench by law, the
-project-side parts by proof — the agenda is empty, bring-up tests are green,
-and setup limitations are recorded on their capabilities. From here `/build`
-runs the journey tests as the gate and the loop proper begins. For a project
-with no new hardware and no peers, this phase is minutes, not days.
+project-side parts by the records above. From here `/build` runs the journey
+tests as the gate and the loop proper begins. For a project with no new
+hardware and no peers, this phase is minutes, not days.

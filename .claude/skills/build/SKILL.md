@@ -46,7 +46,9 @@ it — unprompted. The user asking "so what do I do next?" means this skill
 failed to lead.
 
 - **Debugging agenda has open items** → Phase 2. Lead commissioning: next
-  unproven part, how to prove it (`references/test-design.md` §5).
+  unproven **project-side** part, how to prove it (`../commission/SKILL.md`
+  owns the phase and its four checks; the workbench is depended on, never
+  proven by a project).
 - **Agenda burned down, requirements unmet** → Phase 3. Derive the **wave**
   first, then name the next act from the chain below, per requirement — never
   an average that hides the requirement that has nothing.

@@ -27,7 +27,7 @@ different people:
 |---|---|
 | test not written | the backlog |
 | the feature is not implemented | development |
-| needs *capability* — unavailable | whoever builds the testbench |
+| needs *capability* — unavailable | project-side: whoever builds that peer. Bench-side: a change request on the workbench repo — never the project |
 | precondition unmet | fix that first; the result would mean nothing |
 
 **A failed precondition is `not done`, not `failed`.** Recording a failure claims

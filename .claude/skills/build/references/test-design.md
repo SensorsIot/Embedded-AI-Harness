@@ -104,26 +104,28 @@ answerable from the FSD, and getting them wrong costs days rather than minutes.
 
 **First: what has to be debugged before anything is tested?**
 
-Ask which parts of the system are not yet known to work at all — not "which are
-unfinished", but *which have never been observed doing their job*. A new board's
-wiring. A protocol nobody has spoken to the real peer. A rig that has never
-delivered a complete message. A library integrated but never exercised on the
-target.
+Ask which **project-side** parts are not yet known to work at all — not "which
+are unfinished", but *which have never been observed doing their job*. A new
+board's wiring. A protocol nobody has spoken to the real peer. A project
+simulator that has never delivered a complete message. A library integrated but
+never exercised on the target.
+
+**The testbench is not on this list.** A project depends on the workbench's
+quality the way it depends on the compiler's; a bench fault is fixed in the
+bench's own repo, and only once DUT evidence disproves the declaration
+(`../../commission/SKILL.md`).
 
 Go through the system with the user and produce a short agenda:
 
 ```text
 part                    unproven because            proven by
 meter UART              never driven on this board  a known pattern arrives intact
-M-Bus simulator         new to the bench            it emits a whole telegram
-broker path             device has never published  a message reaches the broker
+M-Bus simulator         new to this project         it emits a whole telegram
 ```
 
 That agenda is **debugging work, not test cases.** It gets done, it gets
-discussed, and it produces measurements that belong in the rig's notes — none of
-it enters the plan. The point is to reach a state where a failing test means
-something, because until each of those parts is known to work, every test result
-is unattributable and the suite is measuring the environment.
+discussed, and its measurements belong on the capability — none of it enters the
+plan. The point is to reach a state where a failing test means something.
 
 Do not skip this because the code compiles or because a component is
 well-regarded. The question is not whether it is good; it is whether *this*
@@ -180,7 +182,7 @@ Decide this at the start of test design, and decide it explicitly:
 | Reach for bring-up when | Skip it when |
 |---|---|
 | A physical interface has never been driven | The system is software over settled transports |
-| The wiring or polarity is unconfirmed | The hardware is a known-good rig |
+| The wiring or polarity is unconfirmed | The hardware is a known-good setup |
 | A previous session's result was unattributable | The last run reached the end of the journey |
 
 Keep it small and keep it honest about what it proves. A pattern that cannot
@@ -192,20 +194,19 @@ boot is the same idea one layer down.
 **Most bring-up work is not a test case at all — it is a debugging aid, and it
 must not enter the plan.** The question that separates them:
 
-> Does it discharge a requirement, or does it interrogate the rig?
+> Does it discharge a requirement, or does it interrogate the setup?
 
 A check that drives a known pattern and asserts the device receives it intact
 discharges a requirement about the device's line configuration, and is a test.
 A sweep that varies a *simulator* setting to see what the board happens to
-receive answers "what does this rig do" — it is a measurement, it can fail in no
-way that matters, and counting it inflates the plan with an entry no requirement
-asked for.
+receive answers "what does this setup do" — it is a measurement, it can fail in
+no way that matters, and counting it inflates the plan with an entry no
+requirement asked for.
 
-Keep the measurement; put it on the **capability**, where a rig's properties
-belong, not on a test ID. On one project a preamble sweep was promoted to a test
-case and had to be withdrawn: the number it produced was genuinely useful and
-belonged in the rig's notes, while the test entry claimed coverage of a
-requirement it never checked.
+Keep the measurement; put it on the **capability**, not on a test ID. On one
+project a preamble sweep was promoted to a test case and had to be withdrawn:
+the number was useful, but the test entry claimed coverage of a requirement it
+never checked.
 
 The bring-up work that *is* a test case is `standard` in kind — not a fifth bin,
 just the first standard tests, ordered ahead of the journey because the journey
