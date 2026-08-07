@@ -29,7 +29,7 @@ phase, a `/build` session can open, state its position, and act.
 | 4 | `testing/test-plan.yaml` created; **testbench capabilities declared** — slot assignment, what the bench can and cannot do. Blocked is computed from these, never typed | this skill |
 | 5 | Firmware integration: UDP logging, WiFi provisioning, OTA, BLE command hooks — the loop's eyes inside the DUT | `workbench-integration` |
 | 6 | CI: build on push, release on tag **plus the release-verify job** (flash the released artifact to the testbench, run the journey; red journey = no release) | `setup-action` |
-| 7 | Devcontainer, with the **GitHub Actions runner inside it** — see below | `init-esp32-idf` / `init-esp32-pio` |
+| 7 | Devcontainer and toolchain, with the **GitHub Actions runner inside it** — see below | `esp-idf-handling` / `esp-pio-handling` (project + toolchain setup) |
 | 8 | **Close with the two questions only the user can answer** — see below | this skill |
 
 ## Step 7 — the runner lives in the project's devcontainer

@@ -22,3 +22,6 @@ managed_components/
 # a rule someone has to remember, and it is where secrets get dropped.
 tmp/
 *.env
+
+# Personal devcontainer variant (mounts host secrets/keys) — local only
+.devcontainer/personal/

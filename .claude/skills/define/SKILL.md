@@ -58,9 +58,11 @@ networking, SDR, IoT, cloud, mobile, hybrid — with optional packs (§14).
 
 ## 2. Invocation
 
-**The path to a new FSD is three steps**: sketch the rough idea → `/grill-me`
-until the design tree is resolved → this skill writes it up. `/harness`
-sequences this as the journey's Phase 0 when a project starts from nothing.
+**The path to a new FSD is three steps**: sketch the rough idea → an
+interview that resolves the design tree branch by branch (this skill's grill
+mode, or any grilling workflow the user prefers) → this skill writes it up.
+`/harness` sequences this as the journey's Phase 0 when a project starts from
+nothing.
 
 Grilling sits outside this skill because the person being interviewed is the
 right judge of when it is done. Step 2 must end with the decisions **absorbed
@@ -100,7 +102,7 @@ carries its recommended answer.
 ## 4. Clarifying questions
 
 **Harvest before asking.** Look in order: decisions settled earlier in the
-conversation (a `/grill-me` session), a prior FSD, then the repo itself —
+conversation (a grill interview), a prior FSD, then the repo itself —
 config files, protocol usage, `README.md`, `CLAUDE.md`. Tag each harvested
 decision `[user]` so it is never mistaken for something the skill assumed.
 Re-asking an answered question earns a shorter answer the second time.

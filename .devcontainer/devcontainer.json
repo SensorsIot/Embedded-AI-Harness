@@ -1,10 +1,9 @@
 {
-    "name": "Embedded AI Harness - Python Development",
+    "name": "Embedded AI Harness",
     "build": {
         "dockerfile": "Dockerfile",
         "context": ".."
     },
-    "workspaceFolder": "/workspaces/Universal-Embedded-Workbench",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -32,23 +31,10 @@
         "ghcr.io/devcontainers/features/github-cli:1": {},
         "ghcr.io/devcontainers/features/node:1": {
             "version": "lts"
-        },
-        "ghcr.io/devcontainers/features/sshd:1": {
-            "version": "latest"
         }
     },
-    "runArgs": ["--name", "universal-embedded-workbench"],
-    "appPort": ["2222:2222"],
-    "postCreateCommand": "(grep -q /run/secrets/env ~/.bashrc || { sed -i '/Persistent claude session/i [ -r /run/secrets/env ] && . /run/secrets/env' ~/.bashrc; grep -q /run/secrets/env ~/.bashrc || echo '[ -r /run/secrets/env ] && . /run/secrets/env' >> ~/.bashrc; }) && git config --global credential.helper /usr/local/bin/git-cred-from-secrets && git config --global core.sshCommand 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' && (git clone https://github.com/SensorsIot/claude.git ~/.claude 2>/dev/null || git -C ~/.claude pull --ff-only || echo 'WARNING: ~/.claude not updated (local changes or divergence) - continuing') && cp -f ~/.claude/tmux.conf ~/.tmux.conf && mkdir -p ~/.claude-data/projects && ln -sf ~/.claude-data/.credentials.json ~/.claude/.credentials.json && ln -sf ~/.claude-data/history.jsonl ~/.claude/history.jsonl && rm -rf ~/.claude/projects && ln -sf ~/.claude-data/projects ~/.claude/projects && ln -sf ~/.claude-data/.claude.json ~/.claude.json && mkdir -p ~/.npm-global && npm config set prefix ~/.npm-global && npm install -g @anthropic-ai/claude-code && echo 'alias superclaude=\"claude --dangerously-skip-permissions\"' >> ~/.bashrc && pip install -r requirements-dev.txt 2>/dev/null || pip install pyserial",
-    "postStartCommand": "sudo sh -c 'mkdir -p /home/dev/.claude-data/hostkeys && if ls /home/dev/.claude-data/hostkeys/ssh_host_*_key >/dev/null 2>&1; then cp -a /home/dev/.claude-data/hostkeys/ssh_host_* /etc/ssh/; else cp -a /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub /home/dev/.claude-data/hostkeys/; fi && chmod 600 /etc/ssh/ssh_host_*_key && chmod 644 /etc/ssh/ssh_host_*_key.pub && /etc/init.d/ssh restart'",
+    "postCreateCommand": "npm install -g @anthropic-ai/claude-code && (pip install -r requirements-dev.txt 2>/dev/null || pip install pyserial pytest ruff)",
     "remoteUser": "dev",
-    "mounts": [
-        "source=${localEnv:HOME}/.secrets/env,target=/run/secrets/env,type=bind,readonly",
-        "source=${localEnv:HOME}/.local/bin/git-cred-from-secrets,target=/usr/local/bin/git-cred-from-secrets,type=bind,readonly",
-        "source=${localEnv:HOME}/.ssh/authorized_keys,target=/home/dev/.ssh/authorized_keys,type=bind,readonly",
-        "source=${localEnv:HOME}/.ssh/id_ed25519,target=/home/dev/.ssh/id_ed25519,type=bind,readonly",
-        "source=${localWorkspaceFolder}/.claude-data,target=/home/dev/.claude-data,type=bind"
-    ],
     "containerEnv": {
         "SERIAL_PI": "workbench.local"
     }

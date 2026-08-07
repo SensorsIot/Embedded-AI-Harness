@@ -7,8 +7,7 @@ This repo holds the method skills (`/define` · `/harness` · `/commission` ·
 on `:8080`), and the three documentation planes.
 
 This file is assistant configuration, not project documentation. It states no
-rules of its own: everything below is a pointer, except the one repo hazard at
-the end, which is recorded nowhere else.
+rules of its own: everything below is a pointer.
 
 ## Start here
 
@@ -38,11 +37,3 @@ Commands, install steps and environment variables are in the User Manual.
 Module boundaries and dependency rules are in
 [`docs/Method/project/architecture.md`](docs/Method/project/architecture.md).
 
-## One hazard recorded nowhere else
-
-- **Host access** — SSH, InfluxDB, Grafana and Docker details are in the
-  `remote-connections` skill.
-
-(`gplug-mini/` used to sit here as a nested second git repository, which is why
-`git add -A` was banned. It moved to its own container on 2026-08-05 and the
-directory is gone, so that hazard no longer applies.)
