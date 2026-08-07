@@ -107,7 +107,8 @@ practice: the plan looks finished while nothing is verified.
 - **The journey tests are the gate** for every hardware session: while a
   journey step fails, later results are unreadable — a dozen reds, one cause.
 
-Test design (the two opening questions, the four kinds, seams, controllability):
+Test design (the two opening questions, the four kinds in three waves, the two
+shapes — atomic and workflow — and their numbering, seams, controllability):
 `references/test-design.md`. Status semantics, computed blocking, the retrofit,
 gap categories: `references/test-lifecycle.md`.
 
@@ -172,7 +173,7 @@ skill.
 
 | File | Covers |
 |---|---|
-| `references/test-design.md` | The two opening questions, clause inventory, controllability, the four kinds gated in three waves, bring-up vs debugging aids, cleanup, seams |
+| `references/test-design.md` | The two opening questions, clause inventory, controllability, the four kinds gated in three waves, atomic vs workflow tests and the `JRN-`/`TC-` numbering, bring-up vs debugging aids, cleanup, seams |
 | `references/test-lifecycle.md` | Test status, computed blocking, what artefacts prove, the code-exists retrofit, gap categories |
 | `references/test-architecture.md` | Layering, tier taxonomy, component × tier matrix |
 | `references/change-request.md` | Intake rule, routing, impact analysis, the done-criterion |

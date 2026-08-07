@@ -299,14 +299,51 @@ Per-clause coverage is necessary and not sufficient. It is the step that reaches
 100% of requirements while leaving the product untested, because no clause
 describes the journey.
 
-Test IDs: `TC-<area>-<nn>[-<qualifier>]`
+## 5a. Two shapes of test, and one numbering scheme
+
+Every test is one of two shapes. They obey different rules, and confusing them
+is why suites either forbid the journey or let ordering rot everywhere.
+
+| | **Atomic test** | **Workflow test** |
+|---|---|---|
+| Verifies | one requirement, one behaviour | a sequence that only means something in order |
+| Shape | precondition → stimulus → observation | ordered steps, an observable at **each** |
+| Order | independent; any order, any subset | fixed, and the order is part of the claim |
+| Failure | tells you *what* is broken | tells you *where* the journey stops |
+| Population | most of the suite | the standard run, and little else |
+
+**A workflow test is the sanctioned exception to §6's independence rule** — its
+dependency is the point, not a shortcut. It therefore owes what §6 demands of
+ordered tests: a stable sequence identifier, an observable per step, and
+defined recovery after partial execution. **One test per step**, not one test
+for the whole journey: a single end-to-end test that only says "no data
+arrived" tells you nothing about where.
+
+Everything else is atomic and stays independent. Never make an atomic test
+depend on a workflow test having run — share *setup* through a procedure in
+the testing standard, never through execution order.
+
+### Numbering
 
 ```text
-TC-PROV-04           positive
-TC-PROV-04-neg       negative variant
-TC-NULL-07-zero      boundary at max_export_w = 0
-TC-NULL-07-over      boundary at max_export_w > RATED_W
+JRN-<nn>[.<step>]        workflow — the journey, in order
+TC-<area>-<nn>           atomic — one requirement's behaviour
 ```
+
+- `<area>` is the FSD component or chapter the requirement lives in
+  (`PROV`, `MQTT`, `OTA`, `NVS`), so an id says where to look.
+- `<nn>` is stable for the life of the project. **Never renumber**; an
+  obsolete test is `deprecated` or `superseded`, never deleted and never
+  reused — historical results must stay readable.
+- **Nothing else goes in the id.** Kind, tier, wave and status are *fields*
+  in the plan, and every one of them can change while the id must not — a
+  `-neg` suffix or a `-bench` infix becomes a lie the day the test moves.
+  A qualifier is permitted only when it names the *case*, never its category:
+  `TC-NULL-07-zero` and `TC-NULL-07-over` are two boundary values of one
+  requirement and read correctly forever.
+
+Each plan entry carries `verifies:` — the requirement ids it discharges —
+which is what makes traceability computable in both directions.
 
 ---
 
@@ -317,7 +354,8 @@ TC-NULL-07-over      boundary at max_export_w > RATED_W
 
 Ordered tests are permitted only when the dependency is technically unavoidable,
 explicit, carries a stable sequence identifier, and defines recovery after
-partial execution.
+partial execution. **Workflow tests (§5a) are exactly that case** — the
+journey's order is the claim; every other test stays independent.
 
 Every test specifies setup, cleanup, recovery after **failure**, retained data to
 clear, services to restart, and resources to release.
