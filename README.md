@@ -78,6 +78,19 @@ spec true for the product's whole life.
 - **The dev skills** — ESP-IDF and PlatformIO lifecycles, logging, WiFi,
   BLE, MQTT, debugging, RF, CI — the loop's individual muscles.
 
+## ✅ Prerequisites — what the loop needs
+
+| You need | For | Where |
+|---|---|---|
+| A **Raspberry Pi workbench** (Pi 3/4/5, or Zero 2 W + USB hub + Ethernet adapter) with an ESP32 board in a slot | The loop's hands and eyes — flash, reset, observe on real hardware | Build it: [Quick Start](#-quick-start--building-the-bench) below |
+| A **GitHub account**, `git` + `gh` authenticated | CI builds, releases, and the release-verify runner | [github.com](https://github.com) |
+| **Claude Code** with this repo's skills | The AI that pulls; the skills are the method | `npm i -g @anthropic-ai/claude-code`, then copy `.claude/skills/` from this repo into your project |
+| **Same LAN** | Your dev machine or devcontainer must reach the bench | `curl http://workbench.local:8080/api/devices` answers |
+| For your project: **ESP-IDF or PlatformIO** toolchain | The forward path — the `esp-idf-handling` / `esp-pio-handling` skills set this up | Handled during Phase 1 |
+
+Nothing else. The FSD, tests, firmware, CI and documentation are what the loop
+*produces*, not what you bring.
+
 ## 🔌 The Workbench — the loop's hands and eyes
 
 Working on an ESP32 normally means being physically attached to it — and an
