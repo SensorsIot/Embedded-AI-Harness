@@ -27,8 +27,8 @@ actually do it.
 ## Fresh install
 
 ```bash
-git clone https://github.com/SensorsIot/Universal-Embedded-Workbench.git
-cd Universal-Embedded-Workbench/pi
+git clone https://github.com/SensorsIot/Embedded-Development-Harness.git
+cd Embedded-Development-Harness/pi
 sudo bash install.sh
 ```
 

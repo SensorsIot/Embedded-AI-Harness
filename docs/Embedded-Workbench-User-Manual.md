@@ -139,8 +139,8 @@ free -h                       # should show ~480 MB total + swap
 ### 2.3 Install the workbench
 
 ```bash
-git clone https://github.com/SensorsIot/Universal-Embedded-Workbench.git
-cd Universal-Embedded-Workbench/pi
+git clone https://github.com/SensorsIot/Embedded-Development-Harness.git
+cd Embedded-Development-Harness/pi
 sudo bash install.sh
 ```
 
@@ -844,7 +844,7 @@ curl 'http://workbench.local:8080/api/udplog?source=192.168.4.15'
 `WorkbenchDriver` wraps every API call. Install it and import:
 
 ```bash
-pip install -e Universal-Embedded-Workbench/pytest
+pip install -e Embedded-Development-Harness/pytest
 ```
 
 ```python
@@ -945,7 +945,7 @@ The repo ships project skills under `.claude/skills/` that teach Claude Code how
 to drive the bench. Install them on each dev machine:
 
 ```bash
-git clone https://github.com/SensorsIot/Universal-Embedded-Workbench.git /tmp/uew
+git clone https://github.com/SensorsIot/Embedded-Development-Harness.git /tmp/uew
 mkdir -p .claude/skills
 cp -r /tmp/uew/.claude/skills/. .claude/skills/
 rm -rf /tmp/uew
@@ -1001,7 +1001,7 @@ URL — no reinstall. To update, install a newer `.mcpb` over the old one.
 ```bash
 claude mcp add workbench \
   --env WORKBENCH_URL=http://workbench.local:8080 \
-  -- python3 /abs/path/to/Universal-Embedded-Workbench/mcp/workbench_mcp.py
+  -- python3 /abs/path/to/Embedded-Development-Harness/mcp/workbench_mcp.py
 
 claude mcp list      # look for: workbench … ✔ Connected
 ```
@@ -1017,7 +1017,7 @@ Windows `%APPDATA%\Claude\`, Linux `~/.config/Claude/`). Merge in:
   "mcpServers": {
     "workbench": {
       "command": "python3",
-      "args": ["/abs/path/to/Universal-Embedded-Workbench/mcp/workbench_mcp.py"],
+      "args": ["/abs/path/to/Embedded-Development-Harness/mcp/workbench_mcp.py"],
       "env": { "WORKBENCH_URL": "http://workbench.local:8080" }
     }
   }

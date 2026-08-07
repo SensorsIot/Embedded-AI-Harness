@@ -60,7 +60,7 @@ Appendix chapters.
 
 ## Template Reference
 
-All template code lives in `Universal-Embedded-Workbench/test-firmware/`. When adding modules, copy from these templates and customize project-specific values:
+All template code lives in `Embedded-Development-Harness/test-firmware/`. When adding modules, copy from these templates and customize project-specific values:
 
 | Module | Template source | Customization |
 |--------|----------------|---------------|

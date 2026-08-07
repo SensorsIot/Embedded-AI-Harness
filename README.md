@@ -1,6 +1,6 @@
 # The Harness — AI Closed-Loop Programming for Embedded Systems
 
-[![host tests](https://img.shields.io/github/actions/workflow/status/SensorsIot/Universal-Embedded-Workbench/ci.yml?branch=main&label=host%20tests)](https://github.com/SensorsIot/Universal-Embedded-Workbench/actions/workflows/ci.yml)
+[![host tests](https://img.shields.io/github/actions/workflow/status/SensorsIot/Embedded-Development-Harness/ci.yml?branch=main&label=host%20tests)](https://github.com/SensorsIot/Embedded-Development-Harness/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-c51a4a)
@@ -131,8 +131,8 @@ An RTL-SDR dongle, an Si5351 + PE4302, and jumper wires to the board's
 EN/BOOT pins are all optional.
 
 ```bash
-git clone https://github.com/SensorsIot/Universal-Embedded-Workbench.git
-cd Universal-Embedded-Workbench/pi
+git clone https://github.com/SensorsIot/Embedded-Development-Harness.git
+cd Embedded-Development-Harness/pi
 sudo bash install.sh
 ```
 
