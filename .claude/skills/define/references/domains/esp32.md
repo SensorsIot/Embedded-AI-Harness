@@ -18,15 +18,22 @@ Treat the project as ESP32 firmware if any of these are present:
 ## ESP-IDF 6.x
 
 Assume **ESP-IDF 6.x** unless the project pins otherwise (`idf_component.yml`,
-CI config, or an explicit statement). Four changes from 5.x are load-bearing when
-specifying or reviewing a project, and all four are silent until a build fails:
+CI config, or an explicit statement). Five changes from 5.x are load-bearing when
+specifying or reviewing a project, and all five are silent until a build fails:
 
 | Change | Consequence |
 |--------|-------------|
 | **CMake minimum is 3.22** | A project carrying `cmake_minimum_required(VERSION 3.16)` from a 5.x template fails to configure. |
 | **cJSON is no longer bundled** | The in-tree `json` component is gone; anything including `cJSON.h` needs `espressif/cjson` in `main/idf_component.yml`, and the first build needs network access to the component registry. |
 | **mDNS is not bundled** | Resolving a `.local` name needs the `espressif/mdns` managed component. Prefer an IP literal where the dependency is not wanted. |
+| **esp-mqtt is not bundled** | There is no `mqtt` component in the v6.0.2 image — `tcp_transport` and `esp_https_ota` are there, `mqtt` is not. `PRIV_REQUIRES mqtt` fails at *configure* time with "Component directory … does not contain a CMakeLists.txt file", which reads like a broken submodule rather than a missing dependency. Any project speaking MQTT needs the managed component declared before its first build. |
 | **Managed components must be solved** | Adding `idf_component.yml` to an already-configured project does nothing until the build directory is removed or `reconfigure` is run — the cached CMake configure skips the solver. |
+
+**Declare requirements only for what the code includes today.** ESP-IDF resolves
+`PRIV_REQUIRES` at configure time, so a speculatively-listed component breaks the
+build for functionality that does not exist yet — and the error names the
+component, not the speculation, so it is read as a toolchain fault. Add each
+requirement with the phase that needs it.
 
 State the IDF major version in the FSD's dependencies, and commit
 `dependencies.lock` (not `managed_components/`) so builds are reproducible.
