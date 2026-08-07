@@ -78,11 +78,13 @@ workbench's instruments are **not** on this list.
 3. **Project peers**, if any (a meter simulator): present, answers one basic
    command; record its slot.
 4. **Prove the forward path with a trivial known-good program** — CI
-   compiles a blink/hello sketch, the artifact is flashed to the DUT's slot,
-   and its marker is observed on serial. One pass proves the whole pipeline
-   — toolchain, artifact flow, flash, boot, observation — with code that
-   cannot itself be the problem. When the project's first real build fails
-   later, the pipeline is above suspicion.
+   compiles it, the artifact is flashed to the DUT's slot, and its output is
+   observed. **Print alternating `ON` / `OFF` on serial rather than blinking
+   an LED**: no GPIO need be wired, no camera or eye is required, and the
+   bench observes it directly with a serial pattern match. One pass proves
+   the whole pipeline — toolchain, artifact flow, flash, boot, observation —
+   with code that cannot itself be the problem. When the project's first real
+   build fails later, the pipeline is above suspicion.
 
 Nothing else. Items 1–3 are seconds; item 4 is one CI cycle. Everything
 beyond this list is bench-side and covered by the law.
