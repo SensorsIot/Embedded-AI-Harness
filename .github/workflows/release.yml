@@ -1,0 +1,77 @@
+# Cuts a release and attaches the bench's own DUT firmware to it.
+#
+# The firmware has to be stored somewhere a later run can fetch it. CI
+# artifacts expire and are only reachable with a token; a release asset does
+# not and is not. So the images that a bench flashes to its DUT are pinned to
+# the version of the bench that expects them, and "which firmware was on the
+# board" stops being something anyone has to remember.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (must already exist)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true          # a release must not ship half its targets
+      matrix:
+        target: [esp32c3, esp32s3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Build ${{ matrix.target }}
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.0.2
+          target: ${{ matrix.target }}
+          path: test-firmware
+
+      - name: Bundle the flashable set
+        run: |
+          cd test-firmware/build
+          test -f flash_args || { echo "no flash_args — nothing to flash"; exit 1; }
+          out="bench-dut-${{ matrix.target }}"
+          mkdir -p "../../$out"
+          cp flash_args "../../$out/"
+          for f in $(grep -oE '[^ ]+\.bin' flash_args); do
+            cp "$f" "../../$out/" || {
+              echo "flash_args names $f, which the build did not produce"; exit 1; }
+          done
+          cd ../.. && tar czf "$out.tar.gz" "$out"
+          echo "--- $out ---" && tar tzf "$out.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-dut-${{ matrix.target }}-tgz
+          path: bench-dut-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach the firmware to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          ls -l dist/
+          gh release upload "$TAG" dist/*.tar.gz --clobber
