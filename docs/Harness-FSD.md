@@ -509,7 +509,7 @@ When `plain_rfc2217_server.py` opens the serial port, it performs a controlled
 boot sequence to ensure the chip boots in SPI mode (not download mode):
 
 ```python
-ser = serial.serial_for_url(port, do_not_open=True, exclusive=False)
+ser = serial.serial_for_url(port, do_not_open=True, exclusive=True)
 ser.timeout = 3
 ser.dtr = False   # Pre-set: GPIO9 HIGH (SPI boot)
 ser.rts = False   # Pre-set: not in reset

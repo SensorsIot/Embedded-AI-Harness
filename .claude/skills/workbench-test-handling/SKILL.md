@@ -77,10 +77,11 @@ evidence. On a UART-bridge part (CP2102, CH340) the same lines usually drive
 an auto-reset circuit, so the effect is a restart rather than a halt — quieter
 still, because the device looks alive.
 
-Raw RFC2217 is unavoidable when you must **write** to a device — the API has
-no write endpoint — and legitimate for a peer you are driving deliberately.
-When you do, the control lines must be low **before** the port opens, not
-after:
+**To write to a device, use `POST /api/serial/write`** (FR-030). It takes
+`text` or `hex`, opens nothing, and disturbs no control line. Raw RFC2217 is
+now only for a peer you are driving deliberately with a protocol the API
+cannot express. When you do reach for it, the control lines must be low
+**before** the port opens, not after:
 
 ```python
 # The order is the whole point: opening first asserts the lines.
@@ -94,10 +95,22 @@ ser.open()               # only now, with both lines already low
 This is exactly what the portal's own `serial_monitor()` does, and it is why
 the portal can read a device that a naive client stops dead.
 
-**A boot-time marker is currently unobservable through the portal**, because
-`/api/serial/reset` closes any attached monitor and nothing can watch a device
-across its own restart. If a test needs to see start-up output, that is a
-workbench change request, not a reason to reach for raw serial.
+**Boot-time output is observable now**, by two routes, so a missed banner is
+no longer a reason to reach for raw serial:
+
+- `GET /api/serial/output?slot=…` — a recorder runs on every present slot
+  whether or not anyone is watching, so the banner is already in the buffer
+  by the time you ask. Check the entries' `ts`: a buffer whose newest line is
+  minutes old is telling you the device went quiet, which is itself the
+  observation.
+- **the read-only fan-out**, `tcp_port + 1000` — a plain TCP stream of the
+  same bytes, as many readers as you like, no control lines and no
+  competition with the proxy's own client. Connect first, then reset, and the
+  boot arrives on the socket.
+
+Reset itself is not guaranteed to take on every part. If a device keeps
+counting uptime across a `/api/serial/reset`, it did not reboot — check
+before concluding anything about what it printed.
 
 ## Test Progress Tracking
 

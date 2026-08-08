@@ -1,6 +1,6 @@
 # Gates the host tier and lint only.
 #
-# A green tick here does NOT mean the bench works. The 67 bench tests drive a
+# A green tick here does NOT mean the bench works. The bench tests drive a
 # live Raspberry Pi with DUTs plugged into it, and a GitHub-hosted runner cannot
 # reach workbench.local. Those stay a pre-release step run against real hardware —
 # see docs/Method/standards/testing.md.

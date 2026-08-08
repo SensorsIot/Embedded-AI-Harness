@@ -123,8 +123,11 @@ and turns everything into HTTP:
 - **Serial over the network** at `rfc2217://workbench.local:4001` — esptool,
   PlatformIO, ESP-IDF and anything on pyserial speak it natively.
 - **Flash three ways** — over the network, locally on the Pi, or over the air.
-- **Debugging out of the box** — OpenOCD starts itself for USB-JTAG chips;
-  GDB connects to port 3333.
+- **Debugging out of the box** — OpenOCD starts itself for USB-JTAG chips and
+  GDB connects on that slot's own port (3333 + slot index). Slots are
+  independent: two boards debug at once, each selected by its USB port path,
+  because every ESP32 with built-in JTAG enumerates as `303a:1001` and
+  VID:PID alone cannot say which board is which.
 - **The Pi is the test equipment.** Its WiFi becomes the access point your
   board joins, its Bluetooth scans and connects, optional SDR and Si5351
   hardware receive and transmit on 433 MHz, and boards log to it over UDP
@@ -132,10 +135,22 @@ and turns everything into HTTP:
 - **It presses the buttons.** GPIO wired to reset and boot forces download
   mode and rescues boot-looping boards with nobody in the room.
 - **Claude drives all of it** through 70 MCP tools or the bundled skills.
+  The newest endpoints — serial write, bench reset, the slot access manager
+  — are HTTP and skills only; the MCP surface has not caught up yet.
 
-Honest limits: **one serial client per board at a time** (that's RFC2217, not
-a choice), the SDR is **one dongle, one user**, and the API has **no
-authentication** — keep the bench on a network you trust.
+- **Every slot is recorded, always.** A reader runs whether or not anyone is
+  watching, so a boot banner is in the buffer before you think to ask for it,
+  and `tcp_port + 1000` is a read-only fan-out of the same bytes for as many
+  watchers as you like.
+- **It has its own DUT.** `test-firmware/` is an ESP32 image the bench builds,
+  versions and flashes itself — it joins the test AP, answers HTTP and hosts a
+  provisioning portal, so the bench's tests never depend on a project's
+  firmware.
+
+Honest limits: **one *writing* serial client per board** — RFC2217 gives one
+session, though any number can read the fan-out — the SDR is **one dongle, one
+user**, and the API has **no authentication**: keep the bench on a network you
+trust.
 
 ## 🚀 Quick Start — building the bench
 
@@ -242,6 +257,18 @@ events on the test AP arrive the same way, via **dnsmasq** DHCP lease
 callbacks. Boards with native USB-Serial/JTAG need care — Linux asserts DTR
 and RTS the moment the port opens, dropping the chip into download mode
 mid-boot — so the portal delays opening and drives the reset sequence itself.
+
+Two consumers may want the same board at once — a flash, a debug session, a
+monitor — so a **slot access manager** arbitrates *mode*, never the data path.
+A caller acquires a slot, holds a renewable lease and releases it; a
+conflicting request is refused with who holds it and since when, and is never
+served by yanking the board from whoever has it. A holder that stops renewing
+loses the lease, so a client that dies does not wedge the slot until someone
+restarts the portal.
+
+`POST /api/bench/reset` returns the whole bench to a known state and is meant
+as the first call of every run — a test that starts from what the last one
+left behind is measuring history.
 
 Everything is one JSON HTTP API on `:8080`; every response carries `"ok"`.
 
