@@ -938,6 +938,108 @@ def _flash_device(workbench, chip, target_dir):
     return True
 
 
+def _jtag_slots(workbench) -> list:
+    """Present slots whose board has a built-in USB-JTAG interface."""
+    return [d for d in workbench.get_devices()
+            if d.get("present") and not d.get("is_probe")
+            and _jtag_capable(d)]
+
+
+class TestPerSlotDebugIsolation:
+    """WT-19xx: FR-037 — a debug session belongs to one slot, and to the
+    board in that slot.
+
+    Every native-USB ESP32 enumerates as 303a:1001, so nothing in the USB
+    identity distinguishes two of them. These tests need two such boards on
+    the bench; with one, they cannot fail and are skipped rather than
+    reported as evidence.
+    """
+
+    def _two_jtag_slots(self, workbench):
+        slots = _jtag_slots(workbench)
+        if len(slots) < 2:
+            pytest.skip(
+                "precondition unmet: FR-037 needs two built-in-JTAG boards; "
+                f"this bench has {len(slots)}"
+            )
+        return slots
+
+    @requires_dut
+    def test_each_slot_reports_its_own_chip(self, workbench):
+        # verifies: FR-037
+        """Detection blind to USB topology reports a neighbour's silicon.
+
+        Observed before the location filter: SLOT1, holding an ESP32-C3,
+        was reported as esp32s3 — the chip of the board in SLOT4.
+        """
+        slots = self._two_jtag_slots(workbench)
+        chips = {d["label"]: (d.get("detected_chip") or d.get("debug_chip"))
+                 for d in slots}
+        for label, chip in chips.items():
+            assert chip, f"{label}: no chip detected — {chips}"
+
+        # The MAC is per-board, so it settles which physical device each
+        # slot actually spoke to. Two slots reporting one MAC is the bug.
+        macs = {}
+        for d in slots:
+            info = workbench.chip_info(d["label"])
+            macs[d["label"]] = info.get("mac")
+        assert all(macs.values()), f"a slot reported no MAC: {macs}"
+        assert len(set(macs.values())) == len(macs), (
+            f"two slots claim the same board: {macs}"
+        )
+
+    @requires_dut
+    def test_two_slots_debug_concurrently(self, workbench):
+        # verifies: FR-037
+        """OpenOCD listens on three ports; the portal only ever assigned two.
+
+        The third defaulted to 6666 for every session, so the second one to
+        start anywhere on the bench died with "Address already in use" — a
+        bench-wide limit of one debugger, from an undeclared number.
+        """
+        a, b = self._two_jtag_slots(workbench)[:2]
+        for d in (a, b):
+            try:
+                workbench.debug_stop(d["label"])
+            except CommandError:
+                pass
+        time.sleep(1)
+
+        ra = workbench.debug_start(a["label"])
+        assert ra["ok"] is True, ra
+        try:
+            rb = workbench.debug_start(b["label"])
+            assert rb["ok"] is True, (
+                f"second concurrent session refused: {rb}"
+            )
+            try:
+                assert ra["gdb_port"] != rb["gdb_port"], (
+                    "both sessions on one GDB port"
+                )
+                status = workbench.debug_status()["slots"]
+                assert status[a["label"]]["debugging"] is True
+                assert status[b["label"]]["debugging"] is True
+
+                # Stopping one must leave the other alone.
+                workbench.debug_stop(b["label"])
+                time.sleep(1)
+                after = workbench.debug_status()["slots"]
+                assert after[a["label"]]["debugging"] is True, (
+                    "stopping one slot's session ended another's"
+                )
+            finally:
+                try:
+                    workbench.debug_stop(b["label"])
+                except CommandError:
+                    pass
+        finally:
+            try:
+                workbench.debug_stop(a["label"])
+            except CommandError:
+                pass
+
+
 class TestEndToEnd:
     """WT-18xx: End-to-end flash + debug tests.
 

@@ -51,8 +51,46 @@ TAP_ID_MAP = {
 BUILTIN_DETECT_ORDER = ["esp32c3", "esp32s3", "esp32c6", "esp32h2"]
 PROBE_DETECT_ORDER = ["esp32", "esp32s3", "esp32c3", "esp32c6", "esp32h2", "esp32s2"]
 
+# Every ESP32 with built-in JTAG enumerates as 303a:1001, so VID:PID cannot
+# tell two of them apart.  OpenOCD, told nothing else, opens whichever one
+# libusb hands it first — which is not necessarily the slot that asked, and
+# may well be a device another session is already driving (observed: a
+# detection meant for one slot seized a second board mid-session and produced
+# LIBUSB_ERROR_IO on its bulk transfers).  The slot's USB topology is the
+# only stable name for "the board in *this* socket", so pass it every time.
+def _usb_location(usb_prefix: str | None) -> str | None:
+    """Slot usb_prefix ("0:1.1", udev-style) → OpenOCD location ("1-1.1").
 
-def detect_chip(probe: dict | None = None) -> str | None:
+    udev numbers buses from 0, the kernel from 1; the port path is shared.
+    """
+    if not usb_prefix or ":" not in usb_prefix:
+        return None
+    bus, port_path = usb_prefix.split(":", 1)
+    try:
+        return f"{int(bus) + 1}-{port_path}"
+    except ValueError:
+        return None
+
+
+def tcl_port_for(gdb_port: int) -> int:
+    """The TCL port belonging to a slot's GDB port.
+
+    OpenOCD listens on three ports and the portal only ever assigned two.
+    The third defaulted to 6666 in every session, so the *second* concurrent
+    session anywhere on the bench died with "couldn't bind tcl to socket on
+    port 6666: Address already in use" — a bench-wide limit of one debugger,
+    imposed by a number nobody had declared.
+    """
+    return 6666 + (gdb_port - 3333)
+
+
+# Scratch ports for detection runs, clear of every slot's assigned block.
+# Detection never serves a client, so it only needs ports it can bind.
+_DETECT_PORTS = (3390, 4490, 6690)
+
+
+def detect_chip(probe: dict | None = None,
+                usb_prefix: str | None = None) -> str | None:
     """Auto-detect chip type by trying OpenOCD configs until one succeeds.
 
     Tries each config in sequence. OpenOCD fails fast (~1-2s) on TAP
@@ -60,6 +98,8 @@ def detect_chip(probe: dict | None = None) -> str | None:
 
     Args:
         probe: Probe config dict (for ESP-Prog mode). None for USB JTAG.
+        usb_prefix: The asking slot's ``_usb_prefix``. Without it a
+            built-in-JTAG detection may examine another slot's board.
 
     Returns:
         Chip name (e.g. "esp32c3") or None if no chip detected.
@@ -68,6 +108,9 @@ def detect_chip(probe: dict | None = None) -> str | None:
         configs = PROBE_DETECT_ORDER
     else:
         configs = BUILTIN_DETECT_ORDER
+
+    location = _usb_location(usb_prefix)
+    gdb_p, telnet_p, tcl_p = _DETECT_PORTS
 
     for chip in configs:
         cmd = [OPENOCD_EXE, "-s", OPENOCD_SCRIPTS]
@@ -80,8 +123,14 @@ def detect_chip(probe: dict | None = None) -> str | None:
             cmd += ["-f", probe["interface_config"]]
             cmd += ["-f", PROBE_TARGET_CONFIGS[chip]]
         else:
+            if location:
+                cmd += ["-c", f"adapter usb location {location}"]
             cmd += ["-f", BUILTIN_CONFIGS[chip]]
 
+        # Detection must not squat on a live session's ports either.
+        cmd += ["-c", f"gdb port {gdb_p}"]
+        cmd += ["-c", f"telnet port {telnet_p}"]
+        cmd += ["-c", f"tcl port {tcl_p}"]
         cmd += ["-c", "init", "-c", "shutdown"]
 
         try:
@@ -91,9 +140,21 @@ def detect_chip(probe: dict | None = None) -> str | None:
             if "Examination succeed" in output or "Examined" in output:
                 print(f"[debug] auto-detect: {chip} (matched)", flush=True)
                 return chip
+            # A detection that finds nothing is not self-explanatory: the
+            # cause is in OpenOCD's output, and without it every failure
+            # reads as "check JTAG wiring" whatever actually happened.
+            why = [ln for ln in output.splitlines()
+                   if "Error:" in ln or "Warn :" in ln]
+            print(f"[debug] auto-detect: {chip} at {location or 'any'} "
+                  f"no — {'; '.join(why[:2]) or 'no error reported'}",
+                  flush=True)
         except subprocess.TimeoutExpired:
+            print(f"[debug] auto-detect: {chip} at {location or 'any'} "
+                  f"timed out after 8 s", flush=True)
             continue
-        except Exception:
+        except Exception as e:
+            print(f"[debug] auto-detect: {chip} at {location or 'any'} "
+                  f"raised {e}", flush=True)
             continue
 
     print("[debug] auto-detect: no chip matched", flush=True)
@@ -118,6 +179,7 @@ def detect_slot_jtag(
     slot_label: str,
     usb_devices: list[dict],
     probe_slot_map: dict[str, str] | None = None,
+    usb_prefix: str | None = None,
 ) -> dict:
     """Detect chip type and JTAG source for a specific slot.
 
@@ -132,6 +194,9 @@ def detect_slot_jtag(
         probe_slot_map: Maps probe label → slot label where the probe
             lives (e.g. ``{"PROBE1": "SLOT1"}``).  Used to report the
             JTAG source as a slot, not a probe name.
+        usb_prefix: The slot's ``_usb_prefix``, naming which physical
+            socket to examine.  Omitting it on a bench holding two
+            built-in-JTAG boards reports the *other* board's chip.
 
     Returns:
         ``{"chip": "esp32s3", "jtag_slot": "SLOT3"}``  — built-in JTAG
@@ -144,7 +209,7 @@ def detect_slot_jtag(
 
     # 1. Built-in USB JTAG on this slot?
     if _slot_has_builtin_jtag(usb_devices):
-        chip = detect_chip(probe=None)  # uses BUILTIN_CONFIGS
+        chip = detect_chip(probe=None, usb_prefix=usb_prefix)
         if chip:
             print(f"[debug] {slot_label}: built-in JTAG → {chip}",
                   flush=True)
@@ -272,7 +337,11 @@ def start(slot_label: str, slot: dict, gdb_port: int, telnet_port: int,
         # Auto-detect chip if not specified
         if not chip:
             probe_info = _probes.get(probe) if probe else None
-            chip = detect_chip(probe_info)
+            # Same slot, same board: detection must look where the session
+            # will run, or it examines a neighbour — and finds nothing when
+            # that neighbour is already held by its own session.
+            chip = detect_chip(probe_info,
+                               usb_prefix=slot.get("_usb_prefix"))
             if not chip:
                 return {"ok": False,
                         "error": "could not auto-detect chip type — "
@@ -312,10 +381,14 @@ def start(slot_label: str, slot: dict, gdb_port: int, telnet_port: int,
                 return {"ok": False,
                         "error": f"chip '{chip}' has no USB JTAG — "
                                  f"supported: {supported}"}
+            location = _usb_location(slot.get("_usb_prefix"))
+            if location:
+                cmd += ["-c", f"adapter usb location {location}"]
             cmd += ["-f", BUILTIN_CONFIGS[chip]]
 
         cmd += ["-c", f"gdb port {gdb_port}"]
         cmd += ["-c", f"telnet port {telnet_port}"]
+        cmd += ["-c", f"tcl port {tcl_port_for(gdb_port)}"]
         cmd += ["-c", "bindto 0.0.0.0"]
 
         # Launch OpenOCD

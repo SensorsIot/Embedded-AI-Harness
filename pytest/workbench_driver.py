@@ -681,6 +681,15 @@ class WorkbenchDriver:
         """Get debug state for all slots."""
         return self._api_get("/api/debug/status")
 
+    def chip_info(self, slot: str) -> dict:
+        """Read the silicon in a slot: chip, revision, flash size, MAC.
+
+        The MAC is per-board, which makes it the one field that settles
+        *which* physical device answered — every native-USB ESP32 shares
+        VID:PID 303a:1001 (FR-037).
+        """
+        return self._api_post("/api/chip/info", {"slot": slot}, timeout=60)
+
     def debug_probes(self) -> list:
         """List available debug probes (ESP-Prog)."""
         result = self._api_get("/api/debug/probes")

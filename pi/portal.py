@@ -978,7 +978,8 @@ def scan_existing_devices():
                         usb_devs = list(s.get("_usb_devices", []))
                         psm = _build_probe_slot_map()
                         info = debug_controller.detect_slot_jtag(
-                            s["label"], usb_devs, psm)
+                            s["label"], usb_devs, psm,
+                            usb_prefix=s.get("_usb_prefix"))
                         chip = info["chip"]
                         jtag_slot = info["jtag_slot"]
                         probe = info.get("probe")  # None for built-in
@@ -2724,7 +2725,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         try:
                             psm = _build_probe_slot_map()
                             info = debug_controller.detect_slot_jtag(
-                                _lbl, _usb, psm)
+                                _lbl, _usb, psm,
+                                usb_prefix=s.get("_usb_prefix"))
                             chip = info["chip"]
                             jtag_slot = info["jtag_slot"]
                             probe = info.get("probe")  # None for built-in

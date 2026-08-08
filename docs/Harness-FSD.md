@@ -10,7 +10,7 @@
 | 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
 | 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository |
 | 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
-| 7 | [Debug Services](#7-debug-services) | FR-024 – FR-026: USB JTAG, dual-USB, ESP-Prog |
+| 7 | [Debug Services](#7-debug-services) | FR-024 – FR-026, FR-037: USB JTAG, dual-USB, ESP-Prog, per-slot isolation |
 | 8 | [RF Instruments](#8-rf-instruments) | FR-027, FR-028: signal generator, SDR receiver |
 | 9 | [Client Interfaces](#9-client-interfaces) | MCP server |
 | 10 | [Web Portal](#10-web-portal) | Single-page UI |
@@ -2759,6 +2759,46 @@ wt.debug_stop("SLOT1")
 
 All alternatives use the same portal API — only the OpenOCD interface config
 changes.
+
+### FR-037 — Debug Sessions Are Per-Slot and Bound to Their Own Board
+
+Every debug operation — chip detection as much as a running session — **shall**
+name the physical device it acts on by the asking slot's USB topology, and
+**shall** listen on ports derived from that slot alone. Sessions on different
+slots are independent: starting, running or stopping one **shall not** disturb
+another.
+
+Two mechanisms are needed, and neither is optional once a second built-in-JTAG
+board is on the bench.
+
+**Device selection.** Every ESP32 with a built-in USB-Serial/JTAG controller
+enumerates as `303a:1001` (§24.3). VID:PID therefore identifies the *class* of
+device, never *which one*. OpenOCD given only a board config opens whichever
+matching device libusb offers first — so a detection asked on behalf of one
+slot may examine, and report the chip of, a board in a different socket, and
+may seize a board another session is already driving. The slot's USB port path
+is the only stable name for "the board in this socket", and is passed as
+`adapter usb location`.
+
+**Port allocation.** OpenOCD listens on three ports — GDB, telnet and TCL. A
+slot that is assigned only the first two leaves the third at its default, and
+every session on the bench then competes for the same TCL port; the second one
+to start dies. The TCL port is derived from the slot's GDB port, alongside the
+other two.
+
+The failure this prevents is not a crash. It is a bench that answers
+`detected_chip` confidently and wrongly, and a second slot that cannot be
+debugged at all — read, for two years, as a hardware limitation of shared
+VID:PID rather than as two undeclared numbers.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-037 | Two slots hold built-in-JTAG boards of *different* chip types; read `/api/devices` | Each slot reports its own `detected_chip` | Both slots reporting the same chip, or either reporting its neighbour's | bench |
+| FR-037 | With a session live on slot A, `POST /api/debug/start` on slot B | Both sessions run concurrently, each on its own GDB port | `Address already in use`, or slot A's session disturbed | bench |
+| FR-037 | Inspect the OpenOCD command line of any built-in-JTAG session | It carries `adapter usb location` for that slot and a TCL port unique to it | A session started with no location filter | bench |
+| FR-037 | Stop the session on slot B | Slot A still reports `debugging: true` and its GDB port still accepts a connection | A stop on one slot ending another's session | bench |
 
 ## 8. RF Instruments
 

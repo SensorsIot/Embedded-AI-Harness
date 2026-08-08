@@ -105,8 +105,10 @@ curl -s -X POST $WB/api/chip/info -H 'Content-Type: application/json' \
      -d '{"slot":"<SLOT>"}'              # chip, revision, flash size, MAC
 # Compare with the unit the FSD records. A mismatch stops the phase.
 # Check `debugging` as well as `state`: a live OpenOCD session holds the port
-# while the slot still reads idle, and on native-USB parts a session on ANY
-# such slot blocks the others (shared VID:PID).
+# while the slot still reads idle.  Every native-USB ESP32 enumerates as
+# 303a:1001, so `detected_chip` is only trustworthy if the bench selects the
+# board by USB topology; a bench that does not will confidently report one
+# slot's chip for another.  Verify the MAC, which is per-board.
 
 # 3 · project peers, if any: present, and answering one basic command
 
