@@ -60,11 +60,29 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture(scope="session")
 def workbench(request):
-    """Session-scoped connection to the Embedded Workbench."""
+    """Session-scoped connection to the Embedded Workbench.
+
+    The run begins with a bench reset (FR-036), which is what that endpoint
+    was built for and what nothing was calling. Skipping it is not a
+    theoretical risk: a run started on a bench carrying two live debug
+    sessions and leftover SDR and WiFi state took the portal down partway
+    through and failed nineteen tests, none of which had anything wrong with
+    them. The same suite, on the same hardware, minutes later and after a
+    reset: no failures.
+
+    A reset that cannot be performed is reported, not swallowed — starting
+    from an unknown state is exactly what this prevents.
+    """
     url = request.config.getoption("--wt-url")
     driver = WorkbenchDriver(url)
     driver.open()
     driver.ping()
+    r = driver.bench_reset()
+    if not r.get("ok"):
+        pytest.exit(f"bench reset failed, refusing to run from an unknown "
+                    f"state: {r}", returncode=3)
+    if r.get("changed"):
+        print(f"\nbench reset: {', '.join(r['changed'])}")
     yield driver
     try:
         driver.ap_stop()
@@ -114,7 +132,7 @@ def bench_dut(workbench):
         # SSID. Either way its portal is the way in — the firmware clears
         # stale credentials and returns to the portal by itself.
         if not _portal_is_up(workbench):
-            workbench.ap_stop()
+            _ap_stop_quietly(workbench)
             pytest.skip(
                 f"precondition unmet: no bench DUT. Nothing joined the AP "
                 f"and no '{BENCH_DUT_PORTAL}' portal is on the air. Flash "
@@ -128,7 +146,7 @@ def bench_dut(workbench):
         station = _wait_for_any_station(workbench, timeout=120)
 
     if not station:
-        workbench.ap_stop()
+        _ap_stop_quietly(workbench)
         pytest.skip(
             "precondition unmet: the bench DUT was provisioned but never "
             f"joined '{ssid}'"
@@ -139,7 +157,21 @@ def bench_dut(workbench):
         "mac": station["mac"], "ip": station["ip"],
         "url": f"http://{station['ip']}:{BENCH_DUT_HTTP_PORT}",
     }
-    workbench.ap_stop()
+    _ap_stop_quietly(workbench)
+
+
+def _ap_stop_quietly(workbench):
+    """Bring the AP down without letting the attempt become the verdict.
+
+    ap_stop reconfigures hostapd and dnsmasq and can exceed the driver's
+    timeout when the radio is busy. Raised out of a fixture, that turns a
+    truthful skip ("no bench DUT") into nine ERRORs about a POST — and the
+    next test then meets a radio nobody finished putting away.
+    """
+    try:
+        workbench.ap_stop()
+    except Exception:
+        pass
 
 
 def _wait_for_any_station(workbench, timeout: float):

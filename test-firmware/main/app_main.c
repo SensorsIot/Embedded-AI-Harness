@@ -40,16 +40,26 @@ void app_main(void)
     /* 4. WiFi — STA (stored creds) or AP (captive portal) */
     wifi_prov_init();
 
-    /* 5. In STA mode, wait for WiFi before starting BLE to avoid coexistence
-     *    conflicts during association. In AP mode, start BLE immediately. */
-    if (!wifi_prov_is_ap_mode()) {
+    /* 5. BLE shares the radio with WiFi, and the loser is whichever one is
+     *    least able to retry. In AP mode that is the access point: its
+     *    beacons are the only way anyone can find this device to provision
+     *    it, and continuous NimBLE advertising starves them. Observed on an
+     *    ESP32-S3: "AP started: SSID='WB-Test-Setup'" in the log, the BLE
+     *    name plainly visible to a scanner, and no beacon on the air at
+     *    all — so the board looked alive and was unreachable.
+     *
+     *    So BLE waits for the provisioning portal to have done its job. In
+     *    STA mode it waits for association, for the same reason. */
+    if (wifi_prov_is_ap_mode()) {
+        ESP_LOGI(TAG, "AP provisioning mode — BLE stays off so the portal's"
+                      " beacons get the radio");
+    } else {
         ESP_LOGI(TAG, "Waiting for WiFi STA connection before starting BLE...");
         for (int i = 0; i < 150 && !wifi_prov_is_connected(); i++)
             vTaskDelay(pdMS_TO_TICKS(100));   /* up to 15s */
+        /* 6. BLE — NUS advertisement (no command handler) */
+        ble_nus_init();
     }
-
-    /* 6. BLE — NUS advertisement (no command handler) */
-    ble_nus_init();
 
     /* 7. HTTP server — /status, /ota, /wifi-reset */
     http_server_start();
