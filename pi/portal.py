@@ -740,7 +740,13 @@ def start_proxy(slot: dict) -> bool:
         print(f"[portal] {label}: {slot['last_error']}", flush=True)
         return False
 
-    cmd = ["python3", PROXY_EXE, "-p", str(tcp_port), devnode]
+    # The monitor port is the RFC2217 port + 1000: a plain read-only fan-out
+    # that any number of observers may attach to without negotiating, and so
+    # without any way to assert DTR/RTS on the device they are watching.
+    monitor_port = tcp_port + 1000
+    slot["monitor_port"] = monitor_port
+    cmd = ["python3", PROXY_EXE, "-p", str(tcp_port),
+           "-m", str(monitor_port), devnode]
 
     try:
         proc = subprocess.Popen(
@@ -769,6 +775,7 @@ def start_proxy(slot: dict) -> bool:
             slot["last_error"] = None
             slot["url"] = f"rfc2217://{host_ip}:{tcp_port}"
             slot["state"] = STATE_IDLE
+            _start_recorder(slot)
             print(
                 f"[portal] {label}: proxy started (pid {proc.pid}, port {tcp_port})",
                 flush=True,
@@ -1162,6 +1169,7 @@ def _slot_info(slot: dict) -> dict:
         info["debugging"] = False
     # Always expose detected chip and JTAG source (persist after debug stop)
     info["detected_chip"] = slot.get("_auto_debug_chip")
+    info["monitor_port"] = slot.get("monitor_port")
     info["jtag_slot"] = slot.get("_jtag_slot")
     # Cached USB device info (updated on hotplug and boot)
     usb_devs = slot.get("_usb_devices", [])
@@ -1332,44 +1340,53 @@ def jtag_reset_capturing(slot: dict, effective_label: str,
     """
     import serial as pyserial
 
-    ser = None
-    tcp_port = slot.get("tcp_port")
-    if tcp_port and slot.get("running"):
+    sock = None
+    monitor_port = slot.get("monitor_port")
+    if monitor_port and slot.get("running"):
         try:
-            ser = pyserial.serial_for_url(f"rfc2217://127.0.0.1:{tcp_port}",
-                                          do_not_open=True)
-            ser.baudrate = 115200
-            ser.timeout = 0.1
-            # Never assert these: on a native-USB part DTR selects download
-            # mode and RTS holds reset, so opening carelessly would stop the
-            # very device this is trying to observe.
-            ser.dtr = False
-            ser.rts = False
-            ser.open()
-            ser.reset_input_buffer()
-        except Exception as e:
-            log_activity(f"jtag reset: cannot attach to proxy ({e})", "info")
-            ser = None
+            # The fan-out, not RFC2217: an observer must not be able to touch
+            # the control lines of the part it is about to watch boot.
+            sock = socket.create_connection(("127.0.0.1", monitor_port), timeout=5)
+            sock.settimeout(0.2)
+        except OSError as e:
+            log_activity(f"jtag reset: cannot attach to monitor port ({e})", "info")
+            sock = None
 
     result = debug_controller.jtag_reset(effective_label)
     if not result.get("ok"):
-        if ser is not None:
+        if sock is not None:
             try:
-                ser.close()
-            except Exception:
+                sock.close()
+            except OSError:
                 pass
         return result
 
     lines: list[str] = []
-    if ser is not None:
+    if sock is not None:
+        buf = b""
+        deadline = time.monotonic() + timeout
         try:
-            lines, _ = _read_serial_lines(ser, None, timeout=timeout)
+            while time.monotonic() < deadline:
+                try:
+                    chunk = sock.recv(4096)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                buf += chunk
+                while b"\n" in buf:
+                    raw, buf = buf.split(b"\n", 1)
+                    text = raw.decode("utf-8", errors="replace").rstrip("\r")
+                    if text:
+                        lines.append(text)
         except Exception as e:
             log_activity(f"jtag reset: boot capture failed ({e})", "info")
         finally:
             try:
-                ser.close()
-            except Exception:
+                sock.close()
+            except OSError:
                 pass
 
         now = time.time()
@@ -1381,6 +1398,217 @@ def jtag_reset_capturing(slot: dict, effective_label: str,
     result["output"] = lines
     return result
 
+
+
+
+
+def _start_recorder(slot: dict) -> None:
+    """Keep a slot's ring buffer filled whenever its proxy is up.
+
+    The fan-out drains the device continuously, but nothing was *recording*
+    unless a monitor happened to be attached — so a reply that arrived between
+    two calls was gone. That makes a write-then-read sequence unreliable for
+    exactly the reason it looks reliable: it usually works, and fails when the
+    device answers quickly.
+
+    One reader per slot, reconnecting on its own, so /api/serial/output can
+    answer for a window nobody was watching.
+    """
+    label = slot["label"]
+    if slot.get("_recorder_running"):
+        return
+    slot["_recorder_running"] = True
+
+    def run():
+        buf = b""
+        while slot.get("_recorder_running"):
+            port = slot.get("monitor_port")
+            if not port or not slot.get("running"):
+                time.sleep(1.0)
+                continue
+            try:
+                sock = socket.create_connection(("127.0.0.1", port), timeout=5)
+                sock.settimeout(1.0)
+            except OSError:
+                time.sleep(1.0)
+                continue
+            try:
+                while slot.get("_recorder_running") and slot.get("running"):
+                    try:
+                        chunk = sock.recv(4096)
+                    except socket.timeout:
+                        continue
+                    except OSError:
+                        break
+                    if not chunk:
+                        break
+                    buf += chunk
+                    while b"\n" in buf:
+                        raw, buf = buf.split(b"\n", 1)
+                        text = raw.decode("utf-8", errors="replace").rstrip("\r")
+                        if text:
+                            slot["_serial_buf"].append(
+                                {"ts": time.time(), "text": text})
+            finally:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+
+    threading.Thread(target=run, name=f"recorder-{label}", daemon=True).start()
+    log_activity(f"recorder started for {label}", "info")
+
+def serial_write(slot: dict, data: bytes, timeout: float = 5.0) -> dict:
+    """FR-030: send bytes to a device.
+
+    Three separate contributors wrote this endpoint before it existed, and a
+    project without it has only one alternative: open the slot's RFC2217 port
+    itself. That is how a test ends up asserting DTR and RTS by accident,
+    which on a native-USB part means download mode or reset — so the absence
+    of this call was actively dangerous, not merely inconvenient.
+
+    Writes through the proxy, which owns the device. The control lines are
+    driven low before the port opens, never after: serial_for_url() asserts
+    them on construction.
+    """
+    import serial as pyserial
+
+    label = slot["label"]
+    tcp_port = slot.get("tcp_port")
+    if not tcp_port:
+        return {"ok": False, "error": f"{label}: no tcp_port configured"}
+    if not slot.get("running"):
+        return {"ok": False, "error": f"{label}: proxy not running"}
+    if not data:
+        return {"ok": False, "error": "nothing to write"}
+
+    try:
+        ser = pyserial.serial_for_url(f"rfc2217://127.0.0.1:{tcp_port}",
+                                      do_not_open=True)
+        ser.baudrate = 115200
+        ser.timeout = timeout
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
+    except Exception as e:
+        return {"ok": False,
+                "error": f"cannot reach the proxy on {tcp_port}: {e}"}
+    try:
+        written = ser.write(data)
+        ser.flush()
+        # RFC2217 write() is a socket send: flush() does not guarantee the
+        # bytes have crossed the network, reached the proxy and been put on
+        # the wire. Closing straight away discards them, and the call still
+        # reports success because the local write did succeed. Hold the
+        # connection while the device is given a chance to answer, which both
+        # drains the write and proves it went out.
+        deadline = time.monotonic() + 0.6
+        while time.monotonic() < deadline:
+            try:
+                if not ser.read(256):
+                    continue
+            except Exception:
+                break
+    except Exception as e:
+        return {"ok": False, "error": f"write failed: {e}"}
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
+
+    log_activity(f"serial.write({label}, {len(data)} bytes)", "step")
+    return {"ok": True, "written": written or len(data)}
+
+def bench_reset() -> dict:
+    """Return the whole bench to its initial state.
+
+    A test that starts from whatever the previous test left behind is
+    measuring history. This is the one call that makes "before" mean the same
+    thing every time, and it belongs at the start of every run.
+
+    Initial state, per subsystem:
+      * every present slot — proxy running, no access grant, no debug session
+      * WiFi              — idle: no SoftAP, not joined to anything
+      * SDR               — no live console, no logging, no capture
+      * operator prompt   — none pending
+      * test session      — ended
+      * MQTT broker       — running (shared infrastructure: ensured, never
+                            stopped, because other work may depend on it)
+
+    Every step is attempted even if an earlier one fails: a reset that gives
+    up halfway leaves a bench dirtier than one that was never reset, and the
+    caller could not tell which. Returns what actually changed, so a caller
+    can see whether the bench was already clean.
+    """
+    changed: list = []
+    errors: list = []
+
+    def attempt(what, fn_):
+        try:
+            if fn_():
+                changed.append(what)
+        except Exception as e:
+            errors.append(f"{what}: {e}")
+
+    with _grants_lock:
+        if _grants:
+            changed.append(f"released {len(_grants)} slot grant(s)")
+            _grants.clear()
+
+    for slot in list(slots.values()):
+        label = slot.get("label")
+        if not label:
+            continue
+        if debug_controller.is_debugging(label):
+            attempt(f"stopped debug session on {label}",
+                    lambda l=label: debug_controller.stop(l).get("ok"))
+        if slot.get("present") and not slot.get("running"):
+            attempt(f"restarted proxy for {label}",
+                    lambda sl=slot: start_proxy(sl))
+
+    # These two return None, not a result dict — so ask the radio what state
+    # it is in rather than trusting a return value that does not exist.
+    was_ap = False
+    try:
+        was_ap = bool(wifi_controller.ap_status().get("active"))
+    except Exception:
+        pass
+    attempt("stopped WiFi AP",
+            lambda: (wifi_controller.ap_stop(), was_ap)[1])
+    was_sta = False
+    try:
+        was_sta = wifi_controller.get_mode().get("mode") not in (None, "idle", "ap")
+    except Exception:
+        pass
+    attempt("left WiFi network",
+            lambda: (wifi_controller.sta_leave(), was_sta)[1])
+
+    if _sdr is not None:
+        attempt("stopped SDR live console", lambda: bool(_sdr.stop_live()))
+        attempt("stopped SDR logging", lambda: bool(_sdr.stop_log()))
+        attempt("stopped SDR capture", lambda: bool(_sdr.stop()))
+
+    global _human_event, _human_confirmed, _human_message
+    with _human_lock:
+        if _human_message is not None:
+            _human_message = None
+            _human_confirmed = False
+            if _human_event is not None:
+                _human_event.set()
+                _human_event = None
+            changed.append("cleared pending operator prompt")
+
+    global _test_session
+    with _test_lock:
+        if _test_session:
+            _test_session = None
+            changed.append("ended test session")
+
+    attempt("started MQTT broker", lambda: mqtt_controller.start().get("ok"))
+
+    log_activity(f"bench.reset — {len(changed)} change(s)", "ok")
+    return {"ok": True, "changed": changed, "errors": errors}
 
 # ---------------------------------------------------------------------------
 # Slot access manager (FR-031 – FR-035)
@@ -1747,55 +1975,70 @@ def read_flash_device(slot: dict, offset: int, length: int,
 
 def serial_monitor(slot: dict, pattern: str | None = None,
                    timeout: float = 10.0) -> dict:
-    """FR-009: Read serial output via RFC2217 proxy.
+    """FR-009: Read serial output through the proxy's read-only fan-out.
 
-    Connects to the running proxy as a client, reads lines, optionally
-    waits for a line matching *pattern*.
+    Not an RFC2217 client. RFC2217 is single-client and its negotiation
+    applies control-line changes to the device — so monitoring used to take
+    the one connection slot, could be starved by any other client, and put a
+    caller one careless option away from asserting DTR or RTS. The fan-out
+    port is plain bytes: any number of observers, none able to disturb what
+    they are watching.
 
     Returns {"ok": True, "matched": True/False, "line": "...", "output": [...]}.
     """
-    import serial as pyserial
-
     label = slot["label"]
-    tcp_port = slot.get("tcp_port")
+    monitor_port = slot.get("monitor_port")
 
-    if not tcp_port:
-        return {"ok": False, "error": f"{label}: no tcp_port configured"}
+    if not monitor_port:
+        return {"ok": False, "error": f"{label}: no monitor port configured"}
     if not slot.get("running"):
         return {"ok": False, "error": f"{label}: proxy not running"}
 
-    rfc2217_url = f"rfc2217://127.0.0.1:{tcp_port}"
     try:
-        ser = pyserial.serial_for_url(rfc2217_url, do_not_open=True)
-        ser.baudrate = 115200
-        ser.timeout = 0.1
-        ser.dtr = False
-        ser.rts = False
-        ser.open()
-    except Exception as e:
-        return {"ok": False, "error": f"Cannot connect to {rfc2217_url}: {e}"}
+        sock = socket.create_connection(("127.0.0.1", monitor_port), timeout=5)
+    except OSError as e:
+        return {"ok": False,
+                "error": f"Cannot connect to monitor port {monitor_port}: {e}"}
 
     slot["state"] = STATE_MONITORING
+    lines: list[str] = []
+    matched: str | None = None
+    buf = b""
+    deadline = time.monotonic() + timeout
     try:
-        lines, matched_line = _read_serial_lines(ser, pattern, timeout)
+        sock.settimeout(0.2)
+        while time.monotonic() < deadline:
+            try:
+                chunk = sock.recv(4096)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if not chunk:
+                break
+            buf += chunk
+            while b"\n" in buf:
+                raw, buf = buf.split(b"\n", 1)
+                text = raw.decode("utf-8", errors="replace").rstrip("\r")
+                if not text:
+                    continue
+                lines.append(text)
+                now = time.time()
+                slot["_serial_buf"].append({"ts": now, "text": text})
+                if pattern and pattern in text:
+                    matched = text
+                    break
+            if matched:
+                break
     finally:
         try:
-            ser.close()
-        except Exception:
+            sock.close()
+        except OSError:
             pass
         slot["state"] = STATE_IDLE if slot["present"] else STATE_ABSENT
 
-    return {
-        "ok": True,
-        "matched": matched_line is not None,
-        "line": matched_line,
-        "output": lines,
-    }
-
-
-# ---------------------------------------------------------------------------
-# USB Flap Recovery — unbind USB to stop storm, then recover via GPIO or backoff
-# ---------------------------------------------------------------------------
+    return {"ok": True, "matched": matched is not None,
+            "line": matched, "output": lines}
 
 def _start_flap_recovery(slot: dict):
     """Entry point when flapping is detected.  Unbinds USB to stop the storm,
@@ -2164,6 +2407,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_chip_info()
         elif path == "/api/ota":
             self._handle_ota()
+        elif path == "/api/serial/write":
+            self._handle_serial_write()
+        elif path == "/api/bench/reset":
+            self._handle_bench_reset()
         elif path == "/api/slot/acquire":
             self._handle_slot_acquire()
         elif path == "/api/slot/renew":
@@ -2294,11 +2541,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             infos.append(_slot_info(slot))
         # Sort by label so SLOT1-4 always appear in order
         infos.sort(key=lambda s: s.get("label", ""))
-        self._send_json({"slots": infos, "host_ip": host_ip, "hostname": hostname})
+        # Appendix D promises `ok` on every response; these two GETs are the
+        # only endpoints that ever omitted it, which made a generic client
+        # treat a perfectly good answer as a failure.
+        self._send_json({"ok": True, "slots": infos,
+                         "host_ip": host_ip, "hostname": hostname})
 
     def _handle_get_info(self):
         _refresh_host_ip()
         self._send_json({
+            "ok": True,
             "host_ip": host_ip,
             "hostname": hostname,
             "slots_configured": sum(1 for s in slots.values() if s["tcp_port"] is not None),
@@ -2756,6 +3008,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_json({"ok": True})
 
     # -- serial services (FR-008, FR-009) --
+
+    def _handle_serial_write(self):
+        body = self._read_json() or {}
+        slot_label = body.get("slot")
+        slot = _find_slot_by_label(slot_label) if slot_label else None
+        if not slot:
+            self._send_json({"ok": False, "error": f"slot '{slot_label}' not found"}, 404)
+            return
+        if "hex" in body:
+            try:
+                data = bytes.fromhex(body["hex"])
+            except ValueError as e:
+                self._send_json({"ok": False, "error": f"bad hex: {e}"}, 400)
+                return
+        elif "text" in body:
+            # `newline` defaults true because a console command without one is
+            # never executed, which reads as "the device ignored me".
+            text = body["text"]
+            if body.get("newline", True):
+                text += "\r\n"
+            data = text.encode("utf-8")
+        else:
+            self._send_json({"ok": False, "error": "need 'text' or 'hex'"}, 400)
+            return
+        self._send_json(serial_write(slot, data))
+
+    def _handle_bench_reset(self):
+        self._send_json(bench_reset(), 200)
 
     def _handle_slot_acquire(self):
         body = self._read_json() or {}

@@ -34,6 +34,10 @@ def main():
         description="Plain RFC2217 server (direct DTR/RTS passthrough)")
     parser.add_argument("SERIALPORT")
     parser.add_argument("-p", "--localport", type=int, default=2217)
+    parser.add_argument("-m", "--monitor-port", type=int, default=0,
+                        help="plain read-only fan-out port (0 disables)")
+    parser.add_argument("-b", "--baud", type=int, default=115200,
+                        help="line rate when no client has negotiated one")
     parser.add_argument("-v", "--verbose", dest="verbosity",
                         action="count", default=0)
     args = parser.parse_args()
@@ -54,6 +58,11 @@ def main():
     ser = serial.serial_for_url(args.SERIALPORT, do_not_open=True,
                                 exclusive=True)
     ser.timeout = 3
+    # pyserial defaults to 9600, and the port sits at whatever it was last set
+    # to whenever no client is attached — so the permanent drain, and every
+    # observer on the fan-out, would read an ESP32 console at the wrong rate
+    # and see only noise. Default to the rate these devices actually use.
+    ser.baudrate = args.baud
     ser.dtr = False
     ser.rts = False
     try:
@@ -65,6 +74,7 @@ def main():
         ser = serial.serial_for_url(args.SERIALPORT, do_not_open=True,
                                     exclusive=False)
         ser.timeout = 3
+        ser.baudrate = args.baud
         ser.dtr = False
         ser.rts = False
         ser.open()
@@ -92,6 +102,89 @@ def main():
     srv.listen(1)
     logging.info("Listening on port %d for %s", args.localport,
                  args.SERIALPORT)
+
+    # ---- read-only fan-out -------------------------------------------------
+    #
+    # RFC2217 stays single-client, because negotiation applies control-line
+    # changes to the port: a second RFC2217 client could assert DTR or RTS,
+    # which on a native-USB ESP32 means download mode or reset. So observers
+    # get a separate plain port instead — raw bytes, no negotiation, no way to
+    # touch the device. Reading is then free and unlimited, and nothing that
+    # merely watches can disturb what it is watching.
+    monitors: list = []
+    monitors_lock = threading.Lock()
+
+    def monitor_acceptor(msrv):
+        while True:
+            try:
+                conn, addr = msrv.accept()
+            except OSError:
+                return
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            with monitors_lock:
+                monitors.append(conn)
+            logging.info("Monitor attached from %s (%d total)", addr, len(monitors))
+
+    if args.monitor_port:
+        msrv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        msrv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        msrv.bind(("", args.monitor_port))
+        msrv.listen(8)
+        threading.Thread(target=monitor_acceptor, args=(msrv,), daemon=True).start()
+        logging.info("Monitor fan-out on port %d", args.monitor_port)
+
+    def fan_out(data: bytes):
+        if not data:
+            return
+        dead = []
+        with monitors_lock:
+            for conn in monitors:
+                try:
+                    conn.sendall(data)
+                except (BrokenPipeError, OSError):
+                    dead.append(conn)
+            for conn in dead:
+                monitors.remove(conn)
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+        if dead:
+            logging.info("Monitor detached (%d remain)", len(monitors))
+
+    # The control client, when one is attached. Guarded because the drain
+    # thread runs whether or not anybody is connected.
+    control = {"conn": None, "pm": None}
+    control_lock = threading.Lock()
+
+    def drain():
+        """Read the device forever and distribute.
+
+        Permanent, not per-connection: the port is open for the life of this
+        process, so a device that logs would otherwise fill its buffer with
+        nobody reading. Draining always also means the fan-out has something
+        to fan.
+        """
+        while True:
+            try:
+                data = ser.read(ser.in_waiting or 1)
+            except Exception as exc:
+                logging.warning("serial read failed: %s", exc)
+                time.sleep(0.2)
+                continue
+            if not data:
+                continue
+            fan_out(data)
+            with control_lock:
+                conn, pm = control["conn"], control["pm"]
+            if conn is not None:
+                try:
+                    conn.sendall(b"".join(pm.escape(data)))
+                except (BrokenPipeError, OSError):
+                    with control_lock:
+                        control["conn"] = None
+
+    threading.Thread(target=drain, daemon=True).start()
 
     while True:
         srv.settimeout(5)
@@ -126,24 +219,11 @@ def main():
             conn.close()
             continue
 
-        alive = True
-
-        def reader():
-            nonlocal alive
-            while alive:
-                try:
-                    data = ser.read(ser.in_waiting or 1)
-                    if data:
-                        conn.sendall(b"".join(pm.escape(data)))
-                except Exception:
-                    break
-            alive = False
-
-        t = threading.Thread(target=reader, daemon=True)
-        t.start()
+        with control_lock:
+            control["conn"], control["pm"] = conn, pm
 
         try:
-            while alive:
+            while True:
                 data = conn.recv(1024)
                 if not data:
                     break
@@ -151,7 +231,8 @@ def main():
         except Exception:
             pass
 
-        alive = False
+        with control_lock:
+            control["conn"], control["pm"] = None, None
         conn.close()
         logging.info("Client disconnected")
         ser.dtr = False

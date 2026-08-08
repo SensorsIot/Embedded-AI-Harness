@@ -19,6 +19,13 @@ def pytest_addoption(parser):
         help="Portal URL for the Embedded Workbench Pi",
     )
     parser.addoption(
+        "--run-wifi-dut",
+        action="store_true",
+        default=False,
+        help="the DUT runs firmware that joins the bench AP (station-event, "
+             "captive-portal and HTTP-relay tests need this)",
+    )
+    parser.addoption(
         "--run-dut",
         action="store_true",
         default=False,
@@ -31,13 +38,28 @@ def pytest_configure(config):
         "markers",
         "requires_dut: test needs a DUT or second WiFi device connected",
     )
+    config.addinivalue_line(
+        "markers",
+        "requires_wifi_dut: test needs a DUT running firmware that joins the AP",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--run-wifi-dut", default=False):
+        skip_wifi = pytest.mark.skip(
+            reason="precondition unmet: needs a DUT running firmware that "
+                   "joins the bench AP (use --run-wifi-dut). A DUT that never "
+                   "connects is an absent precondition, not a bench failure")
+        for item in items:
+            if "requires_wifi_dut" in item.keywords:
+                item.add_marker(skip_wifi)
+
     run_dut = config.getoption("--run-dut", default=False)
     if not run_dut:
         skip_dut = pytest.mark.skip(reason="Requires a DUT (use --run-dut)")
         for item in items:
+            if "requires_wifi_dut" in item.keywords:
+                item.add_marker(skip_dut)
             if "requires_dut" in item.keywords:
                 item.add_marker(skip_dut)
 

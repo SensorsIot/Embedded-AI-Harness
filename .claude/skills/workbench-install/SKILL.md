@@ -47,6 +47,12 @@ service exists, and the output ends on a bare `cp: cannot stat` with no summary.
 Read the last line rather than assuming a long successful-looking log means it
 finished; `curl /api/info` is the only proof.
 
+**The API contract is [FSD Appendix D](../../../docs/Harness-FSD.md#appendix-d-http-api--mcp-reference).**
+Every endpoint the bench serves is listed there with its request and
+response shape. Read it rather than the portal source: the source has
+carried a dead duplicate handler whose documented form the live one
+rejects, so guessing from code has already cost a debugging cycle.
+
 **A fresh install exercises code that `--update` never reaches.** An installer
 bug can therefore sit undiscovered indefinitely on benches that were built before
 it was introduced — a file deleted from `pi/` but still named in `install.sh`

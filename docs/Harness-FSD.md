@@ -6,7 +6,7 @@
 |---|---------|--------|
 | 1 | [Overview](#1-overview) | Purpose, architecture, hardware, modes, components, state model |
 | 2 | [Definitions](#2-definitions) | Terms and the slot-based identity principle |
-| 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery · FR-031 – FR-035: access manager, leases, refusal, out-of-band detection |
+| 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery · FR-030 serial write · FR-031 – FR-035 access manager · FR-036 bench reset |
 | 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
 | 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository |
 | 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
@@ -1219,6 +1219,75 @@ that mode so every other consumer is refused with a reason.
 |---|---|---|---|---|
 | FR-035 | Start a debug session; request `flashing` | 409 naming `debugging` | A flash proceeding while OpenOCD holds the USB interface | bench |
 | FR-035 | Stop the debug session; request `flashing` | Granted | The slot remaining held after the session ends | bench |
+
+### FR-030 — Serial Write
+
+Send bytes to a device.
+
+Three contributors independently wrote this endpoint before it existed (PRs
+#18, #7, and #5 for erase), and this project needed it too. Its absence was
+not merely inconvenient: without it a caller's only option is to open the
+slot's RFC2217 port directly, and RFC2217 negotiation asserts DTR and RTS —
+which on a native-USB ESP32 mean download mode and reset. **The missing
+endpoint made careless device-halting the default path.**
+
+**Endpoint:** `POST /api/serial/write`
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| slot | string | Yes | — | Slot label |
+| text | string | one of | — | UTF-8 text to send |
+| hex | string | one of | — | Raw bytes as hex, for binary protocols |
+| newline | bool | No | true | Append CRLF to `text`. A console command without one is never executed, which reads as the device ignoring it |
+
+Writes through the proxy, which owns the device. Control lines are driven low
+**before** the port opens — `serial_for_url()` asserts them on construction.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-030 | Write a console command to a peer that answers | `{"ok": true, "written": n}`, and the reply appears in the slot's buffer | The device resetting or entering download mode as a side effect of the write |
+| FR-030 | Write with neither `text` nor `hex` | 400 naming what is required | A silent no-op reported as success |
+| FR-030 | Write `hex` that is not hex | 400 naming the fault | Partial bytes written |
+| FR-030 | Write to an unknown slot | 404 | Bytes sent to some other slot |
+
+### FR-036 — Bench Reset
+
+Return the whole bench to its initial state. **Intended as the first call of
+every test run.**
+
+A test that begins from whatever the previous test left behind is measuring
+history, and the resulting failures are attributed to the wrong thing — a
+stopped broker, an AP left up, a slot still held, a debug session nobody
+closed.
+
+**Endpoint:** `POST /api/bench/reset`
+
+Initial state, per subsystem:
+
+| Subsystem | Initial state |
+|---|---|
+| Every present slot | proxy running, no access grant (FR-031), no debug session |
+| WiFi | idle — no SoftAP, not joined |
+| SDR | no live console, no logging, no capture |
+| Operator prompt | none pending |
+| Test session | ended |
+| MQTT broker | **running** — shared infrastructure, so it is ensured, never stopped |
+
+Every step is attempted even if an earlier one fails: a reset that gives up
+halfway leaves the bench dirtier than one never run, and the caller cannot
+tell which. The response reports what actually changed, so a caller can see
+whether the bench was already clean.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-036 | Hold a slot grant, raise the AP, then reset | `changed` names both; mode is `idle` and the AP is down afterwards | A reset reporting success while a subsystem is still dirty |
+| FR-036 | Reset an already-clean bench | `ok: true` with an empty or near-empty `changed` | Spurious changes reported, which would make "was it dirty?" unanswerable |
+| FR-036 | Reset while one subsystem errors | The remaining subsystems are still reset, and the error is reported in `errors` | Aborting on the first failure |
+| FR-036 | Reset | The MQTT broker is running afterwards | The broker stopped — other work depends on it |
 
 ## 4. WiFi Service
 
@@ -3686,6 +3755,7 @@ errors add `"error": "..."`.
 | POST | `/api/serial/reset` | Reset a device `{"slot"}`. **The method depends on the slot; the response shape does not.** `output` is always the device's boot lines. No debug session: DTR/RTS, stopping and restarting the proxy. Debug session active: JTAG `reset run` — no USB re-enumeration, proxy stays up — and the reply adds `"method": "jtag"`, `"command"` and `"openocd"` carrying OpenOCD's own text. Falls back to DTR/RTS if the JTAG reset fails |
 | POST | `/api/serial/monitor` | Wait for a pattern `{"slot", "pattern?", "timeout?"}` → `{"ok", "matched", "line", "output"}` |
 | GET | `/api/serial/output` | Passive buffer read `?slot=&lines=&since=` |
+| POST | `/api/serial/write` | Send bytes `{"slot", "text"\|"hex", "newline?"}` → `{"ok", "written"}` (FR-030) |
 | POST | `/api/serial/recover` | Manual flap-recovery trigger `{"slot"}` |
 | POST | `/api/serial/release` | Release BOOT GPIO + reboot after a download-mode flash `{"slot"}` |
 | POST | `/api/enter-portal` | Provision a captive-portal DUT (WiFiManager: `portal_ssid`, `ssid`, `password`, `save_path=/wifisave`, `field_ssid=s`, `field_password=p`, `method=POST`, `internet`, `extra`); or trigger with `{slot, resets}` |
@@ -3702,6 +3772,12 @@ suites alike. A conflicting request is refused, never pre-empted.
 | POST | `/api/slot/renew` | Extend a grant `{"token"}` → `{"ok", "expires_in"}`. Hold by renewing; `ttl` defaults to 60 s |
 | POST | `/api/slot/release` | Give the slot back `{"token"}` |
 | GET | `/api/slot/mode` | Current mode `?slot=` → `{"ok", "mode", "owner", "since", "expires_in"}` |
+
+**Bench reset (FR-036).** The first call of every test run.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/bench/reset` | Return every subsystem to its initial state → `{"ok", "changed": [...], "errors": [...]}` |
 
 ### D.3 GDB Debug
 

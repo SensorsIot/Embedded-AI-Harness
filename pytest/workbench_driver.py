@@ -853,3 +853,36 @@ class WorkbenchDriver:
                 return json.loads(e.read())
             except Exception:
                 return {"ok": False, "error": f"HTTP {e.code}"}
+
+    # ---- Serial write and bench reset --------------------------------------
+
+    def serial_write(self, slot: str, text: str | None = None,
+                     hex_bytes: str | None = None, newline: bool = True) -> dict:
+        """POST /api/serial/write (FR-030) — send bytes to a device."""
+        body: dict = {"slot": slot, "newline": newline}
+        if hex_bytes is not None:
+            body["hex"] = hex_bytes
+        elif text is not None:
+            body["text"] = text
+        return self._api_post_raw("/api/serial/write", body)
+
+    def bench_reset(self) -> dict:
+        """POST /api/bench/reset (FR-036) — the first call of every run."""
+        return self._api_post_raw("/api/bench/reset", {}, timeout=90)
+
+    def monitor_or_buffer(self, slot: str, pattern: str,
+                          seconds: float = 12) -> tuple:
+        """Look for *pattern* in live output, then in the recorded buffer.
+
+        A device may answer faster than a monitor can attach, which is why the
+        portal records continuously. Checking both is what makes a
+        write-then-read sequence reliable rather than usually-reliable.
+        """
+        res = self._api_post("/api/serial/monitor",
+                             {"slot": slot, "pattern": pattern,
+                              "timeout": seconds}, timeout=seconds + 20)
+        if res.get("matched"):
+            return True, res.get("output") or []
+        buf = self._api_get(f"/api/serial/output?slot={slot}&lines=40")
+        lines = [e.get("text", "") for e in (buf.get("lines") or buf.get("output") or [])]
+        return any(pattern in l for l in lines), lines

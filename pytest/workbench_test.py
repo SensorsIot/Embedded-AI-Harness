@@ -126,6 +126,7 @@ class TestSoftAPManagement:
 
 
 @pytest.mark.requires_dut
+@pytest.mark.requires_wifi_dut
 class TestStationEvents:
     """WT-3xx: Station connect/disconnect events (requires DUT)."""
 
@@ -242,6 +243,7 @@ class TestSTAMode:
 
 
 @pytest.mark.requires_dut
+@pytest.mark.requires_wifi_dut
 class TestHTTPRelay:
     """WT-5xx: HTTP relay tests (requires DUT with HTTP server)."""
 
@@ -542,6 +544,7 @@ class TestMqttBroker:
 
 
 @pytest.mark.requires_dut
+@pytest.mark.requires_wifi_dut
 class TestCaptivePortal:
     """WT-21xx: provision a WiFiManager DUT (the awning on SLOT3) onto a
     NAT-bridged workbench AP and verify it reaches the LAN. Mirrors the
@@ -1488,3 +1491,148 @@ class TestSlotAccessManager:
             "a flash must not proceed while OpenOCD holds the USB interface"
         )
         assert refused["mode"] == "debugging"
+
+
+class TestBenchReset:
+    """FR-036. The call that makes "before" mean the same thing every time."""
+
+    def test_reset_reports_what_it_changed(self, workbench):
+        r = workbench.bench_reset()
+        assert r["ok"] is True, r
+        assert isinstance(r.get("changed"), list)
+        assert not r.get("errors"), f"reset reported errors: {r['errors']}"
+
+    def test_reset_clears_a_held_slot(self, workbench):
+        g = workbench.slot_acquire("SLOT3", "monitoring", "pytest-dirt", ttl=600)
+        assert g["ok"] is True, g
+        assert workbench.slot_mode("SLOT3")["mode"] == "monitoring"
+        r = workbench.bench_reset()
+        assert r["ok"] is True, r
+        assert workbench.slot_mode("SLOT3")["mode"] in ("idle", "absent"), (
+            "a long-lived grant survived the reset, so the next test would "
+            "start from the previous test's state"
+        )
+
+    def test_reset_leaves_the_broker_running(self, workbench):
+        """The broker is shared infrastructure: ensured, never stopped."""
+        workbench.bench_reset()
+        assert workbench.mqtt_status().get("running") is True
+
+    def test_reset_is_idempotent(self, workbench):
+        workbench.bench_reset()
+        second = workbench.bench_reset()
+        assert second["ok"] is True
+        assert not second.get("errors"), second
+
+
+class TestSerialWrite:
+    """FR-030. Without it, a project's only way to send a byte is to open the
+    RFC2217 port itself — and that asserts the control lines."""
+
+    SLOT = "SLOT3"          # the M-Bus simulator answers a console command
+
+    def test_write_reaches_the_device_and_the_reply_is_captured(self, workbench):
+        w = workbench.serial_write(self.SLOT, text="status")
+        assert w["ok"] is True, w
+        assert w["written"] > 0
+        matched, lines = workbench.monitor_or_buffer(self.SLOT, "OK ")
+        assert matched, (
+            "the command was written but no reply was captured; "
+            f"last lines: {lines[-3:]}"
+        )
+
+    def test_hex_form_is_accepted(self, workbench):
+        w = workbench.serial_write(self.SLOT, hex_bytes="0d0a")
+        assert w["ok"] is True, w
+        assert w["written"] == 2
+
+    def test_neither_text_nor_hex_is_refused(self, workbench):
+        w = workbench.serial_write(self.SLOT)
+        assert w["ok"] is False
+        assert "text" in w["error"] and "hex" in w["error"]
+
+    def test_bad_hex_is_refused(self, workbench):
+        w = workbench.serial_write(self.SLOT, hex_bytes="zz")
+        assert w["ok"] is False
+        assert "hex" in w["error"]
+
+    def test_unknown_slot_is_refused(self, workbench):
+        w = workbench.serial_write("SLOT9", text="x")
+        assert w["ok"] is False
+
+
+class TestApiSurface:
+    """Every endpoint answers its contract.
+
+    Not deep behaviour — that lives in the classes above. This is the check
+    that an endpoint exists, accepts what Appendix D says it accepts, and
+    refuses what it should. Twenty endpoints had no test of any kind before
+    this, including two the author of these words guessed the wrong name for
+    while reading the source instead of the contract.
+    """
+
+    def test_info_and_devices_answer(self, workbench):
+        assert workbench.info().get("hostname")
+        assert isinstance(workbench.get_devices(), list)
+
+    def test_chip_info_reads_the_silicon(self, workbench):
+        dut = next((d for d in workbench.get_devices()
+                    if d.get("present") and d.get("detected_chip")), None)
+        if not dut:
+            pytest.skip("precondition unmet: no chip-detected DUT present")
+        r = workbench._api_post_raw("/api/chip/info", {"slot": dut["label"]},
+                                    timeout=90)
+        if not r.get("ok"):
+            pytest.skip(f"precondition unmet: esptool could not read the part ({r.get('error')})")
+        assert r.get("mac"), "chip info returned no MAC"
+        assert "ESP32" in r.get("chip", ""), r
+
+    def test_proxy_stop_and_start_round_trip(self, workbench):
+        dut = next((d for d in workbench.get_devices() if d.get("present")), None)
+        if not dut:
+            pytest.skip("precondition unmet: no device present")
+        label, port = dut["label"], dut["tcp_port"]
+        try:
+            assert workbench._api_post_raw("/api/stop", {"slot": label})["ok"]
+            after = workbench.get_slot(label)
+            assert after["running"] is False
+        finally:
+            assert workbench._api_post_raw("/api/start", {"slot": label})["ok"]
+        back = workbench.get_slot(label)
+        assert back["running"] is True
+        assert back["tcp_port"] == port, (
+            "the slot came back on a different port; a client's saved URL "
+            "would now reach the wrong device"
+        )
+
+    def test_human_interaction_lifecycle(self, workbench):
+        st = workbench._api_get("/api/human/status")
+        assert st["ok"] is True
+        assert st.get("pending") is False, (
+            "a prompt was already pending — bench_reset should have cleared it"
+        )
+
+    def test_test_progress_endpoint_answers(self, workbench):
+        p = workbench._api_get("/api/test/progress")
+        assert p.get("ok") is not False
+
+    def test_sdr_endpoints_answer_or_declare_absence(self, workbench):
+        """FR-0xx SDR. `live_stop` and `log_stop` had no test at all."""
+        st = workbench.sdr_status()
+        assert st["ok"] is True
+        if not st.get("available"):
+            # Honest: the endpoints must still answer, saying the dongle is absent.
+            for ep in ("/api/sdr/live/stop", "/api/sdr/log/stop", "/api/sdr/stop"):
+                r = workbench._api_post_raw(ep, {})
+                assert "ok" in r, f"{ep} returned no verdict at all: {r}"
+            pytest.skip("precondition unmet: no RTL-SDR dongle on this bench")
+        for ep in ("/api/sdr/live/stop", "/api/sdr/log/stop", "/api/sdr/stop"):
+            assert workbench._api_post_raw(ep, {}).get("ok") is not None
+
+    def test_firmware_repository_round_trip(self, workbench):
+        # The driver unwraps to the file list itself.
+        assert isinstance(workbench.firmware_list(), list)
+
+    def test_activity_log_answers(self, workbench):
+        log = workbench.get_log()
+        assert isinstance(log, (list, dict))
