@@ -27,3 +27,14 @@ CONFIG_ESP_ENABLE_DHCP_CAPTIVEPORTAL=y
 
 # Log level
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# PHY calibration: recalibrate every boot, never trust stored data.
+#
+# An ESP32-S3 on this bench stopped transmitting WiFi entirely after a
+# full-erase flash — SoftAP logged as started, no beacon on the air, while
+# BLE from the same chip stayed plainly visible to a scanner. Calibration
+# data lives in NVS, a full erase takes it with everything else, and a
+# partial recalibration from missing or stale data can leave the radio
+# initialised and mute. A DUT that gets erased and reflashed several times a
+# day cannot carry that risk; the cost is about 100 ms of boot time.
+CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE=n
