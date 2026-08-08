@@ -95,7 +95,7 @@ ser.open()               # only now, with both lines already low
 This is exactly what the portal's own `serial_monitor()` does, and it is why
 the portal can read a device that a naive client stops dead.
 
-**Boot-time output is observable now**, by two routes, so a missed banner is
+**Boot-time output is observable now**, by three routes, so a missed banner is
 no longer a reason to reach for raw serial:
 
 - `GET /api/serial/output?slot=…` — a recorder runs on every present slot
@@ -103,14 +103,23 @@ no longer a reason to reach for raw serial:
   by the time you ask. Check the entries' `ts`: a buffer whose newest line is
   minutes old is telling you the device went quiet, which is itself the
   observation.
+- **the reset's own reply.** `POST /api/serial/reset` captures the boot while
+  it performs it and returns those lines in `output` — the simplest route,
+  and the one to reach for first.
 - **the read-only fan-out**, `tcp_port + 1000` — a plain TCP stream of the
   same bytes, as many readers as you like, no control lines and no
-  competition with the proxy's own client. Connect first, then reset, and the
-  boot arrives on the socket.
+  competition with the proxy's own client. Use it to watch a device that is
+  already running. **Do not connect to it and then trigger a reset or a
+  flash**: both stop and restart the proxy, so the socket dies and the
+  capture comes back empty — which reads exactly like a silent device. The
+  exception is a slot with a live debug session, where reset goes over JTAG
+  and the proxy stays up.
 
-Reset itself is not guaranteed to take on every part. If a device keeps
-counting uptime across a `/api/serial/reset`, it did not reboot — check
-before concluding anything about what it printed.
+Reset is not guaranteed to take on every part. If a device keeps counting
+uptime across a `/api/serial/reset`, it did not reboot — check before
+concluding anything about what it printed. And after a flash the recorder's
+buffer starts again with the new proxy, so an old newest-line timestamp
+there means the proxy was replaced, not that the device went quiet.
 
 ## Test Progress Tracking
 
