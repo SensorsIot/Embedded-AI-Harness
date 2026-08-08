@@ -215,15 +215,25 @@ class WorkbenchDriver:
 
     def provision_wifimanager(self, portal_ssid: str, ssid: str, password: str,
                               extra: Optional[dict] = None,
-                              internet: bool = True) -> dict:
-        """Provision a WiFiManager DUT onto the workbench AP via its captive
-        portal (POST /wifisave, s/p + extra), NAT-bridged when internet=True.
+                              internet: bool = True,
+                              save_path: str = "/wifisave",
+                              field_ssid: str = "s",
+                              field_password: str = "p") -> dict:
+        """Provision a DUT onto the workbench AP through its captive portal.
+
+        The defaults are Arduino WiFiManager's (`POST /wifisave`, fields
+        `s`/`p`), which is what most project DUTs run. They are defaults and
+        not constants because the bench's own DUT is not a WiFiManager
+        device — it takes `POST /connect` with `ssid`/`password`, and a
+        method that could only speak to one convention would have left the
+        bench unable to provision its own board.
 
         Runs asynchronously on the portal; poll ap_status for the DUT to join.
         """
         return self._api_post("/api/enter-portal", {
             "portal_ssid": portal_ssid, "ssid": ssid, "password": password,
-            "save_path": "/wifisave", "field_ssid": "s", "field_password": "p",
+            "save_path": save_path, "field_ssid": field_ssid,
+            "field_password": field_password,
             "method": "POST", "internet": internet, "extra": extra or {},
         }, timeout=15)
 
