@@ -1840,6 +1840,18 @@ def flash_device(slot: dict, files: dict, esptool_args: list[str],
     if not slot.get("present"):
         return {"ok": False, "error": f"{label}: device not present"}
 
+    # A debug session must not be holding the chip while esptool drives it.
+    # OpenOCD halts the target when it connects, and auto-debug reattaches on
+    # its own, so a flash could run against a halted CPU and hand back a
+    # device that boots into nothing. Everything downstream then reads an
+    # empty serial buffer and blames the flash, the firmware, or the cable.
+    # Stop it here and put it back afterwards — the caller asked to flash a
+    # board, not to think about who else had it.
+    was_debugging = debug_controller.is_debugging(label)
+    if was_debugging:
+        log_activity(f"flash({label}) — stopping debug session first", "step")
+        debug_controller.stop(label)
+
     # Stop the proxy so esptool can open the local serial port directly
     with slot["_lock"]:
         was_running = bool(slot.get("running"))
@@ -1886,12 +1898,35 @@ def flash_device(slot: dict, files: dict, esptool_args: list[str],
             if slot["state"] == STATE_RESETTING:
                 slot["state"] = STATE_IDLE if slot["present"] else STATE_ABSENT
 
+    # esptool's final hard reset leaves the device running. Auto-debug will
+    # reattach shortly and halt it again, so a slot that was being debugged
+    # gets its session back with the CPU explicitly released — debugging a
+    # board and being able to watch it run are not alternatives.
+    if was_debugging:
+        _restore_debug_running(slot, label)
+
     if error:
         log_activity(f"flash({label}) — failed: {error}", "error")
         return {"ok": False, "error": error,
                 "output": output_text, "returncode": returncode}
     log_activity(f"flash({label}) — ok ({len(output_text)} bytes output)", "ok")
     return {"ok": True, "output": output_text, "returncode": returncode}
+
+
+def _restore_debug_running(slot: dict, label: str) -> None:
+    """Reattach OpenOCD to *slot* and leave its CPU running, not halted."""
+    chip = slot.get("_auto_debug_chip")
+    r = debug_controller.start(label, slot, slot.get("gdb_port"),
+                               slot.get("openocd_telnet_port"), chip, None)
+    if not r.get("ok"):
+        log_activity(f"flash({label}) — debug session not restored: "
+                     f"{r.get('error')}", "info")
+        return
+    out = debug_controller.jtag_reset(label, halt=False)
+    log_activity(f"flash({label}) — debug session restored, CPU running"
+                 if out.get("ok") else
+                 f"flash({label}) — debug restored but 'reset run' failed",
+                 "ok" if out.get("ok") else "info")
 
 
 def read_flash_device(slot: dict, offset: int, length: int,

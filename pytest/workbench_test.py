@@ -772,28 +772,6 @@ def _find_present_device(workbench):
     return None
 
 
-def _release_cpu_if_halted(workbench, slot_label):
-    """`reset run` the slot if a debug session is holding its CPU halted.
-
-    Auto-debug reattaches on hotplug and after a flash, and OpenOCD halts the
-    target on connect. Everything downstream then observes a silent device
-    and blames the flash, the firmware or the cable.
-    """
-    for d in workbench.get_devices():
-        if d.get("label") != slot_label or not d.get("debugging"):
-            return
-        host = workbench.base_url.split("//")[1].split(":")[0]
-        port = d.get("openocd_telnet_port")
-        if not port:
-            return
-        try:
-            _ocd_command(host, port, "reset run", timeout=5)
-        except Exception:
-            pass          # best effort: it may already be running
-        time.sleep(2)
-        return
-
-
 def _ocd_command(host, port, cmd, timeout=3.0):
     """Send a command to OpenOCD telnet and return response.
 
@@ -1136,12 +1114,6 @@ class TestEndToEnd:
         # Flash via portal API (stops proxy, runs esptool locally, restarts proxy)
         success = _flash_device(workbench, esptool_chip, target_dir)
         assert success, f"Flash failed for {esptool_chip}"
-
-        # Auto-debug reattaches after the flash, and OpenOCD halts the CPU
-        # when it connects. A halted chip prints nothing, which arrives here
-        # as an empty serial buffer and reads as a failed flash — it is not.
-        # Let it run before asking it to say anything.
-        _release_cpu_if_halted(workbench, slot)
 
         # Verify serial output
         result = workbench.serial_monitor(slot, pattern="LOOP:", timeout=20)
