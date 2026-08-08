@@ -42,19 +42,10 @@ flashes the DUT, resets it, watches its serial and UDP output, surrounds it
 with WiFi, MQTT, BLE and RF peers, and reports every observation over one
 HTTP API.
 
-A harnessed project moves through five phases; each ends at a **gate** that
-is **derived from project state, never declared**. A gate is not a marker to
-pass: if any of its requirements is unmet, the work loops back to the step
-that owns it and the whole check runs again — a phase never starts on a shut
-gate.
-
-| Phase | Command | Exit gate |
-|-------|---------|----------------|
-| 0 · Definition | `/define` | **Load defined** — every requirement states how it will be proven |
-| 1 · Harness | `/harness` | **AI harnessed** — a session can open, state its position, and act |
-| 2 · Commissioning | `/commission` | **DUT ready** — the testbench is commissioned, the DUT is connected and verified, and the forward path delivers code to it; a failing test means the code, not the setup |
-| 3 · Build | `/build` | **Ready for shipment** — every requirement met, journey green |
-| ⚑ Shipment | `git tag` | **Shipped** — release published, journey green on the released bytes |
+A harnessed project moves through five phases, each ending at a **gate
+derived from project state, never declared**. The phases, their commands
+and their gates are in [`00-Overview.md`](00-Overview.md#the-journey) —
+stated once there rather than twice.
 
 Two rules bind the loop. **No code without a clause** — work no requirement
 covers enters through Definition or not at all. **A change is done when its
