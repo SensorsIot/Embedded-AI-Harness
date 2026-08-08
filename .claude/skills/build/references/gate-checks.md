@@ -30,10 +30,26 @@ subagent that did not author the work and has not seen the conversation.**
 3. **The checker returns a verdict, never a fix.** `OPEN`, or `SHUT` with each
    unmet requirement named, the evidence it looked for, and what it found
    instead. A checker that edits files has stopped being an instrument.
-4. **On `SHUT`, the driver loops back** to the step that owns each finding,
+4. **A checker runs declared tests and reads instruments. It never improvises
+   a procedure.** Where a gate demands an observation, the checker runs the
+   test that produces it. If no declared test produces it, that **is the
+   finding** — `SHUT`, owned by the step that should have declared it — and
+   the phase then builds the test, exactly as it would for any other finding.
+
+   A checker that improvises the missing procedure hides the defect it just
+   found. It is also slow, it mutates rig state, and its result cannot be
+   reproduced by anyone else, so the next checker must improvise again and may
+   improvise differently.
+
+   The deeper reason: **an observation with no test behind it has no owner and
+   never re-runs.** Pasted into a document it becomes a claim frozen at the
+   moment it was taken, and it rots silently — a captured log keeps asserting
+   what the firmware said last month, while a declared test would have failed
+   the day the firmware changed.
+5. **On `SHUT`, the driver loops back** to the step that owns each finding,
    fixes, and re-runs the **whole** check with a **new** checker — a checker
    that has seen the first round is no longer fresh.
-5. **The verdict is recorded** in the plan with its date and commit, so a gate
+6. **The verdict is recorded** in the plan with its date and commit, so a gate
    opened weeks ago against different code is visibly stale rather than
    assumed current.
 
@@ -55,6 +71,11 @@ subagent that did not author the work and has not seen the conversation.**
   `docs/Functionality/FSD.md` has a `verification:` block" beats "requirements
   are verifiable".
 - **Prefer a command over a paragraph** wherever a command can decide.
+- **Name the test that satisfies each requirement.** A requirement whose
+  evidence is "look at the serial log" tells a checker to go and improvise;
+  one that names `TC-MTR-01` tells it what to run. If the test does not exist
+  yet, the requirement is still written this way — the gap is then visible as
+  a missing test rather than as a checker's ad-hoc session.
 - **Make the judgement checks answerable with evidence**, not opinion: the
   checker must quote what it read.
 - **Grow the traps.** Every time a gate opened on something that turned out
