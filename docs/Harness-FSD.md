@@ -6,7 +6,7 @@
 |---|---------|--------|
 | 1 | [Overview](#1-overview) | Purpose, architecture, hardware, modes, components, state model |
 | 2 | [Definitions](#2-definitions) | Terms and the slot-based identity principle |
-| 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery |
+| 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery · FR-031 – FR-035: access manager, leases, refusal, out-of-band detection |
 | 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
 | 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository |
 | 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
@@ -202,6 +202,15 @@ State transitions:
 | Flapping | Idle | Cooldown expires passively (fallback) |
 | Idle | Debugging | `POST /api/debug/start` — starts OpenOCD (FR-024/025/026) |
 | Debugging | Idle | `POST /api/debug/stop` — stops OpenOCD, restarts proxy |
+| Idle | *any mode* | `POST /api/slot/acquire` granted (FR-031) |
+| *any mode* | Idle | `POST /api/slot/release`, or the lease expires unrenewed (FR-032) |
+| *any mode* | *unchanged* | A conflicting `acquire` — refused 409, the incumbent keeps the slot (FR-033) |
+| *any* | *unchanged* | An `acquire` while an unexpected process holds the devnode — refused 409 naming it (FR-034) |
+
+Every transition into a non-idle mode is a grant by the access manager
+(FR-031). A consumer that changes a slot's mode without acquiring is outside
+the manager's knowledge, and the manager's guarantees do not hold for that
+slot until it returns to `idle`.
 
 **WiFi Service (wlan0):**
 
@@ -310,6 +319,14 @@ scans sysfs (`/sys/bus/usb/devices/`) for all USB devices on each slot's
 prefix. This includes non-serial devices (HID keyboards, mass storage) which
 are reported in the `usb_devices` field of `/api/devices`.
 
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-001 | Plug a device into a configured slot | Within 10 s the slot reports `present: true, running: true` and its `tcp_port` accepts a connection | The slot staying absent; a proxy bound to the wrong devnode; the port answering before the device settled |
+| FR-001 | Unplug it | The slot reports `present: false, running: false` and the proxy process is gone | A stopped slot leaving an orphan proxy holding the devnode |
+| FR-001 | Trigger a USB re-enumeration by flashing | `remove` then `add` are handled and the proxy returns without manual action | The portal blocking on `remove` so the following `add` is missed |
+
 ### FR-002 — Slot Configuration
 
 **Note (v9):** Slots are configured in `workbench.json` with USB path prefixes
@@ -359,6 +376,14 @@ skip. Current entries:
 Adding a new model: plug devices into every physical jack, compare
 `[portal] auto-detected N USB hub port(s): [...]` against the occupied
 jack count, and add any unoccupied prefix(es) to the table.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-002 | Move a device from one physical connector to another | It appears under the slot belonging to the new connector, with that slot's TCP port | The same TCP port following the device rather than the connector |
+| FR-002 | Plug two identical boards into different connectors | Two slots, two distinct TCP ports | Both resolving to one slot because their USB ids match |
+| FR-002 | Boot with more advertised hub ports than exist | Phantom ports are absent from `/api/devices` | Slots offered for connectors that cannot hold a device |
 
 ### FR-003 — Serial API
 
@@ -414,9 +439,22 @@ jack count, and add any unoccupied prefix(es) to the table.
 
 **POST /api/stop** body: `{slot_key}`.
 
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-003 | `GET /api/devices` with one device present | JSON listing every configured slot, the present one carrying `detected_chip` and `devnode` | A present device missing from the list; a slot reported present with no devnode |
+| FR-003 | `POST /api/stop` then `/api/start` for a slot | The proxy stops and returns on the same TCP port | The port changing across a stop/start cycle |
+
 ### FR-004 — Serial Traffic Logging
 
 - Serial traffic is observable via RFC2217 clients (e.g. pyserial).
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-004 | Attach an RFC2217 client while a device is emitting | The client receives the device's output | Output reaching only the portal and not an attached client |
 
 ### FR-005 — Web Portal (Serial Section)
 
@@ -428,6 +466,12 @@ jack count, and add any unoccupied prefix(es) to the table.
 - Show USB devices on each physical port (including HID, mass storage)
 - Show GPIO config (BOOT/EN pins) in header subtitle
 - Copy RFC2217 URL to clipboard (hostname and IP variants)
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-005 | Load the portal page with one slot present and one absent | Each slot's state is shown and matches `/api/devices` | The page showing a state the API contradicts |
 
 ### FR-006 — ESP32-C3 Native USB-Serial/JTAG Support
 
@@ -726,6 +770,13 @@ ser.open()
 **Never** use `serial.Serial('rfc2217://...')` directly — it opens the port
 immediately and the RFC2217 negotiation may toggle DTR/RTS.
 
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-006 | Attach to a native-USB slot's RFC2217 port with DTR and RTS cleared before opening | The device continues running and its output is received | The device entering download mode or halting because the connection asserted the control lines |
+| FR-006 | Flash a native-USB part over the API | The image is written and the part boots it | A flash that reports success while the part is left in download mode |
+
 ### FR-008 — Serial Reset
 
 Reset a device via DTR/RTS signals, providing a clean boot cycle without
@@ -778,6 +829,45 @@ automatically uses JTAG reset instead of the DTR/RTS serial sequence.
 reset (§8.1) is used. The caller does not need to know which method was
 selected — the API auto-selects.
 
+**Verification contract**
+
+FR-008 carries a full contract because a naive observation cannot distinguish
+a device that reset from one that was already silent.
+
+```yaml
+id: FR-008
+verification:
+  preconditions:
+    - A device is present on the slot and emitting a periodic marker.
+    - Its boot output contains an identifiable first line.
+  stimulus:
+    - POST /api/serial/reset for the slot.
+  expected_observations:
+    - The response carries boot output beginning at the device's first line.
+    - The proxy is running again afterwards and the slot reports idle.
+    - The periodic marker resumes.
+  timing: boot output returned within 5 s of the reset
+  tolerance: "+2 s"
+  prohibited_outcomes:
+    - An empty output list reported as success.
+    - The device left in download mode.
+    - The proxy left stopped.
+    - A native-USB part reset by DTR/RTS while a debug session is active,
+      rather than by JTAG.
+  tier: bench
+  evidence:
+    - The response body.
+    - Slot state before and after.
+  cleanup:
+    - Confirm the slot is idle with its proxy running.
+```
+
+**Known limitation.** The JTAG path (§8.2) returns OpenOCD's output, not the
+device's boot output: it resets through a separate channel while nothing
+drains the serial port, so start-up output is emitted into a port no consumer
+is reading. A boot-time marker is therefore unobservable on a native-USB part.
+Recorded in [`open-issues.md`](open-issues.md) as OI-02.
+
 ### FR-009 — Serial Monitor
 
 Read serial output from a device, optionally waiting for a pattern match.
@@ -812,6 +902,14 @@ Uses the RFC2217 proxy (non-exclusive) so the proxy stays running.
 ```
 
 **Used by:** flapping recovery (FR-007), test verification
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-009 | Monitor with a pattern the device emits | `matched: true`, `line` carrying the matching line | `matched: true` with an empty `line` |
+| FR-009 | Monitor with a pattern the device never emits, over a window spanning several markers | `matched: false` and `output` carrying every line seen in the window | An empty `output` where the device was emitting — silence is a claim about the observer until a positive control says otherwise |
+| FR-009 | Monitor while another consumer holds the slot | Refused per FR-033, naming the holder | A monitor that returns no lines because the port was taken, indistinguishable from a silent device |
 
 ### FR-007 — USB Flap Detection & Recovery
 
@@ -941,6 +1039,180 @@ the no-GPIO backoff path.
 Polling interval reduced from 2s to 5s to lower load on resource-constrained Pi.
 
 ---
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-007 | Induce 6 or more hotplug events within 30 s | The slot is reported `flapping` and recovery starts | Flapping reported as ordinary hotplug; recovery never starting |
+| FR-007 | Allow recovery to complete on a slot with GPIO | The slot reaches `download mode` or `idle` | Endless recovery attempts beyond the stated retry limit |
+
+### FR-031 — Serial Access Manager
+
+One authority decides which mode a slot is in at any moment. Today that
+decision is distributed: eight portal functions call `stop_proxy()` on their
+own initiative, `debug_controller` moves the chip through a channel none of
+them observe, and no component can refuse a conflicting request because none
+is asked. The result is that any operation silently terminates whatever was
+using the slot.
+
+**The manager arbitrates mode, never the data path.** Bytes continue to flow
+exactly as they do now — esptool opens the devnode, OpenOCD opens JTAG, the
+proxy serves RFC2217. The manager answers one question: *who owns this slot,
+in what mode, until when.*
+
+**Every consumer acquires before touching a slot.** That includes the portal's
+own operations (FR-003, FR-008, FR-009), flap recovery (FR-007), debug
+sessions (FR-024–FR-026), and any external client — a project's test suite
+reaching for RFC2217 acquires like everything else. A consumer left outside
+the manager silently defeats it, which is why the set is enumerated rather
+than described.
+
+**Modes** extend the slot states of §1: `absent`, `idle`, `flashing`,
+`resetting`, `monitoring`, `flapping`, `recovering`, `download mode`,
+`debugging`. The manager grants a mode; it does not perform the work of that
+mode.
+
+**Endpoint:** `POST /api/slot/acquire`
+
+```json
+{"slot": "SLOT1", "mode": "flashing", "owner": "ci-verify-31223471629", "ttl": 60}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| slot | string | Yes | — | Slot label |
+| mode | string | Yes | — | Requested mode |
+| owner | string | Yes | — | Identifies the requester in refusals and logs |
+| ttl | number | No | 60 | Seconds before the grant expires unless renewed |
+
+**Response (granted):**
+```json
+{"ok": true, "token": "a1b2c3", "mode": "flashing", "expires_in": 60}
+```
+
+**Response (refused):** HTTP 409, see FR-034.
+
+**Endpoints:** `POST /api/slot/release` (`{"token": "..."}`),
+`POST /api/slot/renew` (`{"token": "..."}`), `GET /api/slot/mode?slot=SLOT1`.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-031 | Acquire `flashing` on an idle slot | 200 with a token, and `GET /api/slot/mode` reports `flashing` with that owner | A grant that does not change the reported mode; two tokens live for one slot | bench |
+| FR-031 | Acquire, then read the slot's data path | Bytes still flow by the mode's own mechanism | The manager interposing itself in the data path | bench |
+
+### FR-032 — Leases and reclaim
+
+A grant expires. `ttl` defaults to **60 s** and a holder renews while it
+works, so a long flash keeps its grant and a dead client does not keep the
+slot.
+
+This exists because the failure it prevents is observed: an RFC2217 client
+whose reader thread dies holds the proxy's single connection slot with no way
+to reclaim it, and the bench then answers every later request with silence.
+An expiry turns that into a bounded wait and a named reclaim.
+
+**Procedure:** on expiry the manager records the reclaim with the previous
+owner and returns the slot to `idle`. It does not attempt to terminate the
+previous holder's process — a holder that is still alive discovers its token
+is invalid on its next call.
+
+**Verification contract**
+
+```yaml
+id: FR-032
+verification:
+  preconditions:
+    - A slot is idle.
+    - A client acquires `monitoring` with ttl 60 and then stops renewing,
+      simulating a dead holder.
+  stimulus:
+    - Wait 60 s without renewing.
+    - Acquire the same slot from a second owner.
+  expected_observations:
+    - The first grant is reported as expired, naming the previous owner.
+    - The second acquire is granted.
+    - The elapsed time from expiry to grant is under 5 s.
+  timing: grant available within 65 s of the last renewal
+  tolerance: "+5 s"
+  prohibited_outcomes:
+    - The slot remains held indefinitely.
+    - The manager kills the previous holder's process.
+    - The second owner is granted before the lease has expired.
+    - A renewing holder loses its grant.
+  tier: bench
+  evidence:
+    - Acquire and renew timestamps.
+    - The refusal body before expiry and the grant body after.
+  cleanup:
+    - Release the second grant.
+```
+
+### FR-033 — Refusal, never pre-emption
+
+A conflicting request is refused. The incumbent keeps the slot.
+
+**Response (refused):** HTTP 409
+
+```json
+{"ok": false, "error": "held", "mode": "debugging",
+ "owner": "gdb-session-4", "since": "2026-08-08T09:14:22Z", "expires_in": 37}
+```
+
+The body names the mode, the owner and how long it has been held, because a
+refusal that says only "busy" leaves the caller with the same mystery the
+manager exists to remove.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-033 | Hold `debugging`; request `flashing` | 409 naming mode, owner and since-time | 200; the debug session being stopped; a 409 body without the incumbent's identity | bench |
+| FR-033 | Hold `flashing`; request `flashing` from a second owner | 409 | Both owners believing they hold it | bench |
+
+### FR-034 — Out-of-band detection
+
+The manager is cooperative: it cannot stop a process opening `/dev/ttyACMx`
+directly. It can, however, **notice**.
+
+Before granting, the manager inspects the open file descriptors of running
+processes for the slot's device node. If a holder is found that is not the
+expected one for the current mode, the request is refused naming the process
+and its command line.
+
+This converts the failure that costs the most time — an operation that
+mysteriously reads nothing — into a named refusal.
+
+**Kernel enforcement is deferred.** `plain_rfc2217_server.py` opens with
+`exclusive=False`, which disables `TIOCEXCL` and permits a second opener. That
+setting is deliberate and its reason is not established; it is recorded as an
+open question — see [`open-issues.md`](open-issues.md) OI-01 — rather than changed here.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-034 | Open the devnode from an unrelated process; acquire any mode | 409 naming that pid and command line | A grant issued while an unknown process holds the device; a refusal that does not identify the holder | bench |
+| FR-034 | Acquire with only the expected holder present | Granted | A refusal caused by the manager's own proxy | bench |
+
+### FR-035 — Debugging is a granted mode
+
+OpenOCD claims a **different USB interface of the same physical device**, so a
+debug session never appears as an opener of the tty and FR-034 cannot see it.
+Debugging is therefore a mode the manager grants: `debug_controller` acquires
+`debugging` before starting OpenOCD and releases it after stopping.
+
+The manager does not start or stop OpenOCD. It records that the slot is in
+that mode so every other consumer is refused with a reason.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-035 | Start a debug session; request `flashing` | 409 naming `debugging` | A flash proceeding while OpenOCD holds the USB interface | bench |
+| FR-035 | Stop the debug session; request `flashing` | Granted | The slot remaining held after the session ends | bench |
 
 ## 4. WiFi Service
 
