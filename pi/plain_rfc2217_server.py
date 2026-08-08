@@ -156,6 +156,13 @@ def main():
     # thread runs whether or not anybody is connected.
     control = {"conn": None, "pm": None}
     control_lock = threading.Lock()
+    # serial.rfc2217.PortManager is NOT thread-safe, and there are now two
+    # threads touching it: the permanent drain calls escape() on whatever the
+    # device emits, while the client thread calls filter() on whatever the
+    # client sends. Interleaving them corrupts the telnet state machine and a
+    # write is silently swallowed — intermittently, because it only happens
+    # when the device emits at the moment a client writes.
+    pm_lock = threading.Lock()
 
     def drain():
         """Read the device forever and distribute.
@@ -179,7 +186,9 @@ def main():
                 conn, pm = control["conn"], control["pm"]
             if conn is not None:
                 try:
-                    conn.sendall(b"".join(pm.escape(data)))
+                    with pm_lock:
+                        escaped = b"".join(pm.escape(data))
+                    conn.sendall(escaped)
                 except (BrokenPipeError, OSError):
                     with control_lock:
                         control["conn"] = None
@@ -227,7 +236,10 @@ def main():
                 data = conn.recv(1024)
                 if not data:
                     break
-                ser.write(b"".join(pm.filter(data)))
+                with pm_lock:
+                    payload = b"".join(pm.filter(data))
+                if payload:
+                    ser.write(payload)
         except Exception:
             pass
 
