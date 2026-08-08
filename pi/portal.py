@@ -990,20 +990,26 @@ def scan_existing_devices():
                                     if not s["running"] or not _is_process_alive(s.get("pid")):
                                         start_proxy(s)
                                         time.sleep(1)
-                            # Start debug outside lock (has its own internal lock)
-                            if s["present"]:
-                                r = debug_controller.start(
-                                    s["label"], s,
-                                    s["gdb_port"],
-                                    s["openocd_telnet_port"],
-                                    chip, probe)
-                                if r.get("ok"):
-                                    s["_auto_debug_chip"] = chip
-                                    s["_jtag_slot"] = jtag_slot
-                                    log_activity(
-                                        f"Auto-debug: {s['label']} "
-                                        f"({chip}) JTAG:{jtag_slot} "
-                                        f"GDB:{s['gdb_port']}", "ok")
+                            # Detection is the whole job. Identity is what a
+                            # caller wants from a freshly plugged board, and
+                            # detect_slot_jtag has already established it with
+                            # transient OpenOCD runs that release the chip.
+                            #
+                            # This used to leave a session *running* on every
+                            # JTAG-capable slot. OpenOCD halts the target when
+                            # it attaches and holds the JTAG interface, so a
+                            # board nobody was debugging sat there halted: a
+                            # flash met a busy chip, chip/info exited 1, and a
+                            # device that had just been programmed correctly
+                            # printed nothing. Debugging is a mode a caller
+                            # asks for with /api/debug/start — never the
+                            # resting state of a slot.
+                            s["_auto_debug_chip"] = chip
+                            s["_jtag_slot"] = jtag_slot
+                            log_activity(
+                                f"Detected {s['label']}: {chip} "
+                                f"(JTAG:{jtag_slot}) — chip released, no "
+                                f"debug session held", "ok")
                         else:
                             with s["_lock"]:
                                 if (s["present"]
@@ -2770,18 +2776,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                         if not s["running"] or not _is_process_alive(s.get("pid")):
                                             start_proxy(s)
                                             time.sleep(1)
-                                # Start debug outside lock (has its own internal lock)
-                                if s["present"] and not s["flapping"]:
-                                    r = debug_controller.start(
-                                        _lbl, s, _gdb, _tel,
-                                        chip, probe)
-                                    if r.get("ok"):
-                                        s["_auto_debug_chip"] = chip
-                                        s["_jtag_slot"] = jtag_slot
-                                        log_activity(
-                                            f"Auto-debug: {_lbl} ({chip}) "
-                                            f"JTAG:{jtag_slot} "
-                                            f"GDB:{_gdb}", "ok")
+                                # Identity only — the chip is released. See
+                                # the boot path above: a session left running
+                                # on a slot nobody is debugging halts the
+                                # target and blocks every other use of it.
+                                s["_auto_debug_chip"] = chip
+                                s["_jtag_slot"] = jtag_slot
+                                log_activity(
+                                    f"Detected {_lbl}: {chip} "
+                                    f"(JTAG:{jtag_slot}) — chip released, "
+                                    f"no debug session held", "ok")
                             else:
                                 with lk:
                                     # Store chip even without JTAG
