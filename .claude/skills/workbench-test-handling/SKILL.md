@@ -77,9 +77,22 @@ evidence. On a UART-bridge part (CP2102, CH340) the same lines usually drive
 an auto-reset circuit, so the effect is a restart rather than a halt — quieter
 still, because the device looks alive.
 
-Raw RFC2217 is legitimate for a **peer** you are driving deliberately — a
-simulator's console, say — and even there, clear `dtr` and `rts` immediately
-after opening.
+Raw RFC2217 is unavoidable when you must **write** to a device — the API has
+no write endpoint — and legitimate for a peer you are driving deliberately.
+When you do, the control lines must be low **before** the port opens, not
+after:
+
+```python
+# The order is the whole point: opening first asserts the lines.
+ser = serial.serial_for_url(url, do_not_open=True)
+ser.baudrate = 115200
+ser.dtr = False          # DTR asserted = download mode on native USB
+ser.rts = False          # RTS asserted = held in reset
+ser.open()               # only now, with both lines already low
+```
+
+This is exactly what the portal's own `serial_monitor()` does, and it is why
+the portal can read a device that a naive client stops dead.
 
 **A boot-time marker is currently unobservable through the portal**, because
 `/api/serial/reset` closes any attached monitor and nothing can watch a device

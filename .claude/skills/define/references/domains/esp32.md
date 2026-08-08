@@ -78,11 +78,25 @@ treats the serial control lines as **boot-mode signals**: DTR asserted selects
 download mode, RTS asserted holds the part in reset. pyserial asserts both on
 open, and so does the Linux CDC-ACM driver.
 
-A test that opens the port to *watch* the device therefore stops it, prints
+A client that opens the port to *watch* the device therefore stops it, prints
 nothing, and looks exactly like a firmware hang — and a reset "fixes" it,
-which confirms the wrong diagnosis. Drive these parts through the workbench
-API, which implements the sequence, and treat any silence as an unproven
+which confirms the wrong diagnosis. Treat any silence as an unproven
 instrument until a positive control says otherwise.
+
+The fix is ordering, not abstinence. `serial_for_url(url)` opens immediately
+and asserts the lines; open the port only once they are low:
+
+```python
+# The order is the whole point: opening first asserts the lines.
+ser = serial.serial_for_url(url, do_not_open=True)
+ser.baudrate = 115200
+ser.dtr = False          # DTR asserted = download mode on native USB
+ser.rts = False          # RTS asserted = held in reset
+ser.open()               # only now, with both lines already low
+```
+
+This is exactly what the portal's own `serial_monitor()` does, and it is why
+the portal can read a device that a naive client stops dead.
 
 The equivalent trap on a UART-bridge board (CP2102, CH340) is an auto-reset
 circuit: the same lines restart the part instead of halting it, so the device
