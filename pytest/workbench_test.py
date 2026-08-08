@@ -1396,11 +1396,13 @@ class TestSlotAccessManager:
             pass
 
     def test_idle_slot_reports_idle(self, workbench):
+        # verifies: FR-031
         m = workbench.slot_mode(self.SLOT)
         assert m["ok"] is True
         assert m["mode"] in ("idle", "absent"), m
 
     def test_acquire_then_release_round_trip(self, workbench):
+        # verifies: FR-031
         g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-roundtrip", ttl=30)
         assert g["ok"] is True, g
         token = g["token"]
@@ -1415,6 +1417,7 @@ class TestSlotAccessManager:
         assert workbench.slot_mode(self.SLOT)["mode"] in ("idle", "absent")
 
     def test_conflicting_acquire_is_refused_naming_the_incumbent(self, workbench):
+        # verifies: FR-033
         g = workbench.slot_acquire(self.SLOT, "flashing", "pytest-first", ttl=30)
         assert g["ok"] is True, g
         try:
@@ -1432,12 +1435,14 @@ class TestSlotAccessManager:
             workbench.slot_release(g["token"])
 
     def test_unknown_mode_is_rejected(self, workbench):
+        # verifies: FR-031
         bad = workbench.slot_acquire(self.SLOT, "banana", "pytest-bad")
         assert bad["ok"] is False
         assert "unknown mode" in bad["error"]
         assert "modes" in bad, "a rejection should say what is valid"
 
     def test_renew_extends_by_the_granted_ttl(self, workbench):
+        # verifies: FR-032
         g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-renew", ttl=9)
         assert g["ok"] is True, g
         try:
@@ -1453,6 +1458,7 @@ class TestSlotAccessManager:
             workbench.slot_release(g["token"])
 
     def test_expired_lease_is_reclaimed(self, workbench):
+        # verifies: FR-032
         """A holder that stops renewing must not keep the slot forever.
 
         This is the bounded form of the failure it replaces: a client whose
@@ -1471,11 +1477,13 @@ class TestSlotAccessManager:
         workbench.slot_release(after["token"])
 
     def test_release_with_an_unknown_token_is_refused(self, workbench):
+        # verifies: FR-031
         r = workbench.slot_release("deadbeefdead")
         assert r["ok"] is False
         assert "unknown" in r["error"]
 
     def test_debug_session_holds_the_slot_it_owns(self, workbench):
+        # verifies: FR-035
         """FR-035. OpenOCD claims a different USB interface, so devnode
         inspection cannot see it — the manager's own record must."""
         # get_devices() returns a list of slot dicts, not a wrapper.
@@ -1491,6 +1499,30 @@ class TestSlotAccessManager:
             "a flash must not proceed while OpenOCD holds the USB interface"
         )
         assert refused["mode"] == "debugging"
+
+    def test_acquire_is_not_blocked_by_the_slots_own_proxy(self, workbench):
+        """FR-034, the false-positive half.
+
+        The manager refuses to grant while an unexpected process holds the
+        devnode. Its own proxy holds that devnode permanently, so a detector
+        that failed to recognise the expected holder would refuse every
+        acquire on every slot — the check would break the thing it protects.
+
+        The true-positive half (an unrelated process holding the device is
+        detected and named) cannot be driven from here: it needs a process
+        started on the bench itself, and the bench rightly exposes no endpoint
+        to start arbitrary processes. Recorded as the limit of this test
+        rather than left as a silent gap.
+        """
+        slot = workbench.get_slot(self.SLOT)
+        assert slot["running"] is True, "the proxy must be holding the device"
+        g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-fp", ttl=20)
+        assert g["ok"] is True, (
+            f"acquire was refused while only the slot's own proxy held the "
+            f"device — the out-of-band detector does not recognise its own "
+            f"proxy: {g}"
+        )
+        workbench.slot_release(g["token"])
 
 
 class TestBenchReset:
@@ -1636,3 +1668,75 @@ class TestApiSurface:
     def test_activity_log_answers(self, workbench):
         log = workbench.get_log()
         assert isinstance(log, (list, dict))
+
+
+@requires_dut
+class TestFlashEndpoint:
+    """`/api/flash` — the bench's core job, and until now untested directly.
+
+    The suite already flashed over RFC2217 from the test host
+    (`_flash_device`), which exercises a different path entirely: esptool on
+    the host talking through the proxy. This covers the endpoint, where
+    esptool runs on the Pi against the devnode and the portal stops and
+    restarts the proxy around it.
+    """
+
+    def _images(self, chip="esp32c3"):
+        d = os.path.join(DEBUG_TEST_DIR, chip)
+        images = {"0x0": os.path.join(d, "bootloader.bin"),
+                  "0x8000": os.path.join(d, "partition-table.bin"),
+                  "0x10000": os.path.join(d, "debug-test.bin")}
+        if not all(os.path.exists(p) for p in images.values()):
+            pytest.skip(f"precondition unmet: no prebuilt binaries for {chip}")
+        return images
+
+    def _c3_slot(self, workbench):
+        dut = next((d for d in workbench.get_devices()
+                    if d.get("present") and d.get("detected_chip") == "esp32c3"), None)
+        if not dut:
+            pytest.skip("precondition unmet: no esp32c3 DUT present")
+        return dut
+
+    def test_flash_writes_and_the_device_runs_the_image(self, workbench):
+        """The whole point: after a flash, the part runs what was written.
+
+        Asserting only that the call returned ok would pass on a flash that
+        verified its hash and landed at an offset the partition table does not
+        boot from — which is a real failure mode, and silent.
+        """
+        dut = self._c3_slot(workbench)
+        label = dut["label"]
+        r = workbench.flash(label, self._images(), chip="esp32c3")
+        assert r.get("ok") is True, f"flash reported failure: {str(r)[:300]}"
+
+        slot = workbench.get_slot(label)
+        assert slot["running"] is True, (
+            "the proxy was not restarted after the flash, so the slot is "
+            "unusable even though the flash succeeded"
+        )
+        matched, lines = workbench.monitor_or_buffer(label, "LOOP:", seconds=20)
+        assert matched, (
+            f"the flash succeeded but the device is not running the image; "
+            f"last lines: {lines[-3:]}"
+        )
+
+    def test_flash_with_no_images_is_refused(self, workbench):
+        dut = self._c3_slot(workbench)
+        r = workbench.flash(dut["label"], {}, chip="esp32c3")
+        assert r.get("ok") is False, "a flash with no binaries must not report success"
+
+    def test_flash_to_an_unknown_slot_is_refused(self, workbench):
+        r = workbench.flash("SLOT9", self._images(), chip="esp32c3")
+        assert r.get("ok") is False
+        assert "not found" in str(r.get("error", "")).lower()
+
+    def test_flash_leaves_the_slot_on_its_own_port(self, workbench):
+        """A flash stops and restarts the proxy. If the slot came back on a
+        different port, every client's saved URL would reach the wrong device.
+        """
+        dut = self._c3_slot(workbench)
+        before = dut["tcp_port"]
+        workbench.flash(dut["label"], self._images(), chip="esp32c3")
+        after = workbench.get_slot(dut["label"])
+        assert after["tcp_port"] == before
+        assert after["monitor_port"] == before + 1000

@@ -886,3 +886,53 @@ class WorkbenchDriver:
         buf = self._api_get(f"/api/serial/output?slot={slot}&lines=40")
         lines = [e.get("text", "") for e in (buf.get("lines") or buf.get("output") or [])]
         return any(pattern in l for l in lines), lines
+
+    def flash(self, slot: str, images: dict, chip: str = "auto",
+              erase: bool = False, timeout: float = 300) -> dict:
+        """POST /api/flash — multipart flash through the portal.
+
+        `images` maps a hex offset to a file path, e.g.
+        {"0x0": ".../bootloader.bin", "0x10000": ".../app.bin"}.
+
+        The portal stops the proxy, runs esptool locally against the devnode
+        and restarts the proxy. Part names are `bin@<offset>`: the live
+        handler rejects anything else, and a dead duplicate in portal.py once
+        documented a different form, so this is the shape that works.
+        """
+        import uuid as _uuid
+
+        boundary = "----wb" + _uuid.uuid4().hex
+        parts = []
+        for name, value in (("slot", slot), ("chip", chip),
+                            ("erase", "true" if erase else "false")):
+            parts.append(
+                f"--{boundary}\r\nContent-Disposition: form-data; "
+                f'name="{name}"\r\n\r\n{value}\r\n'.encode()
+            )
+        for offset, path in images.items():
+            with open(path, "rb") as fh:
+                blob = fh.read()
+            base = os.path.basename(path)
+            parts.append(
+                f"--{boundary}\r\nContent-Disposition: form-data; "
+                f'name="bin@{offset}"; filename="{base}"\r\n'
+                f"Content-Type: application/octet-stream\r\n\r\n".encode()
+                + blob + b"\r\n"
+            )
+        parts.append(f"--{boundary}--\r\n".encode())
+        body = b"".join(parts)
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/flash", data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+            method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            try:
+                return json.loads(e.read())
+            except Exception:
+                return {"ok": False, "error": f"HTTP {e.code}"}
+        except urllib.error.URLError as e:
+            raise CommandTimeout(f"POST /api/flash: {e}")

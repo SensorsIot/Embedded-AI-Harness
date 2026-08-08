@@ -767,9 +767,12 @@ def start_proxy(slot: dict) -> bool:
         print(f"[portal] {label}: {slot['last_error']}", flush=True)
         return False
 
-    # Wait up to 2 s for port to be listening
+    # Wait for BOTH ports. Marking the slot running while only the RFC2217
+    # port listens leaves a window where a monitor connects to a fan-out that
+    # is not up yet: it gets a live socket and no data, which is
+    # indistinguishable from a silent device.
     for _ in range(20):
-        if is_port_listening(tcp_port):
+        if is_port_listening(tcp_port) and is_port_listening(monitor_port):
             slot["running"] = True
             slot["pid"] = proc.pid
             slot["last_error"] = None
