@@ -3916,18 +3916,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not slot:
             self._send_json({"ok": False, "error": f"slot '{slot_label}' not found"}, 404)
             return
-        if slot.get("debugging"):
-            self._send_json(
-                {"ok": False,
-                 "error": f"slot '{slot_label}' has a debug session — stop it first"},
-                409,
-            )
-            return
-
+        # There used to be a 409 here: "this slot has a debug session — stop
+        # it first". It never fired. `debugging` is computed for the
+        # /api/devices view and was never a field on the slot itself, so the
+        # guard read None every time and esptool went ahead against a chip
+        # OpenOCD was holding halted. It exited 1, and the handler called
+        # that a 500 — an internal server error, for a device that was
+        # simply busy. A guard that cannot fire is worse than none: it reads
+        # as protection.
+        #
+        # flash_device now stops any debug session and restores it with the
+        # CPU running, so there is nothing to guard against and nothing for
+        # the caller to do first.
         chip = body.get("chip", "auto")
         result = flash_device(slot, {}, ["--chip", chip, "flash-id"], timeout_s=60.0)
         if not result.get("ok"):
-            self._send_json(result, 500)
+            # The device did not answer. That is not this server failing.
+            self._send_json(result, 502)
             return
 
         result.update(_parse_chip_info(result.get("output", "")))
