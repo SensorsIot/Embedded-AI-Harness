@@ -76,14 +76,28 @@ def main():
                  args.SERIALPORT)
 
     while True:
-        srv.settimeout(5)
+        # Short, because the port must keep being drained between clients —
+        # see the discard below.
+        srv.settimeout(0.2)
         conn = None
         try:
             while conn is None:
                 try:
                     conn, addr = srv.accept()
                 except TimeoutError:
-                    pass
+                    # The port is open whether or not anyone is attached, so
+                    # the DUT sees an enumerated USB host at all times. If
+                    # nothing reads it, its CDC buffer fills and the device
+                    # blocks inside its own logging — it does not crash, it
+                    # simply stops, and a reset appears to "fix" it. Every
+                    # device that logs is affected, and only while unwatched,
+                    # which makes it look like flaky hardware.
+                    try:
+                        waiting = ser.in_waiting
+                        if waiting:
+                            ser.read(waiting)
+                    except Exception:
+                        pass
         except KeyboardInterrupt:
             break
 
