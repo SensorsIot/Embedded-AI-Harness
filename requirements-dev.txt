@@ -8,3 +8,11 @@ pytest-cov>=4.1.0
 ruff>=0.1.0
 mypy>=1.5.0
 paho-mqtt>=1.6.1      # MQTT broker integration tests
+
+# The bench suite flashes over RFC2217 by invoking `python3 -m esptool` from
+# the test host (pytest/workbench_test.py::_flash_device). Without it the
+# subprocess exits non-zero and the test reports "Flash failed", which reads
+# as a bench fault rather than a missing dependency — it cost a full suite run
+# to tell those apart. Pinned to 5.x: esptool 5 renamed every subcommand from
+# underscores to hyphens, and the portal already requires that spelling.
+esptool>=5,<6

@@ -837,6 +837,19 @@ def _wait_for_state(workbench, check_fn, timeout=30, poll=1.0, what="state"):
         f"Timed out after {timeout}s waiting for {what}")
 
 
+def _jtag_capable(dev: dict) -> bool:
+    """Can this slot's chip be identified at all?
+
+    `detected_chip` is populated by auto-debug, which only runs for parts with
+    a built-in USB-JTAG interface. A device behind a UART bridge (CP2102,
+    CH340) has no JTAG, so the field is None *by design* — asserting a chip for
+    it tests a premise the portal never promised.
+    """
+    products = " ".join(u.get("product", "") for u in dev.get("usb_devices", []))
+    bridge = any(k in products for k in ("CP210", "CH340", "FT232", "UART Bridge"))
+    return not bridge
+
+
 def _flash_device(workbench, chip, target_dir):
     """Flash debug-test firmware via esptool over RFC2217.
 
@@ -1247,8 +1260,9 @@ class TestSerialArchitecture:
         """WT-2202: Every present DUT slot has a detected chip."""
         devices = workbench.get_devices()
         duts = [d for d in devices
-                if d.get("present") and not d.get("is_probe")]
-        assert len(duts) > 0, "No DUT devices present"
+                if d.get("present") and not d.get("is_probe")
+                and _jtag_capable(d)]
+        assert len(duts) > 0, "No JTAG-capable DUT devices present"
         for d in duts:
             chip = d.get("detected_chip") or d.get("debug_chip")
             assert chip, (
@@ -1338,7 +1352,8 @@ class TestSerialArchitecture:
         """WT-2207: Multiple slots independently detect their chips."""
         devices = workbench.get_devices()
         duts = [d for d in devices
-                if d.get("present") and not d.get("is_probe")]
+                if d.get("present") and not d.get("is_probe")
+                and _jtag_capable(d)]
         if len(duts) < 2:
             pytest.skip("Need 2+ DUT devices for multi-slot test")
 
