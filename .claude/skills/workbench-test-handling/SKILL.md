@@ -55,6 +55,37 @@ curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
 required whenever a second bench is powered on. `WORKBENCH_URL` is the same
 variable `pytest --wt-url` falls back to.
 
+## Step 0.5: Reach the DUT through the API, never through raw RFC2217
+
+The slots expose RFC2217 ports, and it is tempting to open one with pyserial
+and read the device directly. **Do not do this to a DUT.** Use `/api/flash`,
+`/api/serial/monitor`, `/api/serial/reset` and `/api/chip/info`, which
+implement each chip's sequences correctly.
+
+The reason is that **serial control lines are not inert on modern parts**. On
+an ESP32-C3, -S3 or any native-USB device, the USB-Serial/JTAG controller
+reads them as boot-mode signals: **DTR asserted selects download mode, RTS
+asserted holds the part in reset**. pyserial asserts both on open by default,
+and the Linux CDC-ACM driver asserts them too. So merely *connecting to look
+at* a DUT can stop it — and what you then observe is your own connection, not
+the firmware.
+
+That failure is vicious because it is silent and it is self-confirming: the
+device prints nothing, which reads as a crash or a hang; a reset appears to
+fix it; and repeating the observation reproduces the silence, which feels like
+evidence. On a UART-bridge part (CP2102, CH340) the same lines usually drive
+an auto-reset circuit, so the effect is a restart rather than a halt — quieter
+still, because the device looks alive.
+
+Raw RFC2217 is legitimate for a **peer** you are driving deliberately — a
+simulator's console, say — and even there, clear `dtr` and `rts` immediately
+after opening.
+
+**A boot-time marker is currently unobservable through the portal**, because
+`/api/serial/reset` closes any attached monitor and nothing can watch a device
+across its own restart. If a test needs to see start-up output, that is a
+workbench change request, not a reason to reach for raw serial.
+
 ## Test Progress Tracking
 
 Test scripts can push live progress updates to the workbench web UI so operators can monitor test execution without a terminal.

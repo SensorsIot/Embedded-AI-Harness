@@ -70,6 +70,21 @@ restates the rules it sits next to, and two documents drift.
   for the reset.
 - **A timeout is a failure, not an absent result.** A device that crashes prints
   nothing, so "no failure seen" is not a pass. Require a completion marker.
+- **A null observation accuses the instrument before it accuses the subject.**
+  Silence, an empty capture, a timeout: none of them distinguishes "the system
+  did nothing" from "the measurement did not work". Before concluding anything
+  from an absence, show a **positive control in the same session** — the same
+  instrument producing a known signal. Without one, a broken observer reads
+  exactly like a broken device, and the same wrong conclusion survives being
+  repeated, because repeating it repeats the fault.
+- **An experiment whose control produces nothing is void, not negative.** Say
+  so and stop. A comparison against a dead baseline compares nothing to
+  nothing, and it will happily print a confident verdict.
+- **Prefer the instrument's own API to raw access to the thing it manages.**
+  An instrument encodes device-specific sequences that are easy to get wrong
+  and whose failures are silent; bypassing it re-implements them worse. Where
+  raw access is unavoidable, know what the control lines do on that part
+  before opening the connection.
 - **Verify the precondition; if it fails record `not done`, never `failed`.** A
   failure claims you learned something, and with a broken baseline you did not.
 - **Leave the rig as you found it** — a fault left set corrupts every later test.

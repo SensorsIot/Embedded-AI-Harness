@@ -71,6 +71,23 @@ system"). Each layer becomes its own body Part, and the source layout mirrors it
 Extract each interface's pure core as a free function (e.g. a size/range
 predicate separate from its HTTP/flash handler) so it is host-testable.
 
+### Observing a native-USB part
+
+On the C3, S3 and any other native-USB ESP32, the USB-Serial/JTAG controller
+treats the serial control lines as **boot-mode signals**: DTR asserted selects
+download mode, RTS asserted holds the part in reset. pyserial asserts both on
+open, and so does the Linux CDC-ACM driver.
+
+A test that opens the port to *watch* the device therefore stops it, prints
+nothing, and looks exactly like a firmware hang — and a reset "fixes" it,
+which confirms the wrong diagnosis. Drive these parts through the workbench
+API, which implements the sequence, and treat any silence as an unproven
+instrument until a positive control says otherwise.
+
+The equivalent trap on a UART-bridge board (CP2102, CH340) is an auto-reset
+circuit: the same lines restart the part instead of halting it, so the device
+looks alive and merely loses its state.
+
 ## Standard test libraries
 
 A domain pack **proposes**. It never adopts. Everything below is a library of
