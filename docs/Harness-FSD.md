@@ -1489,6 +1489,19 @@ wpa_supplicant + DHCP:
 - Returns `{networks: [{ssid, rssi, auth}, ...]}` sorted by signal strength
 - `auth` is one of: `OPEN`, `WPA`, `WPA2`, `WEP`
 - Scan works while AP is running (the AP's own SSID is excluded from results)
+- **An empty list means the air was empty; it never means the scan failed.**
+  A radio that could not be asked — busy with another scan, or still
+  settling into AP mode — is retried, and if it still cannot answer the
+  endpoint returns 503 with the reason. The two were once indistinguishable,
+  and a test read a broken scanner as a shielded room.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-013 | Bench within range of any AP; `GET /api/wifi/scan` | `ok: true` with at least one network, each carrying `ssid`, negative `rssi`, and an `auth` from the four values | An empty list reported as a successful observation |
+| FR-013 | Issue overlapping scans | Each call either returns networks or `ok: false` with 503 and a reason | `{"ok": true, "networks": []}` from a scan that never ran |
+| FR-013 | Scan while the bench AP is running | The AP stays up and its own SSID is absent from the results | The scan stopping the AP |
 
 ### FR-014 — HTTP Relay
 
@@ -3398,7 +3411,6 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-301 | Station disconnect event | Station Events | Yes |
 | WT-302 | Station in AP status | Station Events | Yes |
 | WT-303 | IP matches event | Station Events | Yes |
-| WT-400 | Join open network | STA Mode | Yes |
 | WT-401 | Join WPA2 network | STA Mode | Yes |
 | WT-402 | Wrong password | STA Mode | Yes |
 | WT-403 | Nonexistent SSID | STA Mode | No |

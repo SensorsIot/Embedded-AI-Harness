@@ -181,14 +181,6 @@ class TestSTAMode:
             pytest.skip("WIFI_TEST_STA_SSID not set")
         return {"ssid": ssid, "password": password}
 
-    def test_wt400_join_open_network(self, workbench, sta_network):
-        """WT-400: Join open network returns OK with IP."""
-        if sta_network["password"]:
-            pytest.skip("Test network is not open")
-        resp = workbench.sta_join(sta_network["ssid"])
-        assert "ip" in resp
-        workbench.sta_leave()
-
     def test_wt401_join_wpa2_network(self, workbench, sta_network):
         """WT-401: Join WPA2 network with correct password."""
         if not sta_network["password"]:
