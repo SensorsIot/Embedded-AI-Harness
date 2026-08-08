@@ -45,8 +45,18 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
                          dis->reason, s_retry_count, STA_MAX_RETRY);
                 esp_wifi_connect();
             } else {
-                ESP_LOGE(TAG, "STA failed after %d retries (last reason=%d)",
+                /* The bench raises a fresh AP with a random SSID for each
+                   run, so the credentials in NVS are stale by design the
+                   moment a run ends. A DUT that sits retrying a network
+                   that no longer exists cannot be re-provisioned — its
+                   portal is the only way in, and it is not running. Forget
+                   them and come back up as the portal. */
+                ESP_LOGE(TAG, "STA failed after %d retries (last reason=%d)"
+                         " — clearing credentials and rebooting into the"
+                         " provisioning portal",
                          STA_MAX_RETRY, dis->reason);
+                nvs_store_erase_wifi();
+                esp_restart();
             }
             break;
         }
