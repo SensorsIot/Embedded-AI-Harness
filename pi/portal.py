@@ -1342,8 +1342,6 @@ def jtag_reset_capturing(slot: dict, effective_label: str,
     `output` carries the device's boot lines in both reset paths; OpenOCD's own
     reply is returned separately as `openocd`.
     """
-    import serial as pyserial
-
     sock = None
     monitor_port = slot.get("monitor_port")
     if monitor_port and slot.get("running"):
@@ -1566,7 +1564,7 @@ def bench_reset() -> dict:
             continue
         if debug_controller.is_debugging(label):
             attempt(f"stopped debug session on {label}",
-                    lambda l=label: debug_controller.stop(l).get("ok"))
+                    lambda lbl=label: debug_controller.stop(lbl).get("ok"))
         if slot.get("present") and not slot.get("running"):
             attempt(f"restarted proxy for {label}",
                     lambda sl=slot: start_proxy(sl))

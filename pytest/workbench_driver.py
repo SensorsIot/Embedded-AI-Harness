@@ -894,7 +894,7 @@ class WorkbenchDriver:
             return True, res.get("output") or []
         buf = self._api_get(f"/api/serial/output?slot={slot}&lines=40")
         lines = [e.get("text", "") for e in (buf.get("lines") or buf.get("output") or [])]
-        return any(pattern in l for l in lines), lines
+        return any(pattern in ln for ln in lines), lines
 
     def flash(self, slot: str, images: dict, chip: str = "auto",
               erase: bool = False, timeout: float = 300) -> dict:
