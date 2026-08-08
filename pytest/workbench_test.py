@@ -313,19 +313,29 @@ class TestWiFiScan:
     """WT-6xx: WiFi scan tests."""
 
     def test_wt600_scan_finds_networks(self, workbench):
-        """WT-600: SCAN returns non-empty network list."""
+        """WT-600: SCAN returns non-empty network list.
+
+        An empty list used to skip here as "RF-shielded?". It was not: `iw`
+        was failing with "Device or resource busy" whenever a scan overlapped
+        another, the failure was returned as `ok: true, networks: []`, and
+        the skip made the bench's own broken instrument look like a quiet
+        room. The portal now reports a failed scan as a failed scan (503),
+        so an empty list here means the air really was empty — which, on a
+        bench that is not in a shielded chamber, is a finding.
+        """
         workbench.ap_stop()
         result = workbench.scan()
         assert "networks" in result
-        if len(result["networks"]) == 0:
-            pytest.skip("No WiFi networks visible (RF-shielded?)")
+        assert len(result["networks"]) > 0, (
+            "scan succeeded and saw nothing — either this bench is in a "
+            "shielded chamber, or the radio is not scanning"
+        )
 
     def test_wt601_scan_returns_fields(self, workbench):
         """WT-601: Each scan entry has ssid, rssi, auth."""
         workbench.ap_stop()
         result = workbench.scan()
-        if len(result["networks"]) == 0:
-            pytest.skip("No WiFi networks visible")
+        assert len(result["networks"]) > 0, "see WT-600"
         for net in result["networks"]:
             assert "ssid" in net
             assert "rssi" in net

@@ -2980,6 +2980,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         log_activity("WiFi scanning...", "step")
         try:
             result = wifi_controller.scan()
+            if "error" in result:
+                # A radio that could not be asked is not an empty sky.
+                log_activity(f"WiFi scan failed: {result['error']}", "error")
+                self._send_json({"ok": False, **result}, 503)
+                return
             n = len(result.get("networks", []))
             log_activity(f"WiFi scan found {n} networks", "ok")
             self._send_json({"ok": True, **result})

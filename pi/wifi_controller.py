@@ -25,6 +25,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 WLAN_IF = os.environ.get("WIFI_WLAN_IF", "wlan0")
+
+# A scan while another is in flight fails with "Device or resource busy",
+# and so does one issued while the radio is still settling into AP mode.
+# Both clear in seconds, so the bench absorbs them rather than making every
+# caller know about them.
+SCAN_ATTEMPTS = 5
+SCAN_RETRY_S = 2.0
 AP_IP = "192.168.4.1"
 AP_NETMASK = "255.255.255.0"
 AP_SUBNET = "192.168.4.0/24"
@@ -648,7 +655,19 @@ def shutdown():
 # ---------------------------------------------------------------------------
 
 def scan():
-    """Scan for WiFi networks using iw. Returns dict with networks list."""
+    """Scan for WiFi networks using iw.
+
+    Returns ``{"networks": [...]}`` on success, or ``{"error": ...}`` when
+    the radio could not be asked.
+
+    **An empty list means the air was empty; it never means the scan
+    failed.** The two used to be indistinguishable: `iw` was run with
+    `check=False`, so "Device or resource busy" — which is what a second
+    scan gets while the first is still running — produced no stdout, parsed
+    to zero networks, and was returned as a successful observation. A test
+    then read that as a shielded room and skipped itself. A caller cannot
+    recover from a fault it is told is a measurement.
+    """
     _check_wifi_testing_mode()
     # Ensure interface is up
     try:
@@ -656,13 +675,27 @@ def scan():
     except Exception:
         pass
 
-    try:
-        out = _run(
-            ["iw", "dev", WLAN_IF, "scan", "-u"],
-            timeout=15, check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return {"networks": []}
+    # A busy radio is transient — the kernel is finishing someone else's
+    # scan — so retry before declaring the instrument unavailable.
+    last = ""
+    for attempt in range(SCAN_ATTEMPTS):
+        try:
+            result = subprocess.run(
+                ["iw", "dev", WLAN_IF, "scan", "-u"],
+                capture_output=True, text=True, timeout=15,
+            )
+        except subprocess.TimeoutExpired:
+            last = "iw scan timed out after 15 s"
+        else:
+            if result.returncode == 0:
+                out = result.stdout
+                break
+            last = (result.stderr or result.stdout or "").strip() \
+                or f"iw scan exited {result.returncode}"
+        if attempt < SCAN_ATTEMPTS - 1:
+            time.sleep(SCAN_RETRY_S)
+    else:
+        return {"error": f"scan failed on {WLAN_IF}: {last}"}
 
     networks = []
     current = {}
