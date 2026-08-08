@@ -8,6 +8,7 @@ Supports three modes:
 """
 
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -88,6 +89,21 @@ def tcl_port_for(gdb_port: int) -> int:
 # Detection never serves a client, so it only needs ports it can bind.
 _DETECT_PORTS = (3390, 4490, 6690)
 
+# OpenOCD reports the scan-chain result two ways: as the expected TAP when
+# the config matches, and as UNEXPECTED when it does not.  Either names the
+# silicon, so read both.
+_TAP_ID_RE = re.compile(
+    r"(?:tap/device found|UNEXPECTED):\s*(0x[0-9a-fA-F]{8})")
+
+
+def _tap_id_in(output: str) -> str | None:
+    """The chip named by any TAP ID OpenOCD reported, or None."""
+    for match in _TAP_ID_RE.finditer(output):
+        chip = TAP_ID_MAP.get(int(match.group(1), 16))
+        if chip:
+            return chip
+    return None
+
 
 def detect_chip(probe: dict | None = None,
                 usb_prefix: str | None = None) -> str | None:
@@ -140,6 +156,20 @@ def detect_chip(probe: dict | None = None,
             if "Examination succeed" in output or "Examined" in output:
                 print(f"[debug] auto-detect: {chip} (matched)", flush=True)
                 return chip
+
+            # The scan chain answers before the core is examined, and its
+            # TAP ID names the silicon outright (§24.3).  Examination can
+            # still fail afterwards — "Unexpected read of fp via program
+            # buffer" on a RISC-V core that is busy — and the old code read
+            # that as "not this chip", tried the three configs that cannot
+            # match, and reported "check JTAG wiring" about a board whose
+            # identity it had already read correctly.
+            found = _tap_id_in(output)
+            if found:
+                print(f"[debug] auto-detect: {found} at "
+                      f"{location or 'any'} (by TAP ID)", flush=True)
+                return found
+
             # A detection that finds nothing is not self-explanatory: the
             # cause is in OpenOCD's output, and without it every failure
             # reads as "check JTAG wiring" whatever actually happened.

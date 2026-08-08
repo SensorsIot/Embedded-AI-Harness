@@ -1248,6 +1248,18 @@ Writes through the proxy, which owns the device. Control lines are driven low
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |---|---|---|---|---|
 | FR-030 | Write a console command to a peer that answers | `{"ok": true, "written": n}`, and the reply appears in the slot's buffer | The device resetting or entering download mode as a side effect of the write |
+
+**Open gap — the bench owns no responder.** The first row is the only one
+that proves a byte left the bench, and it needs something on the far end that
+answers. The bench has nothing of its own, so the test borrowed a project's
+simulator; when that project reflashed it, a workbench test went red for a
+reason that had nothing to do with the workbench — the law of §"no project
+tests the testbench", inverted. Until the bench can answer for itself — a
+loopback slot, or entering ROM download mode on demand and observing the
+SYNC reply, which is silicon behaviour no firmware can remove — the responder
+is declared by the operator (`WT_ECHO_SLOT` / `WT_ECHO_CMD` /
+`WT_ECHO_REPLY`) and its absence is recorded as an unmet precondition rather
+than a pass.
 | FR-030 | Write with neither `text` nor `hex` | 400 naming what is required | A silent no-op reported as success |
 | FR-030 | Write `hex` that is not hex | 400 naming the fault | Partial bytes written |
 | FR-030 | Write to an unknown slot | 404 | Bytes sent to some other slot |
