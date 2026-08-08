@@ -1358,3 +1358,118 @@ class TestSerialArchitecture:
                 "esp32", "esp32s2", "esp32s3",
                 "esp32c3", "esp32c6", "esp32h2",
             ), f"{label}: unexpected chip '{chip}'"
+
+
+class TestSlotAccessManager:
+    """FR-031 – FR-035. The manager arbitrates mode, never the data path.
+
+    Every case below asserts a refusal as well as a grant: a lock that only
+    ever says yes is not a lock, and the bug it hides is two consumers each
+    believing they own the device.
+    """
+
+    SLOT = "SLOT3"          # no JTAG, so `debugging` never pre-empts these
+
+    def _drain(self, workbench):
+        """Leave the slot idle whatever a previous case did."""
+        m = workbench.slot_mode(self.SLOT)
+        if m.get("mode") not in (None, "idle", "absent", "debugging"):
+            # No token to hand back; the lease is what reclaims it.
+            pass
+
+    def test_idle_slot_reports_idle(self, workbench):
+        m = workbench.slot_mode(self.SLOT)
+        assert m["ok"] is True
+        assert m["mode"] in ("idle", "absent"), m
+
+    def test_acquire_then_release_round_trip(self, workbench):
+        g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-roundtrip", ttl=30)
+        assert g["ok"] is True, g
+        token = g["token"]
+        try:
+            held = workbench.slot_mode(self.SLOT)
+            assert held["mode"] == "monitoring"
+            assert held["owner"] == "pytest-roundtrip"
+            assert held["since"], "a grant must record when it started"
+        finally:
+            r = workbench.slot_release(token)
+            assert r["ok"] is True, r
+        assert workbench.slot_mode(self.SLOT)["mode"] in ("idle", "absent")
+
+    def test_conflicting_acquire_is_refused_naming_the_incumbent(self, workbench):
+        g = workbench.slot_acquire(self.SLOT, "flashing", "pytest-first", ttl=30)
+        assert g["ok"] is True, g
+        try:
+            second = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-second")
+            assert second["ok"] is False, "a held slot must not be granted twice"
+            assert second["error"] == "held"
+            assert second["owner"] == "pytest-first", (
+                "a refusal that does not name the holder leaves the caller with "
+                "the same mystery the manager exists to remove"
+            )
+            assert second["mode"] == "flashing"
+            # FR-033: the incumbent keeps it.
+            assert workbench.slot_mode(self.SLOT)["owner"] == "pytest-first"
+        finally:
+            workbench.slot_release(g["token"])
+
+    def test_unknown_mode_is_rejected(self, workbench):
+        bad = workbench.slot_acquire(self.SLOT, "banana", "pytest-bad")
+        assert bad["ok"] is False
+        assert "unknown mode" in bad["error"]
+        assert "modes" in bad, "a rejection should say what is valid"
+
+    def test_renew_extends_by_the_granted_ttl(self, workbench):
+        g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-renew", ttl=9)
+        assert g["ok"] is True, g
+        try:
+            assert g["expires_in"] == pytest.approx(9, abs=1)
+            r = workbench.slot_renew(g["token"])
+            assert r["ok"] is True, r
+            assert r["expires_in"] == pytest.approx(9, abs=1), (
+                "renew must extend by the ttl the grant was made with, not by "
+                "the default — silently promoting a 9 s lease to 60 s hands out "
+                "a lease nobody asked for"
+            )
+        finally:
+            workbench.slot_release(g["token"])
+
+    def test_expired_lease_is_reclaimed(self, workbench):
+        """A holder that stops renewing must not keep the slot forever.
+
+        This is the bounded form of the failure it replaces: a client whose
+        reader thread died held a slot until the portal was restarted.
+        """
+        dead = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-dies", ttl=3)
+        assert dead["ok"] is True, dead
+        blocked = workbench.slot_acquire(self.SLOT, "flashing", "pytest-waiting")
+        assert blocked["ok"] is False, "must still be held before the lease runs out"
+
+        time.sleep(5)
+        after = workbench.slot_acquire(self.SLOT, "flashing", "pytest-waiting")
+        assert after["ok"] is True, (
+            f"the lease should have been reclaimed after 3 s: {after}"
+        )
+        workbench.slot_release(after["token"])
+
+    def test_release_with_an_unknown_token_is_refused(self, workbench):
+        r = workbench.slot_release("deadbeefdead")
+        assert r["ok"] is False
+        assert "unknown" in r["error"]
+
+    def test_debug_session_holds_the_slot_it_owns(self, workbench):
+        """FR-035. OpenOCD claims a different USB interface, so devnode
+        inspection cannot see it — the manager's own record must."""
+        # get_devices() returns a list of slot dicts, not a wrapper.
+        jtag = [s for s in workbench.get_devices()
+                if s.get("present") and s.get("debugging")]
+        if not jtag:
+            pytest.skip("precondition unmet: no slot currently has a debug session")
+        label = jtag[0]["label"]
+        m = workbench.slot_mode(label)
+        assert m["mode"] == "debugging", m
+        refused = workbench.slot_acquire(label, "flashing", "pytest-vs-debug")
+        assert refused["ok"] is False, (
+            "a flash must not proceed while OpenOCD holds the USB interface"
+        )
+        assert refused["mode"] == "debugging"

@@ -22,6 +22,7 @@ import re
 import tempfile
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -1380,6 +1381,177 @@ def jtag_reset_capturing(slot: dict, effective_label: str,
     result["output"] = lines
     return result
 
+
+# ---------------------------------------------------------------------------
+# Slot access manager (FR-031 – FR-035)
+#
+# Arbitrates MODE, never the data path. Bytes still flow by esptool, OpenOCD
+# and the RFC2217 proxy exactly as before; this only answers "who owns this
+# slot, in what mode, until when", and refuses conflicting requests instead of
+# letting one operation silently terminate another.
+# ---------------------------------------------------------------------------
+
+SLOT_MODES = ("idle", "flashing", "resetting", "monitoring",
+              "flapping", "recovering", "download", "debugging")
+GRANT_TTL_DEFAULT = 60.0
+GRANT_TTL_MAX = 3600.0
+
+_grants: dict = {}
+_grants_lock = threading.Lock()
+
+
+def _grant_expired(g, now=None) -> bool:
+    return (now or time.time()) >= g["expires_at"]
+
+
+def _live_grant(label: str):
+    """Return the slot's live grant, dropping it if the lease has run out.
+
+    Expiry is lazy: a holder that stopped renewing is reclaimed the next time
+    anyone asks, which is when it matters. This is the bounded version of the
+    failure where a dead client held a slot until the portal was restarted.
+    """
+    g = _grants.get(label)
+    if g and _grant_expired(g):
+        log_activity(
+            f"slot.lease expired for {label} — reclaiming from {g['owner']}", "info")
+        _grants.pop(label, None)
+        return None
+    return g
+
+
+def _devnode_holders(devnode: str) -> list:
+    """Processes holding *devnode*, as [(pid, cmdline)].
+
+    FR-034. The manager is cooperative and cannot stop a process opening the
+    device behind its back — but it can notice, and refuse while naming it.
+    A named refusal is worth far more than the silence it replaces.
+    """
+    holders = []
+    if not devnode:
+        return holders
+    try:
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit():
+                continue
+            fd_dir = f"/proc/{entry}/fd"
+            try:
+                for fd in os.listdir(fd_dir):
+                    try:
+                        if os.readlink(f"{fd_dir}/{fd}") == devnode:
+                            try:
+                                with open(f"/proc/{entry}/cmdline", "rb") as fh:
+                                    cmd = fh.read().replace(b"\0", b" ").decode(
+                                        "utf-8", "replace").strip()
+                            except OSError:
+                                cmd = ""
+                            holders.append((int(entry), cmd))
+                            break
+                    except OSError:
+                        continue
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return holders
+
+
+def _unexpected_holders(slot: dict) -> list:
+    """Holders of the slot's devnode that are not the slot's own proxy."""
+    expected = {slot.get("pid")} - {None}
+    return [(pid, cmd) for pid, cmd in _devnode_holders(slot.get("devnode"))
+            if pid not in expected]
+
+
+def slot_acquire(slot: dict, mode: str, owner: str, ttl: float) -> tuple:
+    """Grant *mode* on *slot* to *owner*. Returns (body, http_status)."""
+    label = slot["label"]
+    if mode not in SLOT_MODES:
+        return {"ok": False, "error": f"unknown mode '{mode}'",
+                "modes": list(SLOT_MODES)}, 400
+    if not owner:
+        return {"ok": False, "error": "missing 'owner'"}, 400
+    ttl = max(1.0, min(float(ttl or GRANT_TTL_DEFAULT), GRANT_TTL_MAX))
+
+    with _grants_lock:
+        held = _live_grant(label)
+        if held:
+            # FR-033: refuse, never pre-empt, and name the incumbent.
+            return {"ok": False, "error": "held",
+                    "mode": held["mode"], "owner": held["owner"],
+                    "since": held["since"],
+                    "expires_in": round(held["expires_at"] - time.time(), 1)}, 409
+
+        # FR-035: OpenOCD claims a different USB interface, so devnode
+        # inspection cannot see it — the manager's own record must.
+        eff = slot.get("label") or ""
+        if mode != "debugging" and debug_controller.is_debugging(eff):
+            return {"ok": False, "error": "held", "mode": "debugging",
+                    "owner": "debug-session", "since": None,
+                    "expires_in": None}, 409
+
+        strays = _unexpected_holders(slot)
+        if strays:
+            pid, cmd = strays[0]
+            return {"ok": False, "error": "device held out of band",
+                    "pid": pid, "cmdline": cmd}, 409
+
+        now = time.time()
+        token = uuid.uuid4().hex[:12]
+        _grants[label] = {
+            "token": token, "mode": mode, "owner": owner, "ttl": ttl,
+            "since": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "expires_at": now + ttl,
+        }
+    log_activity(f"slot.acquire({label}, {mode}) granted to {owner}", "ok")
+    return {"ok": True, "token": token, "mode": mode,
+            "expires_in": round(ttl, 1)}, 200
+
+
+def slot_by_token(token: str):
+    for label, g in _grants.items():
+        if g["token"] == token:
+            return label, g
+    return None, None
+
+
+def slot_renew(token: str) -> tuple:
+    with _grants_lock:
+        label, g = slot_by_token(token)
+        if not g or _grant_expired(g):
+            return {"ok": False, "error": "unknown or expired token"}, 404
+        # The holder's own ttl, not the default: a renewal that silently
+        # extends an 8 s lease to 60 s is a lease nobody asked for.
+        ttl = max(1.0, min(g["ttl"], GRANT_TTL_MAX))
+        g["expires_at"] = time.time() + ttl
+    return {"ok": True, "expires_in": round(ttl, 1)}, 200
+
+
+def slot_release(token: str) -> tuple:
+    with _grants_lock:
+        label, g = slot_by_token(token)
+        if not g:
+            return {"ok": False, "error": "unknown token"}, 404
+        _grants.pop(label, None)
+    log_activity(f"slot.release({label}) by {g['owner']}", "ok")
+    return {"ok": True, "mode": "idle"}, 200
+
+
+def slot_mode(slot: dict) -> dict:
+    label = slot["label"]
+    with _grants_lock:
+        g = _live_grant(label)
+    if not g:
+        eff = slot.get("label") or ""
+        if debug_controller.is_debugging(eff):
+            return {"ok": True, "mode": "debugging", "owner": "debug-session",
+                    "since": None, "expires_in": None}
+        return {"ok": True, "mode": "idle" if slot.get("present") else "absent",
+                "owner": None, "since": None, "expires_in": None}
+    return {"ok": True, "mode": g["mode"], "owner": g["owner"],
+            "since": g["since"],
+            "expires_in": round(g["expires_at"] - time.time(), 1)}
+
 # esptool 5 renamed the console script (`esptool.py` -> `esptool`) and every
 # subcommand and flag from underscores to hyphens; the old spellings still work
 # but warn, and go away at the next major release. The module form is the one
@@ -1966,6 +2138,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/serial/output":
             qs = parse_qs(parsed.query)
             self._handle_serial_output(qs)
+        elif path == "/api/slot/mode":
+            self._handle_slot_mode(parse_qs(parsed.query))
         elif path == "/api/firmware/list":
             self._handle_firmware_list()
         elif path == "/api/ble/status":
@@ -1990,6 +2164,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_chip_info()
         elif path == "/api/ota":
             self._handle_ota()
+        elif path == "/api/slot/acquire":
+            self._handle_slot_acquire()
+        elif path == "/api/slot/renew":
+            self._handle_slot_renew()
+        elif path == "/api/slot/release":
+            self._handle_slot_release()
         elif path == "/api/serial/reset":
             self._handle_serial_reset()
         elif path == "/api/serial/monitor":
@@ -2576,6 +2756,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_json({"ok": True})
 
     # -- serial services (FR-008, FR-009) --
+
+    def _handle_slot_acquire(self):
+        body = self._read_json() or {}
+        slot_label = body.get("slot")
+        slot = _find_slot_by_label(slot_label) if slot_label else None
+        if not slot:
+            self._send_json({"ok": False, "error": f"slot '{slot_label}' not found"}, 404)
+            return
+        result, status = slot_acquire(slot, body.get("mode", ""),
+                                      body.get("owner", ""),
+                                      body.get("ttl", GRANT_TTL_DEFAULT))
+        self._send_json(result, status)
+
+    def _handle_slot_renew(self):
+        body = self._read_json() or {}
+        result, status = slot_renew(body.get("token", ""))
+        self._send_json(result, status)
+
+    def _handle_slot_release(self):
+        body = self._read_json() or {}
+        result, status = slot_release(body.get("token", ""))
+        self._send_json(result, status)
+
+    def _handle_slot_mode(self, qs):
+        slot_label = (qs.get("slot") or [None])[0]
+        slot = _find_slot_by_label(slot_label) if slot_label else None
+        if not slot:
+            self._send_json({"ok": False, "error": f"slot '{slot_label}' not found"}, 404)
+            return
+        self._send_json(slot_mode(slot), 200)
 
     def _handle_serial_reset(self):
         body = self._read_json() or {}

@@ -104,6 +104,34 @@ class WorkbenchDriver:
             raise CommandError(cmd, data)
         return data
 
+    def _api_post_raw(self, path: str, body: Optional[dict] = None,
+                      timeout: float = 10) -> dict:
+        """POST JSON and return the parsed body whatever the status.
+
+        `_api_post` treats `ok: false` as an exception, which is right for a
+        command that either works or fails. It is wrong for the access
+        manager: a refusal is the answer, and it carries who holds the slot,
+        in what mode, since when. Raising would throw that away and leave the
+        caller with the silence the manager exists to remove.
+        """
+        url = f"{self.base_url}{path}"
+        data_bytes = json.dumps(body or {}).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=data_bytes,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:          # 400/404/409 carry a body
+            try:
+                return json.loads(e.read())
+            except Exception:
+                return {"ok": False, "error": f"HTTP {e.code}"}
+        except urllib.error.URLError as e:
+            raise CommandTimeout(f"POST {path}: {e}")
+
     def _api_post(self, path: str, body: Optional[dict] = None,
                   timeout: float = 10) -> dict:
         """POST JSON to an API endpoint, return parsed JSON."""
@@ -791,3 +819,37 @@ class WorkbenchDriver:
     def info(self) -> dict:
         """GET /api/info — host IP, hostname, slot counts."""
         return self._api_get("/api/info")
+
+    # ---- Slot access manager (FR-031 – FR-035) -----------------------------
+
+    def slot_acquire(self, slot: str, mode: str, owner: str,
+                     ttl: float = 60) -> dict:
+        """POST /api/slot/acquire — {ok, token, mode, expires_in}, or a 409
+        body {ok: false, error, mode, owner, since, expires_in} when held.
+
+        A refusal is a normal outcome, not an exception: the caller is meant to
+        read who holds the slot and why.
+        """
+        return self._api_post_raw("/api/slot/acquire",
+                              {"slot": slot, "mode": mode,
+                               "owner": owner, "ttl": ttl})
+
+    def slot_renew(self, token: str) -> dict:
+        """POST /api/slot/renew — extends by the ttl the grant was made with."""
+        return self._api_post_raw("/api/slot/renew", {"token": token})
+
+    def slot_release(self, token: str) -> dict:
+        """POST /api/slot/release — returns the slot to idle."""
+        return self._api_post_raw("/api/slot/release", {"token": token})
+
+    def slot_mode(self, slot: str) -> dict:
+        """GET /api/slot/mode — {ok, mode, owner, since, expires_in}."""
+        url = f"{self.base_url}/api/slot/mode?slot={slot}"
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url), timeout=10) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            try:
+                return json.loads(e.read())
+            except Exception:
+                return {"ok": False, "error": f"HTTP {e.code}"}
