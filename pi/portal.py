@@ -1313,6 +1313,73 @@ def serial_reset(slot: dict) -> dict:
     return {"ok": True, "output": lines}
 
 
+
+def jtag_reset_capturing(slot: dict, effective_label: str,
+                         timeout: float = 5.0) -> dict:
+    """JTAG reset that also returns the device's boot output.
+
+    A JTAG reset does not re-enumerate USB, so the proxy stays up and the boot
+    output can be read *through* it — unlike the DTR/RTS path, which must stop
+    the proxy and take the device.
+
+    The listener attaches **before** the reset is issued. A banner printed
+    while nothing is reading is gone, and a monitor opened afterwards reports a
+    silence indistinguishable from a device that never started.
+
+    `output` carries the device's boot lines in both reset paths; OpenOCD's own
+    reply is returned separately as `openocd`.
+    """
+    import serial as pyserial
+
+    ser = None
+    tcp_port = slot.get("tcp_port")
+    if tcp_port and slot.get("running"):
+        try:
+            ser = pyserial.serial_for_url(f"rfc2217://127.0.0.1:{tcp_port}",
+                                          do_not_open=True)
+            ser.baudrate = 115200
+            ser.timeout = 0.1
+            # Never assert these: on a native-USB part DTR selects download
+            # mode and RTS holds reset, so opening carelessly would stop the
+            # very device this is trying to observe.
+            ser.dtr = False
+            ser.rts = False
+            ser.open()
+            ser.reset_input_buffer()
+        except Exception as e:
+            log_activity(f"jtag reset: cannot attach to proxy ({e})", "info")
+            ser = None
+
+    result = debug_controller.jtag_reset(effective_label)
+    if not result.get("ok"):
+        if ser is not None:
+            try:
+                ser.close()
+            except Exception:
+                pass
+        return result
+
+    lines: list[str] = []
+    if ser is not None:
+        try:
+            lines, _ = _read_serial_lines(ser, None, timeout=timeout)
+        except Exception as e:
+            log_activity(f"jtag reset: boot capture failed ({e})", "info")
+        finally:
+            try:
+                ser.close()
+            except Exception:
+                pass
+
+        now = time.time()
+        buf = slot["_serial_buf"]
+        for line in lines:
+            buf.append({"ts": now, "text": line})
+
+    result["openocd"] = result.pop("output", "")
+    result["output"] = lines
+    return result
+
 # esptool 5 renamed the console script (`esptool.py` -> `esptool`) and every
 # subcommand and flag from underscores to hyphens; the old spellings still work
 # but warn, and go away at the next major release. The module form is the one
@@ -2525,7 +2592,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         effective_label = slot.get("label") or slot.get("slot_key", "")[-20:]
         if debug_controller.is_debugging(effective_label):
             log_activity(f"serial.reset({slot_label}) via JTAG", "step")
-            result = debug_controller.jtag_reset(effective_label)
+            result = jtag_reset_capturing(slot, effective_label)
             if result["ok"]:
                 log_activity(f"serial.reset({slot_label}) — JTAG reset done", "ok")
             else:

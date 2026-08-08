@@ -862,11 +862,13 @@ verification:
     - Confirm the slot is idle with its proxy running.
 ```
 
-**Known limitation.** The JTAG path (§8.2) returns OpenOCD's output, not the
-device's boot output: it resets through a separate channel while nothing
-drains the serial port, so start-up output is emitted into a port no consumer
-is reading. A boot-time marker is therefore unobservable on a native-USB part.
-Recorded in [`open-issues.md`](open-issues.md) as OI-02.
+**Both reset paths return the device's boot output.** A JTAG reset does not
+re-enumerate USB, so the proxy stays up and the boot lines are read through it.
+The listener attaches **before** the reset is issued: a banner printed while
+nothing is reading is gone, and a monitor opened afterwards reports a silence
+indistinguishable from a device that never started. `output` therefore carries
+boot lines in both paths, and OpenOCD's own reply is returned separately as
+`openocd`.
 
 ### FR-009 — Serial Monitor
 
@@ -1185,10 +1187,14 @@ and its command line.
 This converts the failure that costs the most time — an operation that
 mysteriously reads nothing — into a named refusal.
 
-**Kernel enforcement is deferred.** `plain_rfc2217_server.py` opens with
-`exclusive=False`, which disables `TIOCEXCL` and permits a second opener. That
-setting is deliberate and its reason is not established; it is recorded as an
-open question — see [`open-issues.md`](open-issues.md) OI-01 — rather than changed here.
+**Kernel enforcement, with a stated fallback.** The proxy opens the devnode
+exclusively, so the kernel refuses a second opener and a stray client fails
+loudly instead of silently stealing bytes or asserting the control lines.
+Nothing on this bench needs a shared open: every portal path that touches the
+devnode stops the proxy first. Where a bench does have another holder the
+exclusive open would fail, so the proxy logs the refusal and opens
+non-exclusively rather than leaving the slot dead — and FR-034's detection is
+the guard there.
 
 **Verification contract**
 
@@ -3677,7 +3683,7 @@ errors add `"error": "..."`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/serial/reset` | Reset a device `{"slot"}`. **The method depends on the slot.** With no debug session: DTR/RTS, and `{"ok", "output": ["boot line", ...]}` — a list of the boot log. With a debug session active: JTAG `reset run`, and `{"ok", "method": "jtag", "command", "output": "<OpenOCD text>"}` — a single string of OpenOCD's reply, **not** the device's output. Falls back to DTR/RTS if the JTAG reset fails |
+| POST | `/api/serial/reset` | Reset a device `{"slot"}`. **The method depends on the slot; the response shape does not.** `output` is always the device's boot lines. No debug session: DTR/RTS, stopping and restarting the proxy. Debug session active: JTAG `reset run` — no USB re-enumeration, proxy stays up — and the reply adds `"method": "jtag"`, `"command"` and `"openocd"` carrying OpenOCD's own text. Falls back to DTR/RTS if the JTAG reset fails |
 | POST | `/api/serial/monitor` | Wait for a pattern `{"slot", "pattern?", "timeout?"}` → `{"ok", "matched", "line", "output"}` |
 | GET | `/api/serial/output` | Passive buffer read `?slot=&lines=&since=` |
 | POST | `/api/serial/recover` | Manual flap-recovery trigger `{"slot"}` |
@@ -3685,6 +3691,17 @@ errors add `"error": "..."`.
 | POST | `/api/enter-portal` | Provision a captive-portal DUT (WiFiManager: `portal_ssid`, `ssid`, `password`, `save_path=/wifisave`, `field_ssid=s`, `field_password=p`, `method=POST`, `internet`, `extra`); or trigger with `{slot, resets}` |
 | POST | `/api/start` · `/api/stop` | Manually start / stop the proxy for a slot `{"slot"}` (or `slot_key`). `start` takes an optional `devnode`, defaulting to the slot's own |
 | POST | `/api/hotplug` | udev hotplug event (internal) |
+
+**Access manager (FR-031 – FR-035).** Every consumer acquires a slot before
+using it — the portal's own operations, external clients and project test
+suites alike. A conflicting request is refused, never pre-empted.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/slot/acquire` | Request a mode `{"slot", "mode", "owner", "ttl?"}` → `{"ok", "token", "mode", "expires_in"}`; or **409** `{"ok": false, "error": "held", "mode", "owner", "since", "expires_in"}` |
+| POST | `/api/slot/renew` | Extend a grant `{"token"}` → `{"ok", "expires_in"}`. Hold by renewing; `ttl` defaults to 60 s |
+| POST | `/api/slot/release` | Give the slot back `{"token"}` |
+| GET | `/api/slot/mode` | Current mode `?slot=` → `{"ok", "mode", "owner", "since", "expires_in"}` |
 
 ### D.3 GDB Debug
 

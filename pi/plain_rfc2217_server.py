@@ -44,12 +44,30 @@ def main():
                         level=logging.INFO)
     logging.getLogger("rfc2217").setLevel(level)
 
+    # Exclusive: TIOCEXCL makes the kernel refuse a second open, so a stray
+    # client fails loudly instead of silently stealing bytes or asserting the
+    # control lines. Nothing on this bench opens the devnode while the proxy
+    # holds it — every portal path that needs it stops the proxy first, and
+    # ModemManager and brltty are inactive — but a bench where something does
+    # would otherwise fail to start, so fall back and say so rather than
+    # leaving a slot dead.
     ser = serial.serial_for_url(args.SERIALPORT, do_not_open=True,
-                                exclusive=False)
+                                exclusive=True)
     ser.timeout = 3
     ser.dtr = False
     ser.rts = False
-    ser.open()
+    try:
+        ser.open()
+    except Exception as exc:
+        logging.warning("exclusive open of %s refused (%s) — retrying "
+                        "non-exclusively; another process holds this device",
+                        args.SERIALPORT, exc)
+        ser = serial.serial_for_url(args.SERIALPORT, do_not_open=True,
+                                    exclusive=False)
+        ser.timeout = 3
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
     # Linux CDC ACM driver asserts DTR+RTS on open.  On ESP32-C3 native USB,
     # the USB-Serial/JTAG controller interprets DTR/RTS as reset + boot-mode
     # signals.  DTR=1 → GPIO9 LOW (download mode), RTS=1 → chip in reset.
