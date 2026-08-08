@@ -1,0 +1,69 @@
+# Builds the bench's own DUT firmware.
+#
+# Thirteen bench tests need a device that joins the bench AP, answers HTTP and
+# echoes on serial. Until this workflow existed, the suite borrowed whatever
+# firmware a project happened to have flashed — and when that project reflashed
+# its board, workbench tests went red for reasons that had nothing to do with
+# the workbench. A bench that depends on a project's firmware has the
+# dependency backwards.
+#
+# So the bench owns this image, builds it here, and flashes it itself. The
+# artifact is the contract: same bytes every run, for every target the bench
+# might have in a free slot.
+name: bench DUT firmware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'test-firmware/**'
+      - '.github/workflows/test-firmware.yml'
+  pull_request:
+    paths:
+      - 'test-firmware/**'
+      - '.github/workflows/test-firmware.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both parts the bench has in slots. Building only the one currently
+        # plugged in means the next board swap is a red build, discovered at
+        # the moment someone needs it.
+        target: [esp32c3, esp32s3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.target }}
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          # The version dependencies.lock was solved against. A different one
+          # re-solves the graph and can pull a cJSON that does not match, so
+          # the lock and this line move together or not at all.
+          esp_idf_version: v6.0.2
+          target: ${{ matrix.target }}
+          path: test-firmware
+
+      # flash_args carries the authoritative offsets. They move whenever the
+      # partition table changes, and a flash to a guessed offset succeeds,
+      # verifies its hash, and then refuses to boot with "invalid magic byte".
+      - name: Collect the flashable set
+        run: |
+          cd test-firmware/build
+          test -f flash_args || { echo "no flash_args — nothing to flash"; exit 1; }
+          mkdir -p ../../fw-${{ matrix.target }}
+          cp flash_args ../../fw-${{ matrix.target }}/
+          for f in $(grep -oE '[^ ]+\.bin' flash_args); do
+            cp "$f" ../../fw-${{ matrix.target }}/ || {
+              echo "flash_args names $f, which the build did not produce"; exit 1; }
+          done
+          ls -l ../../fw-${{ matrix.target }}/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-dut-${{ matrix.target }}
+          path: fw-${{ matrix.target }}/
+          if-no-files-found: error

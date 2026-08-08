@@ -79,3 +79,18 @@ esp_err_t udp_log_init(const char *host, uint16_t port)
     ESP_LOGI(TAG, "UDP logging -> %s:%d", host, port);
     return ESP_OK;
 }
+
+void udp_log_set_host(const char *host)
+{
+    struct in_addr addr;
+    if (!host || inet_aton(host, &addr) == 0) {
+        ESP_LOGE(TAG, "udp_log_set_host: '%s' is not an IPv4 address",
+                 host ? host : "(null)");
+        return;
+    }
+    /* One word, written atomically on every part this runs on — the sender
+       task may be mid-loop, and the worst it can do is send one line to the
+       previous destination. */
+    s_dest_addr.sin_addr = addr;
+    ESP_LOGI(TAG, "UDP logging redirected -> %s", host);
+}

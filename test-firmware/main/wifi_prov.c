@@ -1,5 +1,6 @@
 #include "wifi_prov.h"
 #include "nvs_store.h"
+#include "udp_log.h"
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -62,6 +63,13 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         ESP_LOGI(TAG, "STA got IP: " IPSTR, IP2STR(&e->ip_info.ip));
         s_sta_connected = true;
         s_retry_count = 0;
+        /* The bench hands out this lease, so the gateway is the bench.
+           Send it the logs. The address used to be compiled in, which meant
+           the firmware only ever logged to whichever bench was on that IP
+           when someone last edited app_main — by now, none of them. */
+        char gw[16];
+        snprintf(gw, sizeof(gw), IPSTR, IP2STR(&e->ip_info.gw));
+        udp_log_set_host(gw);
     }
 }
 
