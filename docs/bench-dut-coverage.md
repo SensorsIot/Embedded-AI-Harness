@@ -40,7 +40,7 @@ its own questions.
 | 19 | TestApiSurface | 8 | ✓ (most) | be flashable and readable |
 | 20 | TestFlashEndpoint | 4 | ✓ | accept a flash at declared offsets |
 
-**Totals:** 98 tests. Roughly 60 need a DUT present; **21 need it to *do*
+**Totals:** 103 tests. Roughly 60 need a DUT present; **21 need it to *do*
 something** (rows 3, 4, 5, 10, 13, 14, 18).
 
 ## The S3's role and task, test by test
@@ -182,26 +182,32 @@ and the silicon provide; 16 need the radio in one direction or the other;
 
 ## What the suite actually produced
 
-98 tests: **88 passed, 0 failed, 10 skipped**, reproduced across three
-separate full runs on one ESP32-S3 and an RTL-SDR dongle.
-
-Every skip names an absent instrument or a question this bench cannot ask.
-None is a capability that quietly stopped working — which is the failure this
-page exists to catch:
+103 tests: **102 passed, 0 failed, 1 skipped** in 14 minutes, on one
+ESP32-S3, one ESP32-C6 and an RTL-SDR dongle — **with nothing configured**:
+no environment variables, no external network, no hand-written slot labels.
 
 | Skips | Reason |
 |---:|---|
-| 3 | no ESP32-C3 DUT present |
-| 2 | FR-037 needs two built-in-JTAG boards; this bench has one |
-| 1 | the multi-slot test needs 2+ DUTs |
 | 1 | no Si5351 signal generator present |
-| 1 | no slot currently holds a debug session |
-| 1 | `WIFI_TEST_HTTP_URL` not set |
-| 1 | WT-602 needs a scan taken while our own AP beacons — see below |
+
+One skip, and it names a piece of hardware that is not plugged in. That is
+the state this page exists to reach, and getting there took removing four
+different kinds of false skip:
+
+| Was skipped because | Now |
+|---|---|
+| `WIFI_TEST_STA_SSID` / `WIFI_TEST_HTTP_URL` unset (5 tests) | the DUT hosts the network, so there is nothing to configure |
+| WT-602 asked something one radio cannot answer | asks the answerable form: an SSID off the air is gone from the next scan |
+| a second ESP32-C3 was assumed | the tests follow whichever part is present |
+| the suite destroyed its own DUT and never restored it | reflashed at session start and after the flash tests |
+
+Two earlier skips remain latent rather than fixed: `TestPerSlotDebugIsolation`
+genuinely needs two built-in-JTAG boards, and passes only while a second one
+is in the bench. That skip is honest when it happens.
 
 **Repeatability had to be fixed before any of this meant anything.** One run
-passed 74/74 and the next collapsed to 51 passes and 15 failures, on the same
-bench, cables and commit. WT-1800 flashes a throwaway image over the bench DUT
+passed 74/74 and the next collapsed to 51 passes and 15 failures, on the
+same bench, cables and commit. WT-1800 flashes a throwaway image over the bench DUT
 to prove flashing works, and nothing put the real one back; the board sat
 printing `LOOP: n` and every later test that needed it to *answer* reported
 absent hardware. A defined bench (FR-036) is only half a defined starting
