@@ -10,6 +10,8 @@
 #include "lwip/inet.h"
 #include "dns_server.h"
 #include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -25,6 +27,7 @@ extern const char portal_html_end[]   asm("_binary_portal_html_end");
 static int s_retry_count = 0;
 static bool s_sta_connected = false;
 static bool s_ap_mode = false;
+static volatile bool s_scanning = false;
 static httpd_handle_t s_server = NULL;
 
 /* ── Event handlers ────────────────────────────────────────────── */
@@ -35,11 +38,20 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
     if (base == WIFI_EVENT) {
         switch (id) {
         case WIFI_EVENT_STA_START:
-            esp_wifi_connect();
+            /* In portal mode the station exists only to carry a scan. */
+            if (!s_scanning)
+                esp_wifi_connect();
             break;
         case WIFI_EVENT_STA_DISCONNECTED: {
             wifi_event_sta_disconnected_t *dis = data;
             s_sta_connected = false;
+            if (s_scanning) {
+                /* A scan needs the station idle, and this handler is what
+                   makes it never idle: every disconnect re-arms a connect,
+                   so "STA is connecting, scan are not allowed" is the state
+                   the retry loop guarantees. Stand down for the scan. */
+                break;
+            }
             if (s_retry_count < STA_MAX_RETRY) {
                 s_retry_count++;
                 ESP_LOGW(TAG, "STA disconnect (reason=%d), retry %d/%d",
@@ -361,11 +373,25 @@ int wifi_prov_scan(char *out, size_t out_sz)
      * so borrow APSTA for the duration — the beacons keep going out, so a
      * bench that is mid-provisioning does not lose the portal it is talking
      * to just because it asked what else is on the air. */
+    s_scanning = true;
     bool borrowed = false;
     if (mode == WIFI_MODE_AP) {
-        if (esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK)
+        if (esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK) {
+            s_scanning = false;
             return -1;
+        }
         borrowed = true;
+    }
+
+    /* Stop any connect attempt in flight. Scanning is refused outright while
+     * the station is mid-connect, and a DUT holding stale credentials is
+     * mid-connect essentially all the time — which is exactly when someone
+     * wants to ask what it can see. A live association is left alone: the
+     * radio can scan from connected, and dropping the link to answer a
+     * question would break the test that asked. */
+    if (!s_sta_connected) {
+        esp_wifi_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
     wifi_scan_config_t cfg = { .show_hidden = true };
@@ -373,6 +399,7 @@ int wifi_prov_scan(char *out, size_t out_sz)
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "scan failed: %s", esp_err_to_name(err));
         if (borrowed) esp_wifi_set_mode(WIFI_MODE_AP);
+        s_scanning = false;
         return -1;
     }
 
@@ -404,6 +431,13 @@ int wifi_prov_scan(char *out, size_t out_sz)
     esp_wifi_scan_stop();
 
     if (borrowed) esp_wifi_set_mode(WIFI_MODE_AP);
+    s_scanning = false;
+
+    /* Put the station back to work. Answering a question must not leave the
+     * DUT permanently not-trying-to-join. */
+    if (!borrowed && !s_sta_connected)
+        esp_wifi_connect();
+
     return written;
 }
 
