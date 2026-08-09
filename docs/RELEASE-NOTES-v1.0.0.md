@@ -54,6 +54,43 @@ fixed, and each left a test behind.
   spoke at the same moment.
 - A write reported `written: 8` about a socket that closed before the bytes
   reached the device.
+- **The bench AP reached `AP-ENABLED` and radiated nothing.** hostapd on the
+  primary interface installed a beacon the driver accepted — the SSID is
+  legible in the beacon hexdump — while a station 20 cm away heard seven
+  neighbouring APs and not one frame from this one. Nothing reported an
+  error anywhere: `iw` said `type AP` on the right channel, `ap_status` said
+  active, and the only symptom reached anyone as the DUT's own
+  `NO_AP_FOUND`, which accuses the DUT. Every test needing a station on the
+  bench AP had been failing on this. The AP now runs on a dedicated virtual
+  interface.
+- **A serial read returned the oldest lines, not the newest.** `lines=N`
+  took the first N entries of a 1000-line ring, so any slot up for more than
+  a few minutes answered with ancient history whose newest timestamp aged
+  steadily — indistinguishable from a recorder that had died. It survived
+  because a buffer shorter than `N` is returned whole, and the read straight
+  after a flash is exactly that.
+- **A dead flash client wedged a slot until someone noticed.** RFC2217 is
+  single-client, and an `esptool` killed mid-flash left the connection in
+  `CLOSE-WAIT` — the proxy alive, `running: true`, every later client
+  refused. The bench reset skipped it *because the proxy was alive*.
+- **The DUT's logger starved the core it logged from.** Anything logged
+  below the log hook came back through it, queued another line and woke the
+  task that had just logged — so the task never blocked, IDLE never ran and
+  the watchdog fired. An unresponsive DUT is indistinguishable from an
+  unreachable one, and the HTTP relay tests timed out against a board that
+  was associated and had an address. The same function also passed one
+  `va_list` to two consumers, which is undefined behaviour.
+
+**The DUT can now answer.** `FR-030` says a byte written to a slot reaches the
+device, and the bench owned nothing that would say anything back — so the test
+borrowed a project's M-Bus simulator and went red when that project reflashed
+the board. The bench DUT now carries a line-oriented console on its USB serial
+port: `ping` answers `OK pong`, `scan` reports what the DUT's own radio can
+hear, `info` names the image actually running, and `wifi <ssid> <pass>`
+provisions it without needing a radio at all. That last one matters more than
+it looks: credentials used to arrive only through the DUT's captive portal, so
+a board whose AP was not on the air had no way in and no way to tell *the AP is
+broken* from *the AP is fine and nobody can hear it*.
 
 **The suite no longer depends on any project's firmware.** Tests used to
 assert on a specific project's board — an `awning-net` SSID, an M-Bus
@@ -65,11 +102,6 @@ from *broken* beats an opt-out that cannot.
 
 ## Known limits, stated rather than skipped
 
-- **The bench cannot prove a byte reached a device without a responder**, and
-  it owns none. `FR-030`'s arrival test declares its responder through
-  `WT_ECHO_SLOT`/`WT_ECHO_CMD`/`WT_ECHO_REPLY` and records an unmet
-  precondition otherwise. A loopback slot, or an on-demand ROM download-mode
-  SYNC, would close it for good.
 - **SDR tests need a dongle**; two cases skip without one.
 - **One writing serial client per board.** Any number may read the fan-out.
 - **No authentication on the API.** Keep the bench on a network you trust.

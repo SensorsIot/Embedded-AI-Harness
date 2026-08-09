@@ -1187,6 +1187,20 @@ and its command line.
 This converts the failure that costs the most time — an operation that
 mysteriously reads nothing — into a named refusal.
 
+**A squatter on the RFC2217 port is not covered, and should be.** The
+detection above looks for openers of the *device node*. A consumer that
+reaches a slot over RFC2217 holds a **TCP socket** instead, and the devnode is
+held — legitimately — by the bench's own proxy, so nothing unexpected appears
+in `/proc`. Observed: an `esptool` killed mid-flash left the connection in
+`CLOSE-WAIT`, which wedged the slot against every later client. The lease of
+FR-032 does not help either; it reclaims a dead owner's *grant*, not a dead
+client's *socket*. Two mitigations exist today — the proxy no longer blocks
+indefinitely on a stuck client, and FR-036 restarts each slot's proxy — but
+neither is detection, and a wedged slot is still reported to whoever meets it
+next as "the port is busy" rather than as a named holder. **Extending this
+requirement to the RFC2217 port is an open specification item, not an
+implemented behaviour.**
+
 **Kernel enforcement, with a stated fallback.** The proxy opens the devnode
 exclusively, so the kernel refuses a second opener and a stray client fails
 loudly instead of silently stealing bytes or asserting the control lines.
@@ -1280,7 +1294,7 @@ Initial state, per subsystem:
 
 | Subsystem | Initial state |
 |---|---|
-| Every present slot | proxy running, no access grant (FR-031), no debug session |
+| Every present slot | proxy **restarted**, no access grant (FR-031), no debug session |
 | WiFi | idle — no SoftAP, not joined |
 | SDR | no live console, no logging, no capture |
 | Operator prompt | none pending |
@@ -1291,6 +1305,23 @@ Every step is attempted even if an earlier one fails: a reset that gives up
 halfway leaves the bench dirtier than one never run, and the caller cannot
 tell which. The response reports what actually changed, so a caller can see
 whether the bench was already clean.
+
+**A slot's proxy is restarted, not merely checked.** Restarting only a proxy
+that had *died* left the one case this call exists to fix: RFC2217 is
+single-client, and a client that goes away without closing cleanly leaves the
+connection in `CLOSE-WAIT`. The proxy is then alive, reports `running: true`,
+and refuses every later client with "the port is busy" — so the check passed
+and the slot stayed wedged for every subsequent run.
+
+**What this requirement does not cover: the DUT's firmware.** A defined bench
+is only half a defined starting state. A suite that flashes a slot — which
+`FR-020` exists to make possible, and which the bench's own end-to-end tests
+do deliberately — changes what the DUT *is* for every run that follows.
+Restoring it needs an image, and the bench cannot know which image the caller
+considers correct, so this is stated as the consumer's obligation rather than
+silently assumed: **a test run that flashes a DUT is responsible for the state
+it leaves it in.** The bench's own suite discharges this by reflashing its
+known-good bench-DUT image at session start and after its flash tests.
 
 **Verification contract**
 
