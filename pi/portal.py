@@ -1588,9 +1588,19 @@ def bench_reset() -> dict:
         if debug_controller.is_debugging(label):
             attempt(f"stopped debug session on {label}",
                     lambda lbl=label: debug_controller.stop(lbl).get("ok"))
-        if slot.get("present") and not slot.get("running"):
+        if slot.get("present"):
+            # Restart unconditionally, not only when the proxy has died.
+            #
+            # RFC2217 is single-client, and a client that goes away without
+            # closing cleanly leaves the connection in CLOSE-WAIT: the proxy
+            # is still running, still says `running: true`, and refuses every
+            # later client with "port is busy". An esptool killed mid-flash
+            # does exactly this. The slot is then wedged for every subsequent
+            # run, and this reset — whose whole purpose is to make "before"
+            # mean the same thing every time — skipped it precisely because
+            # the proxy was alive.
             attempt(f"restarted proxy for {label}",
-                    lambda sl=slot: start_proxy(sl))
+                    lambda sl=slot: (stop_proxy(sl), start_proxy(sl))[1])
 
     # These two return None, not a result dict — so ask the radio what state
     # it is in rather than trusting a return value that does not exist.

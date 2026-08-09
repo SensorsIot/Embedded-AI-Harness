@@ -774,19 +774,43 @@ def scan():
     recover from a fault it is told is a measurement.
     """
     _check_wifi_testing_mode()
-    # Ensure interface is up
+
+    # Scan on whichever interface currently owns the radio. While the AP is
+    # up, wlan0 is deliberately down — the driver will not carry a managed
+    # and an AP interface at once — so scanning wlan0 then returns nothing
+    # and the bench reports an empty sky instead of an unusable instrument.
+    iface = AP_IF if _ap_active else WLAN_IF
     try:
-        _run(["ip", "link", "set", WLAN_IF, "up"], check=False)
+        _run(["ip", "link", "set", iface, "up"], check=False)
     except Exception:
         pass
+    # After ap_stop the primary interface has only just come back; give it a
+    # moment rather than reporting the first scan's failure as an empty air.
+    for _ in range(20):
+        try:
+            with open(f"/sys/class/net/{iface}/operstate") as f:
+                if f.read().strip() != "down":
+                    break
+        except OSError:
+            pass
+        time.sleep(0.1)
 
     # A busy radio is transient — the kernel is finishing someone else's
     # scan — so retry before declaring the instrument unavailable.
+    #
+    # A scan that succeeds and returns nothing is retried too. Immediately
+    # after the AP comes down the interface is up but the radio has not
+    # finished changing roles, and `iw` answers with an empty list rather
+    # than an error: a successful measurement of an empty sky, which on a
+    # bench with a dozen access points in range it is not. Retrying costs
+    # ten seconds in a genuinely quiet room and reports the empty list
+    # honestly if every attempt agrees.
     last = ""
+    out = ""
     for attempt in range(SCAN_ATTEMPTS):
         try:
             result = subprocess.run(
-                ["iw", "dev", WLAN_IF, "scan", "-u"],
+                ["/usr/sbin/iw", "dev", iface, "scan", "-u"],
                 capture_output=True, text=True, timeout=15,
             )
         except subprocess.TimeoutExpired:
@@ -794,13 +818,17 @@ def scan():
         else:
             if result.returncode == 0:
                 out = result.stdout
-                break
-            last = (result.stderr or result.stdout or "").strip() \
-                or f"iw scan exited {result.returncode}"
+                if "BSS " in out:
+                    break
+                last = "scan returned no BSS entries"
+            else:
+                last = (result.stderr or result.stdout or "").strip() \
+                    or f"iw scan exited {result.returncode}"
         if attempt < SCAN_ATTEMPTS - 1:
             time.sleep(SCAN_RETRY_S)
     else:
-        return {"error": f"scan failed on {WLAN_IF}: {last}"}
+        if not out:
+            return {"error": f"scan failed on {iface}: {last}"}
 
     networks = []
     current = {}

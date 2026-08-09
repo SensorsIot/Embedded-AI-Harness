@@ -1468,7 +1468,27 @@ class TestSlotAccessManager:
     believing they own the device.
     """
 
-    SLOT = "SLOT3"          # no JTAG, so `debugging` never pre-empts these
+    # Bound at run time from whatever slot actually holds a device. It used
+    # to be the constant "SLOT3", chosen because it carried no JTAG so
+    # `debugging` could never pre-empt these cases — a good reason for a
+    # choice that stopped being true when the boards moved, and then failed
+    # as "SLOT3: proxy not running", which accuses the proxy.
+    SLOT = None
+
+    @pytest.fixture(autouse=True)
+    def _bind_slot(self, workbench, present_slot):
+        type(self).SLOT = present_slot
+        # These cases are about the manager's own arbitration, so the slot
+        # has to start unheld. The constant this replaced named a slot with
+        # no JTAG precisely so a debug session could never pre-empt them —
+        # a sound dodge that stops being available when the bench has one
+        # board, which then arrives here still `debugging` from an earlier
+        # class and refuses every acquire.
+        try:
+            if workbench.get_slot(self.SLOT).get("debugging"):
+                workbench.debug_stop(self.SLOT)
+        except Exception:
+            pass
 
     def _drain(self, workbench):
         """Leave the slot idle whatever a previous case did."""
@@ -1643,7 +1663,11 @@ class TestSerialWrite:
     """FR-030. Without it, a project's only way to send a byte is to open the
     RFC2217 port itself — and that asserts the control lines."""
 
-    SLOT = "SLOT3"
+    SLOT = None
+
+    @pytest.fixture(autouse=True)
+    def _bind_slot(self, present_slot):
+        type(self).SLOT = present_slot
 
     def test_write_reaches_the_device_and_the_reply_is_captured(
             self, workbench, console_dut):

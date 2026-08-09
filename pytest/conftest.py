@@ -128,10 +128,21 @@ def bench_dut(workbench):
     workbench.ap_start(ssid, password, internet=True)
 
     station = _wait_for_any_station(workbench, timeout=20)
+
+    if not station and _provision_over_serial(workbench, ssid, password):
+        # The wire first. Credentials used to arrive only through the DUT's
+        # own captive portal, which means every station and HTTP test
+        # depended on the portal working — so a portal defect failed nine
+        # tests that are not about provisioning at all, and a radio that
+        # would not transmit failed all of them with no way in. The portal
+        # path is still exercised, deliberately, by WT-2100.
+        station = _wait_for_any_station(workbench, timeout=90)
+
     if not station:
-        # Not joined: either unprovisioned, or holding a previous run's
-        # SSID. Either way its portal is the way in — the firmware clears
-        # stale credentials and returns to the portal by itself.
+        # Neither joined nor reachable over the wire: either unprovisioned,
+        # or holding a previous run's SSID. Its portal is the way in — the
+        # firmware clears stale credentials and returns to the portal by
+        # itself.
         if not _portal_is_up(workbench):
             _ap_stop_quietly(workbench)
             pytest.skip(
@@ -176,6 +187,23 @@ def _ap_stop_quietly(workbench):
 
 
 @pytest.fixture(scope="session")
+def present_slot(workbench):
+    """A slot that currently holds a device, with its proxy running.
+
+    Discovered, not written down. Two classes named SLOT3 as a constant —
+    "no JTAG, so `debugging` never pre-empts these" — and when the boards
+    moved they failed with `SLOT3: proxy not running`, which reads as a
+    broken proxy rather than an empty slot. Which slot is populated is a
+    property of the bench today, not of the test.
+    """
+    for dev in workbench.get_devices():
+        if dev.get("present") and dev.get("running"):
+            return dev["label"]
+    pytest.skip("precondition unmet: no slot holds a device with a running "
+                "proxy")
+
+
+@pytest.fixture(scope="session")
 def console_dut(workbench):
     """A slot whose device answers the bench DUT console (`ping` → `OK pong`).
 
@@ -211,6 +239,32 @@ def console_dut(workbench):
         "precondition unmet: no slot answers `ping` with `OK pong`. Flash "
         "test-firmware/ to a slot (CI publishes it as bench-dut-<target>)."
     )
+
+
+def _provision_over_serial(workbench, ssid: str, password: str) -> bool:
+    """Hand the bench's credentials to whichever slot answers the console.
+
+    Returns True if a device acknowledged. The device reboots itself into
+    STA mode afterwards, so the caller still has to wait for the join —
+    an acknowledgement is not an association.
+    """
+    for dev in workbench.get_devices():
+        if not dev.get("present"):
+            continue
+        slot = dev["label"]
+        try:
+            since = time.time()
+            workbench.serial_write(slot, text=f"wifi {ssid} {password}")
+            deadline = time.time() + 6
+            while time.time() < deadline:
+                out = workbench.serial_output(slot, lines=200, since=since)
+                if any("OK wifi stored" in ln.get("text", "")
+                       for ln in out.get("lines", [])):
+                    return True
+                time.sleep(0.5)
+        except Exception:
+            continue
+    return False
 
 
 def _wait_for_any_station(workbench, timeout: float):

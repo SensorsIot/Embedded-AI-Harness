@@ -290,7 +290,12 @@ class WorkbenchDriver:
     # ── WiFi scanning ────────────────────────────────────────────────
 
     def scan(self) -> dict:
-        result = self._api_get("/api/wifi/scan", timeout=20)
+        # Longer than the bench's own retry budget. The bench retries a busy
+        # radio, and a scan that comes back empty right after the AP is torn
+        # down, which together can exceed 20 s — and the client giving up
+        # first turns a slow instrument into a connection error, which is a
+        # worse diagnosis than the wait.
+        result = self._api_get("/api/wifi/scan", timeout=90)
         return {k: v for k, v in result.items() if k != "ok"}
 
     # ── Events ───────────────────────────────────────────────────────

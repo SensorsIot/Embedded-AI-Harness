@@ -58,6 +58,11 @@ def main():
     ser = serial.serial_for_url(args.SERIALPORT, do_not_open=True,
                                 exclusive=True)
     ser.timeout = 3
+    # A write with no deadline blocks forever when the device stops accepting
+    # bytes, and this is the thread that owns the one RFC2217 client slot —
+    # so one stuck write wedges the port for every later client, which then
+    # sees "the port is busy or doesn't exist".
+    ser.write_timeout = 10
     # pyserial defaults to 9600, and the port sits at whatever it was last set
     # to whenever no client is attached — so the permanent drain, and every
     # observer on the fan-out, would read an ESP32 console at the wrong rate
@@ -74,6 +79,7 @@ def main():
         ser = serial.serial_for_url(args.SERIALPORT, do_not_open=True,
                                     exclusive=False)
         ser.timeout = 3
+        ser.write_timeout = 10
         ser.baudrate = args.baud
         ser.dtr = False
         ser.rts = False
@@ -209,6 +215,12 @@ def main():
 
         logging.info("Client connected from %s", addr)
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        # Neither this socket nor the serial write had a deadline, so a client
+        # that stopped reading — an esptool killed mid-flash — left this
+        # thread blocked and the connection in CLOSE-WAIT. The proxy stayed
+        # alive and kept reporting `running`, and refused every later client.
+        # A bench reset did not help: the process was healthy, only wedged.
+        conn.settimeout(30)
 
         class Sender:
             def write(self_, data):
@@ -233,15 +245,18 @@ def main():
 
         try:
             while True:
-                data = conn.recv(1024)
+                try:
+                    data = conn.recv(1024)
+                except TimeoutError:
+                    continue          # idle client, not a dead one
                 if not data:
                     break
                 with pm_lock:
                     payload = b"".join(pm.filter(data))
                 if payload:
                     ser.write(payload)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.info("Client dropped: %s", exc)
 
         with control_lock:
             control["conn"], control["pm"] = None, None
