@@ -4,15 +4,18 @@ These verify the instrument itself works correctly.
 Tests marked @requires_dut need a WiFi device connected; skip with default run.
 """
 
+import base64
 import json
 import os
 import re
 import socket
 import time
+import uuid
 
 import pytest
 
-from conftest import ensure_bench_dut_firmware
+from conftest import (BENCH_DUT_PORTAL, _ap_stop_quietly,
+                      _wait_for_any_station, ensure_bench_dut_firmware)
 from workbench_driver import CommandError, CommandTimeout, WorkbenchError
 
 # Path to pre-built debug-test firmware binaries
@@ -582,50 +585,193 @@ class TestMqttBroker:
 
 @pytest.mark.requires_dut
 class TestCaptivePortal:
-    """WT-21xx: captive-portal provisioning, end to end.
+    """WT-21xx: the provisioning journey, one step per test.
 
-    This used to drive a specific project's board — SSID "awning-net",
-    portal "Awning-Setup", a `_awning_status` helper reading that
-    firmware's own `/api/status`. When the board left the bench the test
-    became unrunnable, and it had been asserting on a project's firmware
-    the whole time, which is the dependency backwards. It now provisions
-    the bench's own DUT.
+    This was a single test that asserted the DUT had an address on the
+    bench AP and called that "provisioned through its portal". It was not:
+    the fixture it depended on provisions over the serial console first and
+    only falls back to the portal, so the portal usually never ran. A test
+    named after a capability, passing without exercising it.
+
+    The journey is now four gates, each with its own observable:
+
+      WT-2101  the DUT raises a captive portal
+      WT-2102  the bench joins it and submits SSID, password and broker
+      WT-2103  the DUT reboots, the bench raises that AP, the DUT joins
+      WT-2104  the DUT reaches the broker and publishes
+
+    Run once as a class fixture, because it is one sequence and re-running
+    it per test would prove nothing extra and cost four reboots. The
+    fixture never raises: it records what happened at each step, so a
+    failure at step 2 leaves steps 3 and 4 reporting what they actually
+    saw rather than erroring on setup.
     """
 
-    def test_wt2100_provision_and_reach_lan(self, workbench, bench_dut):
-        """WT-2100/2101/2102: provisioned through its portal, on the AP,
-        and able to reach the LAN through the bench's NAT."""
-        # Reaching the bench AP is WT-2101, and `bench_dut` only exists if
-        # provisioning (WT-2100) worked — the fixture skips otherwise.
-        assert bench_dut["ip"].startswith("192.168.4."), bench_dut
+    BROKER_FROM_DUT = "mqtt://192.168.4.1"   # the bench, from the AP side
+    TOPIC = "workbench/dut/+/hello"
 
-        # WT-2102: NAT-to-LAN. Ask the bench where it is rather than
-        # writing an address that goes stale on the next DHCP lease.
-        lan_ip = os.environ.get("WORKBENCH_LAN_IP") or workbench.info()["host_ip"]
+    @pytest.fixture(scope="class")
+    def journey(self, workbench):
+        j = {"portal_ssid": BENCH_DUT_PORTAL, "portal_on_air": False,
+             "form": "", "submitted": None, "station": None,
+             "mqtt_message": None, "notes": []}
+
+        ssid = f"WT-{uuid.uuid4().hex[:6].upper()}"
+        password = "testpass123"
+        j["ssid"], j["password"] = ssid, password
+
         workbench.mqtt_start()
 
-        st = self._dut_status(workbench, bench_dut["url"])
-        # The bench DUT's own field name. `wifi` was a project firmware's,
-        # left behind when this test was moved onto the bench's own board:
-        # `.get("wifi")` on a body that says `wifi_connected` is None, and
-        # the assertion failed against a DUT that was plainly connected.
-        assert st.get("wifi_connected") is True, st
+        # ── Step 1: put the DUT back in front of its own portal ──────
+        # It is provisioned from earlier tests, so it has to be asked to
+        # forget. Erasing over the wire is the one route that does not
+        # depend on the radio we are about to test.
+        for dev in workbench.get_devices():
+            if dev.get("present"):
+                try:
+                    workbench.serial_write(dev["label"], text="forget")
+                except Exception:
+                    pass
+        time.sleep(25)
+        _ap_stop_quietly(workbench)     # free the radio to scan
+        time.sleep(3)
 
-        # The DUT logs over UDP to the gateway of its own lease, which is
-        # the bench. Those lines arriving on the bench's LAN address is the
-        # NAT path working, observed rather than asserted about.
-        assert lan_ip, "the bench does not know its own LAN address"
+        for _ in range(4):
+            try:
+                nets = workbench.scan().get("networks", [])
+            except Exception:
+                nets = []
+            hit = [n for n in nets if n["ssid"] == BENCH_DUT_PORTAL]
+            if hit:
+                j["portal_on_air"] = True
+                j["portal_rssi"] = hit[0].get("rssi")
+                break
+            time.sleep(5)
+
+        # ── Step 2: join the portal and read the form it serves ──────
+        if j["portal_on_air"]:
+            try:
+                workbench.sta_join(BENCH_DUT_PORTAL, "")
+                r = workbench.wifi_http("http://192.168.4.1/", timeout=8)
+                body = r.get("body", "")
+                try:
+                    body = base64.b64decode(body).decode(errors="replace")
+                except Exception:
+                    pass
+                j["form"] = body
+            except Exception as exc:
+                j["notes"].append(f"reading the form failed: {exc}")
+            finally:
+                try:
+                    workbench.sta_leave()
+                except Exception:
+                    pass
+
+            # ── Step 3: submit the credentials through that form ─────
+            try:
+                j["submitted"] = workbench.provision_wifimanager(
+                    BENCH_DUT_PORTAL, ssid, password,
+                    save_path="/connect", field_ssid="ssid",
+                    field_password="password", internet=True,
+                    extra={"broker": self.BROKER_FROM_DUT})
+            except Exception as exc:
+                j["notes"].append(f"submitting the form failed: {exc}")
+
+            # ── Step 4: the DUT reboots and joins the AP it was given ──
+            j["station"] = _wait_for_any_station(workbench, timeout=150)
+
+        # ── Step 5: and publishes to the broker it was given ─────────
+        if j["station"]:
+            j["mqtt_message"] = self._await_publication(workbench, timeout=90)
+
+        yield j
+        _ap_stop_quietly(workbench)
 
     @staticmethod
-    def _dut_status(workbench, url):
-        import base64
-        r = workbench.wifi_http(f"{url}/status", timeout=6)
-        body = r.get("body", "")
+    def _await_publication(workbench, timeout):
+        """Subscribe to the bench broker and wait for the DUT to publish.
+
+        Subscribed from here rather than through an endpoint the bench does
+        not have — the broker listens on every interface, so the DUT
+        publishing to 192.168.4.1 and this client listening on the bench's
+        LAN address are the same broker.
+        """
         try:
-            body = base64.b64decode(body).decode(errors="replace")
+            import paho.mqtt.client as mqtt
+        except ImportError:
+            return None
+        host = workbench.info()["host_ip"]
+        got = []
+
+        def on_connect(client, userdata, flags, rc, properties=None):
+            client.subscribe(TestCaptivePortal.TOPIC)
+
+        def on_message(client, userdata, msg):
+            got.append({"topic": msg.topic,
+                        "payload": msg.payload.decode(errors="replace")})
+
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        try:
+            client.connect(host, 1883, 60)
+        except Exception:
+            return None
+        client.loop_start()
+        deadline = time.time() + timeout
+        while time.time() < deadline and not got:
+            time.sleep(1)
+        client.loop_stop()
+        try:
+            client.disconnect()
         except Exception:
             pass
-        return json.loads(body)
+        return got[0] if got else None
+
+    def test_wt2101_dut_raises_a_captive_portal(self, journey):
+        """WT-2101: the DUT puts its provisioning portal on the air and
+        serves the form."""
+        assert journey["portal_on_air"], (
+            f"no '{journey['portal_ssid']}' in the bench's scan. "
+            f"{'; '.join(journey['notes']) or 'the DUT never raised its portal'}"
+        )
+        form = journey["form"]
+        assert form, f"the portal is beaconing but served no form: {journey['notes']}"
+        # The fields the bench is about to fill in must exist, or WT-2102 is
+        # posting into a form nobody asked for.
+        for field in ('name="ssid"', 'name="password"', 'name="broker"'):
+            assert field in form, f"{field} missing from the portal form"
+
+    def test_wt2102_bench_submits_credentials_and_broker(self, journey):
+        """WT-2102: the bench joins that portal and enters the SSID,
+        password and broker address of the network it is about to raise."""
+        assert journey["submitted"] is not None, (
+            f"the bench never submitted the form: {'; '.join(journey['notes'])}"
+        )
+        assert journey["submitted"].get("ok", True) is not False, \
+            journey["submitted"]
+
+    def test_wt2103_dut_reboots_and_joins_that_ap(self, journey):
+        """WT-2103: the DUT reboots, the bench raises an AP with exactly the
+        credentials just entered, and the DUT joins it. Success 1."""
+        station = journey["station"]
+        assert station, (
+            f"the DUT never joined '{journey['ssid']}' after being given it "
+            f"through its own portal. {'; '.join(journey['notes'])}"
+        )
+        assert station["ip"].startswith("192.168.4."), station
+
+    def test_wt2104_dut_publishes_to_the_broker(self, journey):
+        """WT-2104: the DUT reaches the MQTT broker it was given and
+        publishes. Success 2 — the journey end to end."""
+        assert journey["station"], "no DUT on the AP; WT-2103 covers that"
+        msg = journey["mqtt_message"]
+        assert msg, (
+            "the DUT joined the AP but nothing arrived on "
+            f"{self.TOPIC} within 90 s — provisioned, addressed, and not "
+            "doing the thing it was provisioned for"
+        )
+        assert "bench-dut" in msg["payload"], msg
 
 
 # =====================================================================
