@@ -177,37 +177,101 @@ class TestStationEvents:
 # =====================================================================
 
 
+STA_TEST_AP_SSID = "WT-DUT-AP"
+STA_TEST_AP_PASS = "benchstation"   # ≥ 8 chars, or the DUT refuses WPA2
+
+
 @pytest.mark.requires_dut
 class TestSTAMode:
-    """WT-4xx: STA join/leave tests (requires another AP)."""
+    """WT-4xx: the bench as a station, against an AP the DUT hosts.
 
-    @pytest.fixture
-    def sta_network(self):
-        import os
-        ssid = os.environ.get("WIFI_TEST_STA_SSID")
-        password = os.environ.get("WIFI_TEST_STA_PASS", "")
-        if not ssid:
-            pytest.skip("WIFI_TEST_STA_SSID not set")
-        return {"ssid": ssid, "password": password}
+    These used to read `WIFI_TEST_STA_SSID` from the environment and skip
+    on any bench nobody had hand-configured — which is to say they proved
+    nothing on a fresh bench, and the STA path is half of what this bench
+    is for. WT-506 had the same defect and was fixed by aiming it at the
+    DUT's provisioning portal, but that does not carry here: two of these
+    four are about WPA2, and the portal is open by design.
 
-    def test_wt401_join_wpa2_network(self, workbench, sta_network):
-        """WT-401: Join WPA2 network with correct password."""
-        if not sta_network["password"]:
-            pytest.skip("Test network has no password")
-        resp = workbench.sta_join(
-            sta_network["ssid"], sta_network["password"],
-        )
-        assert "ip" in resp
-        assert "gateway" in resp
-        workbench.sta_leave()
+    The bench has one radio, so it cannot be the access point its own
+    station tests join. The DUT can. `testap` puts the board already under
+    test into an AP of a known name with a known passphrase, which makes
+    the correct-passphrase and wrong-passphrase paths answerable without a
+    house network, a second board, or a line in anyone's environment.
+    """
 
-    def test_wt402_join_wrong_password(self, workbench, sta_network):
-        """WT-402: Wrong password returns ERR."""
-        if not sta_network["password"]:
-            pytest.skip("Test network has no password")
+    @pytest.fixture(scope="class")
+    @classmethod
+    def dut_ap(cls, workbench):
+        """Put the DUT on the air as a WPA2 AP, and take the bench off it."""
+        slot = _find_console_slot(workbench)
+        if not slot:
+            pytest.skip(
+                "precondition unmet: no slot answers the bench DUT console, "
+                "so no DUT can host the AP these tests join"
+            )
+
+        _ap_stop_quietly(workbench)      # the radio is about to be a station
+        workbench.serial_write(
+            slot, text=f"testap {STA_TEST_AP_SSID} {STA_TEST_AP_PASS}")
+
+        # The DUT acknowledges, then reboots. Wait for it to say it is
+        # hosting the network we asked for — not merely that it is an AP,
+        # which it also is when it has fallen back to the portal.
+        on_air = False
+        deadline = time.time() + 45
+        while time.time() < deadline and not on_air:
+            time.sleep(5)
+            try:
+                since = time.time()
+                workbench.serial_write(slot, text="status")
+                time.sleep(1.5)
+                out = workbench.serial_output(slot, lines=100, since=since)
+                on_air = any(f"ap_ssid={STA_TEST_AP_SSID}" in ln.get("text", "")
+                             for ln in out.get("lines", []))
+            except Exception:
+                pass                     # a busy port is not an answer
+
+        if not on_air:
+            pytest.skip(
+                f"precondition unmet: the DUT never reported hosting "
+                f"'{STA_TEST_AP_SSID}' after `testap`"
+            )
+
+        yield {"ssid": STA_TEST_AP_SSID, "password": STA_TEST_AP_PASS}
+
+        # Hand the radio and the board back. `testap off` is enough: the
+        # next fixture provisions over serial, and `wifi` clears the
+        # request anyway, so a missed reply here costs nothing.
+        try:
+            workbench.sta_leave()
+        except Exception:
+            pass
+        try:
+            workbench.serial_write(slot, text="testap off")
+        except Exception:
+            pass
+
+    def test_wt401_join_wpa2_network(self, workbench, dut_ap):
+        """WT-401: the bench joins a WPA2 network with the right passphrase."""
+        resp = workbench.sta_join(dut_ap["ssid"], dut_ap["password"])
+        try:
+            assert resp.get("ip", "").startswith("192.168.4."), (
+                f"joined '{dut_ap['ssid']}' and got {resp}"
+            )
+            assert "gateway" in resp, resp
+        finally:
+            workbench.sta_leave()
+
+    def test_wt402_join_wrong_password(self, workbench, dut_ap):
+        """WT-402: the wrong passphrase is refused, not quietly accepted.
+
+        The passphrase has to be wrong against an AP that is *there* — a
+        join that fails because nothing is beaconing is WT-403, and would
+        pass this test for the wrong reason.
+        """
         with pytest.raises(CommandError):
             workbench.sta_join(
-                sta_network["ssid"], "wrong_password_here", timeout=10,
+                dut_ap["ssid"], "wrong_password_here", timeout=30,
             )
 
     def test_wt403_join_nonexistent_network(self, workbench):
@@ -217,25 +281,23 @@ class TestSTAMode:
                 "NONEXISTENT_NETWORK_XYZ_999", timeout=5,
             )
 
-    def test_wt404_leave_sta(self, workbench, sta_network):
+    def test_wt404_leave_sta(self, workbench, dut_ap):
         """WT-404: STA_LEAVE after join returns OK."""
-        workbench.sta_join(
-            sta_network["ssid"], sta_network["password"],
-        )
+        workbench.sta_join(dut_ap["ssid"], dut_ap["password"])
         workbench.sta_leave()
 
-    def test_wt405_softap_stops_during_sta(self, workbench, sta_network):
+    def test_wt405_softap_stops_during_sta(self, workbench, dut_ap):
         """WT-405: AP is stopped when entering STA mode."""
         workbench.ap_start("WT-AP-405", "password123")
         status = workbench.ap_status()
         assert status["active"] is True
 
-        workbench.sta_join(
-            sta_network["ssid"], sta_network["password"],
-        )
-        status = workbench.ap_status()
-        assert status["active"] is False
-        workbench.sta_leave()
+        workbench.sta_join(dut_ap["ssid"], dut_ap["password"])
+        try:
+            status = workbench.ap_status()
+            assert status["active"] is False
+        finally:
+            workbench.sta_leave()
 
 
 # =====================================================================
