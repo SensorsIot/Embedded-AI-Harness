@@ -2754,8 +2754,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if action == "add":
             slot["_devnodes"][slot_key] = devnode
             slot["present"] = True
-            if not slot["devnode"]:
-                slot["devnode"] = devnode  # first devnode becomes primary
+            # Adopt the new node when the recorded one has gone. A native-USB
+            # ESP32 re-enumerates on every reset and every flash, and the
+            # kernel need not hand back the same ttyACM*. If the matching
+            # 'remove' is missed or lands after this 'add' — which it does
+            # when the device reappears in milliseconds — the slot kept its
+            # old devnode, went on reporting `present`, and every operation
+            # on it failed with "Could not open /dev/ttyACM0 … No such file"
+            # against hardware that was sitting right there under a different
+            # name. Only a portal restart cleared it.
+            if not slot["devnode"] or not os.path.exists(slot["devnode"]):
+                slot["devnode"] = devnode
             if slot["tcp_port"]:
                 slot["url"] = f"rfc2217://{host_ip}:{slot['tcp_port']}"
             if not slot["flapping"]:
