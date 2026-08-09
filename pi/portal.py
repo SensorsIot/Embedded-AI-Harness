@@ -982,7 +982,6 @@ def scan_existing_devices():
                             usb_prefix=s.get("_usb_prefix"))
                         chip = info["chip"]
                         jtag_slot = info["jtag_slot"]
-                        probe = info.get("probe")  # None for built-in
                         if chip and jtag_slot:
                             # Ensure proxy is running (brief lock)
                             with s["_lock"]:
@@ -1423,7 +1422,11 @@ def _start_recorder(slot: dict) -> None:
     answer for a window nobody was watching.
     """
     label = slot["label"]
-    if slot.get("_recorder_running"):
+    # Liveness, not a flag. `_recorder_running` was set once and never
+    # cleared, so a thread that died took the slot's recording with it
+    # permanently: every later start_proxy() saw the flag and returned.
+    thread = slot.get("_recorder_thread")
+    if thread is not None and thread.is_alive():
         return
     slot["_recorder_running"] = True
 
@@ -1463,7 +1466,21 @@ def _start_recorder(slot: dict) -> None:
                 except OSError:
                     pass
 
-    threading.Thread(target=run, name=f"recorder-{label}", daemon=True).start()
+    def supervised():
+        # A recorder that dies silently is worse than one that never started:
+        # /api/serial/output keeps answering, with a buffer that simply stops
+        # advancing.
+        try:
+            run()
+        except Exception as exc:
+            log_activity(f"recorder for {label} died: {exc}", "error")
+        finally:
+            slot["_recorder_running"] = False
+
+    thread = threading.Thread(target=supervised, name=f"recorder-{label}",
+                              daemon=True)
+    slot["_recorder_thread"] = thread
+    thread.start()
     log_activity(f"recorder started for {label}", "info")
 
 def serial_write(slot: dict, data: bytes, timeout: float = 5.0) -> dict:
@@ -2768,7 +2785,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 usb_prefix=s.get("_usb_prefix"))
                             chip = info["chip"]
                             jtag_slot = info["jtag_slot"]
-                            probe = info.get("probe")  # None for built-in
                             if chip and jtag_slot:
                                 # Ensure proxy is running (brief lock)
                                 with lk:
@@ -3269,15 +3285,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         max_lines = int(qs.get("lines", ["50"])[0])
         since = float(qs.get("since", ["0"])[0])
 
-        buf = slot["_serial_buf"]
-        result = []
-        for entry in buf:
-            if entry["ts"] <= since:
-                continue
-            result.append(entry)
-            if len(result) >= max_lines:
-                break
-        self._send_json({"ok": True, "lines": result})
+        # `lines=N` means the most recent N, which is what every caller means
+        # by it. Taking them from the front instead returned the *oldest* N of
+        # a 1000-line ring: once a slot had been up a few minutes the answer
+        # was always ancient history, and the newest line's timestamp aged
+        # steadily — which reads exactly like a recorder that has died. It
+        # survived because a buffer shorter than `lines` is returned whole, so
+        # the read right after a flash — when tests do most of their reading —
+        # was correct, and only a long-running slot lied.
+        fresh = [e for e in slot["_serial_buf"] if e["ts"] > since]
+        self._send_json({"ok": True, "lines": fresh[-max_lines:]})
 
     # -- recovery handlers --
 
