@@ -1507,17 +1507,32 @@ def serial_write(slot: dict, data: bytes, timeout: float = 5.0) -> dict:
     if not data:
         return {"ok": False, "error": "nothing to write"}
 
-    try:
-        ser = pyserial.serial_for_url(f"rfc2217://127.0.0.1:{tcp_port}",
-                                      do_not_open=True)
-        ser.baudrate = 115200
-        ser.timeout = timeout
-        ser.dtr = False
-        ser.rts = False
-        ser.open()
-    except Exception as e:
+    # RFC2217 is single-client, and the holder is often transient: a flash
+    # that has just finished, a proxy restarted moments ago by a bench reset.
+    # Failing the write outright makes every caller implement this wait, and
+    # the error it would report — "Remote does not seem to support RFC2217"
+    # — describes a protocol mismatch rather than a slot that is busy for
+    # another second.
+    ser = None
+    last_err = None
+    for attempt in range(4):
+        try:
+            ser = pyserial.serial_for_url(f"rfc2217://127.0.0.1:{tcp_port}",
+                                          do_not_open=True)
+            ser.baudrate = 115200
+            ser.timeout = timeout
+            ser.dtr = False
+            ser.rts = False
+            ser.open()
+            break
+        except Exception as e:
+            last_err = e
+            ser = None
+            if attempt < 3:
+                time.sleep(1.0)
+    if ser is None:
         return {"ok": False,
-                "error": f"cannot reach the proxy on {tcp_port}: {e}"}
+                "error": f"cannot reach the proxy on {tcp_port}: {last_err}"}
     try:
         written = ser.write(data)
         ser.flush()
