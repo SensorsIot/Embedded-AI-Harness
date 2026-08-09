@@ -9,6 +9,8 @@
 
 *Spec to silicon, hands off.*
 
+#The repo undergoes heavy construction for the moment in preparation for the next video
+
 A horse is strong, fast, and willing — and useless for heavy loads until you
 harness it. The harness is not a part of the horse and not a part of the cart:
 it is the coupling that turns raw strength into pulled weight.
