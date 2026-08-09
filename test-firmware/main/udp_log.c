@@ -6,6 +6,7 @@
 #include "lwip/sockets.h"
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 static const char *TAG = "udp_log";
@@ -17,20 +18,40 @@ static MessageBufferHandle_t s_msg_buf;
 static struct sockaddr_in s_dest_addr;
 static vprintf_like_t s_orig_vprintf;
 
+/* Re-entrancy guard. Anything logged from below this point — a failing
+ * sendto, lwIP complaining that the network is down — comes straight back
+ * through this hook, queues another line, and wakes the sender that logged
+ * it. The task then never blocks, IDLE on its core never runs, and the task
+ * watchdog fires: "CPU 1: udp_log". Observed on the bench DUT every time the
+ * AP went away underneath it. */
+static volatile bool s_in_hook;
+
 static int udp_log_vprintf(const char *fmt, va_list args)
 {
-    /* Always print to serial */
+    /* A va_list is consumed by the call that reads it. Passing the same one
+     * to vsnprintf afterwards is undefined behaviour, not a style problem:
+     * it reads whatever the first traversal left behind. Copy it. */
+    va_list copy;
+    va_copy(copy, args);
+
     int ret = s_orig_vprintf(fmt, args);
 
-    if (s_msg_buf) {
+    if (s_msg_buf && !s_in_hook) {
+        s_in_hook = true;
         char buf[MAX_LOG_LINE];
-        int len = vsnprintf(buf, sizeof(buf), fmt, args);
+        int len = vsnprintf(buf, sizeof(buf), fmt, copy);
         if (len > 0) {
             if (len >= (int)sizeof(buf)) len = sizeof(buf) - 1;
-            /* Non-blocking send — drop if buffer full */
-            xMessageBufferSendFromISR(s_msg_buf, buf, len, NULL);
+            /* Non-blocking: drop the line rather than stall the task that
+             * is merely trying to log. This is a task context, so it is
+             * xMessageBufferSend with a zero timeout — the FromISR variant
+             * that used to be here is for interrupt context and its
+             * behaviour outside one is not defined. */
+            xMessageBufferSend(s_msg_buf, buf, len, 0);
         }
+        s_in_hook = false;
     }
+    va_end(copy);
     return ret;
 }
 
@@ -38,19 +59,27 @@ static void udp_sender_task(void *arg)
 {
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
-        /* Can't use ESP_LOGE here — would recurse through our hook.
-           Fall back to original vprintf. */
-        s_orig_vprintf("udp_log: failed to create socket\n", (va_list){0});
+        /* Not ESP_LOGE: that recurses through our own hook. Not
+         * s_orig_vprintf with a fabricated va_list either — `(va_list){0}`
+         * is not a valid va_list on any ABI, and constructing one to satisfy
+         * a signature is undefined behaviour in the error path of a logger,
+         * which is the worst possible place for it. fputs takes no varargs. */
+        fputs("udp_log: failed to create socket\n", stdout);
         vTaskDelete(NULL);
         return;
     }
 
     char buf[MAX_LOG_LINE];
     while (1) {
-        size_t len = xMessageBufferReceive(s_msg_buf, buf, sizeof(buf), portMAX_DELAY);
+        size_t len = xMessageBufferReceive(s_msg_buf, buf, sizeof(buf),
+                                           portMAX_DELAY);
         if (len > 0) {
             sendto(sock, buf, len, 0,
                    (struct sockaddr *)&s_dest_addr, sizeof(s_dest_addr));
+        } else {
+            /* A receive that returns nothing must not become a busy loop on
+             * a core whose IDLE task still has to run. */
+            vTaskDelay(1);
         }
     }
 }
