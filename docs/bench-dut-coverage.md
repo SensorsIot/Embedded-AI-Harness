@@ -42,6 +42,86 @@ its own questions.
 **Totals:** 98 tests. Roughly 60 need a DUT present; **17 need it to *do*
 something** (rows 3, 5, 10, 13, 14, 18).
 
+## The S3's role and task, test by test
+
+The bench and the DUT are a **pair**, and the pairing runs in both
+directions. Half these tests put the bench on one side of a radio link and
+the S3 on the other; which of the two is the access point changes per test,
+and getting that backwards makes the whole table unreadable.
+
+| Role | Who is the AP | Who initiates |
+|---|---|---|
+| **Station** | the bench | the S3 joins |
+| **Portal host** | the S3 | the bench joins and fills in the form |
+| **HTTP origin** | the bench | the bench requests, the S3 answers |
+| **Console responder** | — (a wire) | the bench writes, the S3 answers |
+| **Flash target** | — (a wire) | the bench writes, the S3 announces |
+| **JTAG target** | — (a wire) | the bench attaches; firmware plays no part |
+
+### Station — the bench is the AP, the S3 joins it (4)
+
+| Test | The S3's task |
+|---|---|
+| `WT-300` station_connect_event | associate, so the bench's AP raises a connect event carrying its MAC |
+| `WT-301` station_disconnect_event | leave (or be left), so the matching disconnect event is raised |
+| `WT-302` station_in_ap_status | **hold** the association, so it is still listed when `ap_status` is polled later |
+| `WT-303` ip_matches_event | accept the DHCP lease and keep that address, so the event's IP and the lease agree |
+
+### HTTP origin — reachable on the bench's own AP network (4)
+
+| Test | The S3's task |
+|---|---|
+| `WT-500` get_request | serve `GET /status` with a non-empty body on `:8080` |
+| `WT-501` post_with_body | answer a POST to an unimplemented path — a 404 it *chose* proves carriage |
+| `WT-502` custom_headers | answer 200 with an unexpected request header present |
+| `WT-505` large_response | return a JSON body that survives the relay and still parses |
+
+`WT-503`/`WT-504` need the opposite: an address where nothing answers. They
+need no DUT at all.
+
+### Portal host — the S3 is the AP, the bench fills in its form (1)
+
+| Test | The S3's task |
+|---|---|
+| `WT-2100` provision_and_reach_lan | beacon `WB-Test-Setup`, serve the HTML form, accept `ssid`/`password` POSTed to `/connect`, store them, reboot, and join the network it was handed |
+
+This is the one test where the bench is the *client* of the S3's HTML UI.
+
+### Console responder — the wire, no radio involved (1)
+
+| Test | The S3's task |
+|---|---|
+| `TestSerialWrite::test_write_reaches_the_device…` | receive `ping\n` on the USB serial port and answer `OK pong` |
+
+The other four `TestSerialWrite` cases check the endpoint's refusals (bad
+hex, unknown slot, neither field) and need nothing of the device.
+
+### Flash target and announcer (6)
+
+| Test | The S3's task |
+|---|---|
+| `WT-1800` flash_and_serial | accept an image at the offsets `flash_args` names, boot, and print a line the bench can match |
+| `WT-1801`–`WT-1804` halt/step/memory/breakpoint | run code that can be halted, stepped and read — any firmware will do; it must merely be *running* |
+| `WT-1805` flash_preserves_debug | survive a flash while a debug session is held, and come back printing |
+
+### JTAG target — silicon, not firmware (11)
+
+`WT-1400`–`WT-1406` and `WT-1704`/`1705`/`1707`/`1709` need a part with
+built-in USB-JTAG whose TAP identifies it. **Nothing is asked of the image**
+— an erased S3 passes these. They are listed because the board must be
+present and must not be held by another session.
+
+### Two boards, which one S3 cannot be (2)
+
+`TestPerSlotDebugIsolation` needs **two** built-in-JTAG boards, ideally of
+different chip types. It exists because two boards sharing VID:PID
+`303a:1001` were reported as each other. One S3 can never satisfy it; the
+tests skip, and that skip is honest.
+
+**29 tests need the S3 to act.** 18 of them ask only for things the wire
+and the silicon provide; 9 need the radio in one direction or the other;
+2 need a second board.
+
 ## What the firmware therefore provides
 
 | Capability | Serves | Status |
@@ -49,7 +129,8 @@ something** (rows 3, 5, 10, 13, 14, 18).
 | Captive portal — hosts an AP, takes credentials, reboots into STA | rows 3, 5, 10 | built |
 | HTTP server on `:8080` (`/status`, `/ota`, `/wifi-reset`) | row 5 | built |
 | Heartbeat on serial, every 10 s | rows 14, 15 | built |
-| **Serial console** — `ping`→`OK pong`, `status`, `wifi`, `forget`, `reboot` | row 18, and provisioning without the radio | built, first CI build green pending |
+| **Serial console** — `ping`, `status`, `scan`, `info`, `mark`, `wifi`, `forget`, `reboot` | row 18, and provisioning without the radio | built |
+| **`scan`** — the DUT's own view of the air | telling a deaf receiver from a silent AP | built |
 | Built-in USB-JTAG (a property of the part, not the firmware) | rows 11, 12, 13 | inherent |
 | BLE advertisement, off while the portal needs the radio | future BLE tests | built |
 
