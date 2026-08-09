@@ -12,6 +12,7 @@
 #include "cJSON.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 static const char *TAG = "wifi_prov";
 
@@ -222,6 +223,25 @@ static esp_err_t start_sta(const char *ssid, const char *password)
     strncpy((char *)wifi_cfg.sta.ssid, ssid, sizeof(wifi_cfg.sta.ssid) - 1);
     strncpy((char *)wifi_cfg.sta.password, password, sizeof(wifi_cfg.sta.password) - 1);
 
+    /* Scan every channel and pick the strongest match, rather than taking
+     * the first answer on the first channel that replies. A bench AP moves
+     * channel between runs and shares the band with everything else in the
+     * room; fast scan gives up early and reports NO_AP_FOUND for an AP that
+     * is plainly on the air two channels up. */
+    wifi_cfg.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    wifi_cfg.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+
+    /* Accept whatever security the AP offers instead of demanding WPA2.
+     *
+     * Supplying a password makes the default threshold WPA2, and an open
+     * bench AP with the right SSID is then refused with reason 210
+     * (NO_AP_FOUND_W_COMPATIBLE_SECURITY) — which reads in the log like the
+     * AP was never there. A test DUT must join the bench AP as configured,
+     * not as it wishes it were; the bench decides the security, not us. */
+    wifi_cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
+    wifi_cfg.sta.pmf_cfg.capable = true;
+    wifi_cfg.sta.pmf_cfg.required = false;
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -309,5 +329,100 @@ bool wifi_prov_is_connected(void)
 bool wifi_prov_is_ap_mode(void)
 {
     return s_ap_mode;
+}
+
+/* ── Reporting: what this radio can actually see and where it is ── */
+
+#define SCAN_MAX_AP 20
+
+static const char *auth_name(wifi_auth_mode_t m)
+{
+    switch (m) {
+    case WIFI_AUTH_OPEN:            return "open";
+    case WIFI_AUTH_WEP:             return "wep";
+    case WIFI_AUTH_WPA_PSK:         return "wpa";
+    case WIFI_AUTH_WPA2_PSK:        return "wpa2";
+    case WIFI_AUTH_WPA_WPA2_PSK:    return "wpa/wpa2";
+    case WIFI_AUTH_WPA3_PSK:        return "wpa3";
+    case WIFI_AUTH_WPA2_WPA3_PSK:   return "wpa2/wpa3";
+    default:                        return "other";
+    }
+}
+
+int wifi_prov_scan(char *out, size_t out_sz)
+{
+    if (out_sz) out[0] = '\0';
+
+    wifi_mode_t mode;
+    if (esp_wifi_get_mode(&mode) != ESP_OK)
+        return -1;
+
+    /* A scan needs a station interface. In portal mode there is only an AP,
+     * so borrow APSTA for the duration — the beacons keep going out, so a
+     * bench that is mid-provisioning does not lose the portal it is talking
+     * to just because it asked what else is on the air. */
+    bool borrowed = false;
+    if (mode == WIFI_MODE_AP) {
+        if (esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK)
+            return -1;
+        borrowed = true;
+    }
+
+    wifi_scan_config_t cfg = { .show_hidden = true };
+    esp_err_t err = esp_wifi_scan_start(&cfg, true);   /* blocking */
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "scan failed: %s", esp_err_to_name(err));
+        if (borrowed) esp_wifi_set_mode(WIFI_MODE_AP);
+        return -1;
+    }
+
+    uint16_t found = 0;
+    esp_wifi_scan_get_ap_num(&found);
+    uint16_t want = found > SCAN_MAX_AP ? SCAN_MAX_AP : found;
+
+    int written = 0;
+    if (want) {
+        wifi_ap_record_t *recs = calloc(want, sizeof(*recs));
+        if (recs) {
+            if (esp_wifi_scan_get_ap_records(&want, recs) == ESP_OK) {
+                size_t used = 0;
+                for (uint16_t i = 0; i < want; i++) {
+                    int n = snprintf(out + used, out_sz - used,
+                                     "%d %d %s %s\n",
+                                     recs[i].rssi, recs[i].primary,
+                                     auth_name(recs[i].authmode),
+                                     (const char *)recs[i].ssid);
+                    if (n < 0 || (size_t)n >= out_sz - used)
+                        break;          /* truncate rather than overrun */
+                    used += (size_t)n;
+                    written++;
+                }
+            }
+            free(recs);
+        }
+    }
+    esp_wifi_scan_stop();
+
+    if (borrowed) esp_wifi_set_mode(WIFI_MODE_AP);
+    return written;
+}
+
+void wifi_prov_get_ip(char *out, size_t out_sz)
+{
+    esp_netif_ip_info_t ip = {0};
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (!netif || esp_netif_get_ip_info(netif, &ip) != ESP_OK) {
+        snprintf(out, out_sz, "0.0.0.0");
+        return;
+    }
+    snprintf(out, out_sz, IPSTR, IP2STR(&ip.ip));
+}
+
+void wifi_prov_get_mac(char *out, size_t out_sz)
+{
+    uint8_t mac[6] = {0};
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    snprintf(out, out_sz, "%02x:%02x:%02x:%02x:%02x:%02x",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 

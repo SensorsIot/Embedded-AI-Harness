@@ -48,3 +48,10 @@ CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE=n
 # and the console's replies left through pins no cable touches. Everything
 # looked plausible from both ends.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# ...and only once. The secondary console defaults to USB-Serial/JTAG too, so
+# once the primary moved there every log line went out the same peripheral
+# twice. A bench matching a pattern still passes on doubled output, but a test
+# that counts lines — heartbeats, markers, a reply — silently sees two of
+# everything.
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

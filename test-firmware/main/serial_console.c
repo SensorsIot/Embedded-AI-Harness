@@ -24,8 +24,10 @@
 #include "wifi_prov.h"
 
 #include "driver/usb_serial_jtag.h"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdarg.h>
@@ -36,6 +38,7 @@ static const char *TAG = "console";
 
 #define CONSOLE_LINE_MAX   192   /* LINE_MAX belongs to limits.h */
 #define RX_CHUNK   64
+#define SCAN_BUF   2048          /* 20 APs × ~64 bytes, heap not stack */
 
 static void reply(const char *fmt, ...)
 {
@@ -83,9 +86,41 @@ static void handle_line(char *line)
         /* The one command that exists purely to be answered. */
         reply("OK pong");
     } else if (!strcmp(line, "status")) {
-        reply("OK status wifi=%d ap_mode=%d",
+        char ip[16], mac[18];
+        wifi_prov_get_ip(ip, sizeof(ip));
+        wifi_prov_get_mac(mac, sizeof(mac));
+        reply("OK status wifi=%d ap_mode=%d ip=%s mac=%s",
               wifi_prov_is_connected() ? 1 : 0,
-              wifi_prov_is_ap_mode() ? 1 : 0);
+              wifi_prov_is_ap_mode() ? 1 : 0, ip, mac);
+    } else if (!strcmp(line, "scan")) {
+        /* The DUT's own view of the air. Without it, a DUT that will not
+         * join the bench AP is indistinguishable from a bench AP that is
+         * not beaconing — both look like NO_AP_FOUND from one side only. */
+        char *buf = malloc(SCAN_BUF);
+        if (!buf) {
+            reply("ERR scan out of memory");
+        } else {
+            int n = wifi_prov_scan(buf, SCAN_BUF);
+            if (n < 0) {
+                reply("ERR scan failed");
+            } else {
+                reply("OK scan %d", n);
+                /* One AP per line, already newline-terminated, so a reader
+                   can match on an SSID without parsing a list format. */
+                fputs(buf, stdout);
+                fflush(stdout);
+                reply("OK scan end");
+            }
+            free(buf);
+        }
+    } else if (!strcmp(line, "info")) {
+        const esp_app_desc_t *app = esp_app_get_description();
+        reply("OK info project=%s version=%s idf=%s",
+              app->project_name, app->version, app->idf_ver);
+    } else if (!strcmp(line, "mark")) {
+        /* An observable the bench can ask for at a moment of its choosing,
+         * rather than waiting up to 10 s for the next heartbeat. */
+        reply("OK mark %s", rest);
     } else if (!strcmp(line, "wifi")) {
         cmd_wifi(rest);
     } else if (!strcmp(line, "forget")) {
@@ -100,8 +135,8 @@ static void handle_line(char *line)
     } else {
         /* Name what was not understood. A bare "ERR" tells a caller nothing
            about whether it mistyped or is talking to the wrong device. */
-        reply("ERR unknown command '%s' — try ping|status|wifi|forget|reboot",
-              line);
+        reply("ERR unknown command '%s' — try "
+              "ping|status|scan|info|mark|wifi|forget|reboot", line);
     }
 }
 
@@ -143,6 +178,7 @@ esp_err_t serial_console_init(void)
         return err;
     }
     xTaskCreate(console_task, "console", 4096, NULL, 5, NULL);
-    ESP_LOGI(TAG, "serial console ready — ping|status|wifi|forget|reboot");
+    ESP_LOGI(TAG, "serial console ready — "
+                  "ping|status|scan|info|mark|wifi|forget|reboot");
     return ESP_OK;
 }
