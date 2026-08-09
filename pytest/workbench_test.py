@@ -1909,19 +1909,42 @@ class TestSlotAccessManager:
         # verifies: FR-035
         """FR-035. OpenOCD claims a different USB interface, so devnode
         inspection cannot see it — the manager's own record must."""
-        # get_devices() returns a list of slot dicts, not a wrapper.
-        jtag = [s for s in workbench.get_devices()
-                if s.get("present") and s.get("debugging")]
-        if not jtag:
-            pytest.skip("precondition unmet: no slot currently has a debug session")
-        label = jtag[0]["label"]
-        m = workbench.slot_mode(label)
-        assert m["mode"] == "debugging", m
-        refused = workbench.slot_acquire(label, "flashing", "pytest-vs-debug")
-        assert refused["ok"] is False, (
-            "a flash must not proceed while OpenOCD holds the USB interface"
-        )
-        assert refused["mode"] == "debugging"
+        # Establish the precondition rather than wait for it. This looked for
+        # a slot that happened to be debugging and skipped when none was —
+        # so on a tidy bench, where nothing is left holding a session, the
+        # one test of FR-035 quietly never ran. A test that needs a state
+        # the bench can be asked for should ask.
+        devices = [d for d in workbench.get_devices() if d.get("present")]
+        label = next((d["label"] for d in devices if d.get("debugging")), None)
+        started_here = False
+        if label is None:
+            candidate = next((d for d in devices if d.get("detected_chip")), None)
+            if candidate is None:
+                pytest.skip("precondition unmet: no present slot to debug")
+            r = workbench.debug_start(candidate["label"])
+            if not r.get("ok"):
+                pytest.skip(
+                    "precondition unmet: could not start a debug session on "
+                    f"{candidate['label']}: {r.get('error')}"
+                )
+            label, started_here = candidate["label"], True
+
+        try:
+            m = workbench.slot_mode(label)
+            assert m["mode"] == "debugging", m
+            refused = workbench.slot_acquire(label, "flashing", "pytest-vs-debug")
+            assert refused["ok"] is False, (
+                "a flash must not proceed while OpenOCD holds the USB interface"
+            )
+            assert refused["mode"] == "debugging"
+        finally:
+            if started_here:
+                # OpenOCD halts the part on attach; leaving it held would
+                # silence the DUT for every test after this one.
+                try:
+                    workbench.debug_stop(label)
+                except Exception:
+                    pass
 
     def test_acquire_is_not_blocked_by_the_slots_own_proxy(self, workbench):
         """FR-034, the false-positive half.
@@ -2145,12 +2168,25 @@ class TestFlashEndpoint:
             pytest.skip(f"precondition unmet: no prebuilt binaries for {chip}")
         return images
 
-    def _c3_slot(self, workbench):
-        dut = next((d for d in workbench.get_devices()
-                    if d.get("present") and d.get("detected_chip") == "esp32c3"), None)
-        if not dut:
-            pytest.skip("precondition unmet: no esp32c3 DUT present")
-        return dut
+    def _dut_slot(self, workbench):
+        """Any present part this class has a prebuilt image for.
+
+        It used to demand an esp32c3 by name and skipped three tests on a
+        bench holding an esp32s3 — with esp32s3 binaries sitting in
+        debug-test/output beside the c3 ones. A chip written into a test is
+        the same defect as a slot written into one: it describes the bench
+        somebody had, and it goes quiet rather than red when that changes.
+        """
+        for dev in workbench.get_devices():
+            if not dev.get("present"):
+                continue
+            chip = dev.get("detected_chip")
+            if chip and os.path.isdir(os.path.join(DEBUG_TEST_DIR, chip)):
+                return dev
+        pytest.skip(
+            "precondition unmet: no present slot holds a part with prebuilt "
+            f"images under {DEBUG_TEST_DIR}"
+        )
 
     def test_flash_writes_and_the_device_runs_the_image(self, workbench):
         """The whole point: after a flash, the part runs what was written.
@@ -2159,7 +2195,7 @@ class TestFlashEndpoint:
         verified its hash and landed at an offset the partition table does not
         boot from — which is a real failure mode, and silent.
         """
-        dut = self._c3_slot(workbench)
+        dut = self._dut_slot(workbench)
         label = dut["label"]
         r = workbench.flash(label, self._images(), chip="esp32c3")
         assert r.get("ok") is True, f"flash reported failure: {str(r)[:300]}"
@@ -2176,7 +2212,7 @@ class TestFlashEndpoint:
         )
 
     def test_flash_with_no_images_is_refused(self, workbench):
-        dut = self._c3_slot(workbench)
+        dut = self._dut_slot(workbench)
         r = workbench.flash(dut["label"], {}, chip="esp32c3")
         assert r.get("ok") is False, "a flash with no binaries must not report success"
 
@@ -2189,7 +2225,7 @@ class TestFlashEndpoint:
         """A flash stops and restarts the proxy. If the slot came back on a
         different port, every client's saved URL would reach the wrong device.
         """
-        dut = self._c3_slot(workbench)
+        dut = self._dut_slot(workbench)
         before = dut["tcp_port"]
         workbench.flash(dut["label"], self._images(), chip="esp32c3")
         after = workbench.get_slot(dut["label"])
