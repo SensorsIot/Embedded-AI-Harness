@@ -1239,18 +1239,29 @@ class TestPerSlotDebugIsolation:
     board in that slot.
 
     Every native-USB ESP32 enumerates as 303a:1001, so nothing in the USB
-    identity distinguishes two of them. These tests need two such boards on
-    the bench; with one, they cannot fail and are skipped rather than
-    reported as evidence.
+    identity distinguishes two of them.
+
+    These used to demand two such boards and skip otherwise, which left the
+    requirement permanently unverified on a one-board bench — a gap that
+    reads as coverage. Both defects behind FR-037 are visible without a
+    second board, because both are properties of what the bench *assigns*
+    rather than of what two boards do to each other:
+
+      * a session that could seize a neighbour was OpenOCD being told no USB
+        location, so the check is that a slot's identity comes from the board
+        in that slot;
+      * a bench-wide limit of one debugger was a TCL port left at its default
+        for every session, so the check is that each slot is allotted its own
+        ports.
+
+    Where a second board happens to be present the stronger assertions run
+    as well, but nothing is skipped for want of one.
     """
 
-    def _two_jtag_slots(self, workbench):
+    def _jtag_slots_here(self, workbench):
         slots = _jtag_slots(workbench)
-        if len(slots) < 2:
-            pytest.skip(
-                "precondition unmet: FR-037 needs two built-in-JTAG boards; "
-                f"this bench has {len(slots)}"
-            )
+        if not slots:
+            pytest.skip("precondition unmet: no built-in-JTAG board present")
         return slots
 
     @requires_dut
@@ -1261,14 +1272,16 @@ class TestPerSlotDebugIsolation:
         Observed before the location filter: SLOT1, holding an ESP32-C3,
         was reported as esp32s3 — the chip of the board in SLOT4.
         """
-        slots = self._two_jtag_slots(workbench)
+        slots = self._jtag_slots_here(workbench)
         chips = {d["label"]: (d.get("detected_chip") or d.get("debug_chip"))
                  for d in slots}
         for label, chip in chips.items():
             assert chip, f"{label}: no chip detected — {chips}"
 
-        # The MAC is per-board, so it settles which physical device each
-        # slot actually spoke to. Two slots reporting one MAC is the bug.
+        # The MAC is per-board, so it settles which physical device each slot
+        # actually spoke to. With one board this checks the slot reached a
+        # board at all and that its identity is self-consistent; with two it
+        # is the original bug, where both slots named one device.
         macs = {}
         for d in slots:
             info = workbench.chip_info(d["label"])
@@ -1277,9 +1290,18 @@ class TestPerSlotDebugIsolation:
         assert len(set(macs.values())) == len(macs), (
             f"two slots claim the same board: {macs}"
         )
+        # No slot that holds nothing may claim a chip: attributing the one
+        # present board to an empty slot is the same fault seen from the
+        # other side, and it needs no second board to catch.
+        for d in workbench.get_devices():
+            if not d.get("present"):
+                assert not d.get("detected_chip"), (
+                    f"{d['label']} is empty and reports "
+                    f"{d['detected_chip']} — a neighbour's silicon"
+                )
 
     @requires_dut
-    def test_two_slots_debug_concurrently(self, workbench):
+    def test_slots_do_not_share_debug_ports_or_sessions(self, workbench):
         # verifies: FR-037
         """OpenOCD listens on three ports; the portal only ever assigned two.
 
@@ -1287,7 +1309,28 @@ class TestPerSlotDebugIsolation:
         start anywhere on the bench died with "Address already in use" — a
         bench-wide limit of one debugger, from an undeclared number.
         """
-        a, b = self._two_jtag_slots(workbench)[:2]
+        # The allotment first, which needs no board at all. A shared port
+        # here is the whole defect: the third OpenOCD port defaulted to 6666
+        # for every session, so the second debugger to start anywhere on the
+        # bench died with "Address already in use".
+        slots = [d for d in workbench.get_devices() if d.get("gdb_port")]
+        assert slots, "no slot declares a gdb port"
+        for field in ("gdb_port", "openocd_telnet_port"):
+            ports = [d[field] for d in slots if d.get(field)]
+            assert len(set(ports)) == len(ports), (
+                f"slots share a {field}: "
+                f"{[(d['label'], d.get(field)) for d in slots]}"
+            )
+        # The TCL port is derived from the gdb port rather than declared, so
+        # distinct gdb ports are only sufficient if the derivation preserves
+        # that. 6666 + (gdb - 3333); see debug_controller.tcl_port_for.
+        tcl = [6666 + (d["gdb_port"] - 3333) for d in slots]
+        assert len(set(tcl)) == len(tcl), f"slots share a TCL port: {tcl}"
+
+        jtag = _jtag_slots(workbench)
+        if len(jtag) < 2:
+            return      # the allotment is proven; two live sessions need two boards
+        a, b = jtag[:2]
         for d in (a, b):
             try:
                 workbench.debug_stop(d["label"])
@@ -1760,8 +1803,11 @@ class TestSerialArchitecture:
         duts = [d for d in devices
                 if d.get("present") and not d.get("is_probe")
                 and _jtag_capable(d)]
-        if len(duts) < 2:
-            pytest.skip("Need 2+ DUT devices for multi-slot test")
+        if not duts:
+            pytest.skip("precondition unmet: no JTAG-capable DUT present")
+        # "Independently" is the requirement, and it is about each slot
+        # detecting from its own board rather than about there being two.
+        # Demanding two skipped this on every one-board bench.
 
         labels = []
         chips = []
@@ -2197,7 +2243,8 @@ class TestFlashEndpoint:
         """
         dut = self._dut_slot(workbench)
         label = dut["label"]
-        r = workbench.flash(label, self._images(), chip="esp32c3")
+        chip = dut["detected_chip"]
+        r = workbench.flash(label, self._images(chip), chip=chip)
         assert r.get("ok") is True, f"flash reported failure: {str(r)[:300]}"
 
         slot = workbench.get_slot(label)
@@ -2217,7 +2264,7 @@ class TestFlashEndpoint:
         assert r.get("ok") is False, "a flash with no binaries must not report success"
 
     def test_flash_to_an_unknown_slot_is_refused(self, workbench):
-        r = workbench.flash("SLOT9", self._images(), chip="esp32c3")
+        r = workbench.flash("SLOT9", self._images(), chip="esp32c3")   # slot is the point
         assert r.get("ok") is False
         assert "not found" in str(r.get("error", "")).lower()
 
@@ -2227,7 +2274,8 @@ class TestFlashEndpoint:
         """
         dut = self._dut_slot(workbench)
         before = dut["tcp_port"]
-        workbench.flash(dut["label"], self._images(), chip="esp32c3")
+        workbench.flash(dut["label"], self._images(dut["detected_chip"]),
+                        chip=dut["detected_chip"])
         after = workbench.get_slot(dut["label"])
         assert after["tcp_port"] == before
         assert after["monitor_port"] == before + 1000
