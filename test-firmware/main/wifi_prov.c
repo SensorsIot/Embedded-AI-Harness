@@ -318,7 +318,7 @@ static esp_err_t start_sta(const char *ssid, const char *password)
 
 /* ── AP mode with captive portal ───────────────────────────────── */
 
-static esp_err_t start_ap(void)
+static esp_err_t start_ap_named(const char *ssid, const char *password)
 {
     esp_netif_create_default_wifi_ap();
 
@@ -332,20 +332,31 @@ static esp_err_t start_ap(void)
 
     wifi_config_t wifi_cfg = {
         .ap = {
-            .ssid = AP_SSID,
-            .ssid_len = strlen(AP_SSID),
             .channel = 1,
             .max_connection = 4,
             .authmode = WIFI_AUTH_OPEN,
         },
     };
+    strlcpy((char *)wifi_cfg.ap.ssid, ssid, sizeof(wifi_cfg.ap.ssid));
+    wifi_cfg.ap.ssid_len = strlen((char *)wifi_cfg.ap.ssid);
+
+    /* WPA2 needs eight characters; anything shorter is refused by the
+       driver, so a short passphrase must become an open AP rather than a
+       radio that never starts. The caller is told which it got. */
+    if (password && strlen(password) >= 8) {
+        strlcpy((char *)wifi_cfg.ap.password, password,
+                sizeof(wifi_cfg.ap.password));
+        wifi_cfg.ap.authmode = WIFI_AUTH_WPA2_PSK;
+    }
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg));
     ESP_ERROR_CHECK(esp_wifi_start());
 
     set_low_tx_power();
-    ESP_LOGI(TAG, "AP started: SSID='%s' channel=1 auth=OPEN", AP_SSID);
+    ESP_LOGI(TAG, "AP started: SSID='%s' channel=1 auth=%s",
+             (char *)wifi_cfg.ap.ssid,
+             wifi_cfg.ap.authmode == WIFI_AUTH_OPEN ? "OPEN" : "WPA2-PSK");
 
     /* Captive portal HTTP + DNS */
     esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
@@ -357,7 +368,8 @@ static esp_err_t start_ap(void)
     dns_server_config_t dns_cfg = DNS_SERVER_CONFIG_SINGLE("*", "WIFI_AP_DEF");
     start_dns_server(&dns_cfg);
 
-    ESP_LOGI(TAG, "AP mode: SSID='%s', portal at 192.168.4.1", AP_SSID);
+    ESP_LOGI(TAG, "AP mode: SSID='%s', portal at 192.168.4.1",
+             (char *)wifi_cfg.ap.ssid);
     return ESP_OK;
 }
 
@@ -368,6 +380,16 @@ esp_err_t wifi_prov_init(void)
     char ssid[33] = {0};
     char pass[65] = {0};
 
+    /* A requested test AP outranks stored credentials: the console command
+       that asks for one is asking this board to stop being a station. It is
+       cleared by the next `wifi` command, so the ordinary recovery path —
+       provision over serial — puts the DUT back without a second step. */
+    if (nvs_store_get_test_ap(ssid, sizeof(ssid), pass, sizeof(pass))) {
+        ESP_LOGI(TAG, "Test AP requested: '%s'", ssid);
+        s_ap_mode = true;
+        return start_ap_named(ssid, pass);
+    }
+
     if (nvs_store_get_wifi(ssid, sizeof(ssid), pass, sizeof(pass))) {
         ESP_LOGI(TAG, "Found stored WiFi credentials");
         return start_sta(ssid, pass);
@@ -375,7 +397,7 @@ esp_err_t wifi_prov_init(void)
 
     ESP_LOGI(TAG, "No WiFi credentials, starting AP provisioning");
     s_ap_mode = true;
-    return start_ap();
+    return start_ap_named(AP_SSID, "");
 }
 
 void wifi_prov_reset(void)

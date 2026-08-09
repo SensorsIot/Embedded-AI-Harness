@@ -76,6 +76,52 @@ static void cmd_wifi(char *rest)
     esp_restart();
 }
 
+/* "testap <ssid> [password]" — raise an AP for the bench to join as a
+ * station; "testap off" — go back to whatever NVS says.
+ *
+ * The bench has one radio, so it cannot both be an access point and be
+ * tested as a station against it. Without this the STA tests needed a house
+ * network named in the environment and skipped on any bench nobody had
+ * hand-configured — and the WPA2 ones needed a *protected* network, which
+ * the DUT's provisioning portal is not, by design. One board, two jobs. */
+static void cmd_testap(char *rest)
+{
+    char *ssid = rest;
+    while (*ssid == ' ') ssid++;
+    if (*ssid == '\0') {
+        reply("ERR testap needs an ssid, or 'off'");
+        return;
+    }
+
+    if (!strcmp(ssid, "off")) {
+        nvs_store_clear_test_ap();
+        reply("OK testap off — rebooting");
+        vTaskDelay(pdMS_TO_TICKS(300));
+        esp_restart();
+        return;
+    }
+
+    char *pass = strchr(ssid, ' ');
+    if (pass) {
+        *pass++ = '\0';
+        while (*pass == ' ') pass++;
+    } else {
+        pass = "";
+    }
+    /* Refuse here rather than let the AP come up open under a name the
+       caller believes is protected — a WPA2 test would then pass against an
+       open network and prove nothing. */
+    if (*pass != '\0' && strlen(pass) < 8) {
+        reply("ERR testap password must be empty (open) or at least 8 characters");
+        return;
+    }
+    nvs_store_set_test_ap(ssid, pass);
+    reply("OK testap ssid=%s auth=%s — rebooting", ssid,
+          *pass ? "WPA2-PSK" : "OPEN");
+    vTaskDelay(pdMS_TO_TICKS(300));
+    esp_restart();
+}
+
 static void handle_line(char *line)
 {
     while (*line == ' ') line++;
@@ -88,12 +134,20 @@ static void handle_line(char *line)
         /* The one command that exists purely to be answered. */
         reply("OK pong");
     } else if (!strcmp(line, "status")) {
-        char ip[16], mac[18];
+        char ip[16], mac[18], ap_ssid[33] = "-";
         wifi_prov_get_ip(ip, sizeof(ip));
         wifi_prov_get_mac(mac, sizeof(mac));
-        reply("OK status wifi=%d ap_mode=%d ip=%s mac=%s mqtt=%d topic=%s",
+        if (wifi_prov_is_ap_mode()) {
+            /* Which AP, not just that there is one: a caller asking the DUT
+               to host a named network needs to know it hosted *that* one. */
+            wifi_config_t c;
+            if (esp_wifi_get_config(WIFI_IF_AP, &c) == ESP_OK && c.ap.ssid[0])
+                strlcpy(ap_ssid, (const char *)c.ap.ssid, sizeof(ap_ssid));
+        }
+        reply("OK status wifi=%d ap_mode=%d ap_ssid=%s ip=%s mac=%s "
+              "mqtt=%d topic=%s",
               wifi_prov_is_connected() ? 1 : 0,
-              wifi_prov_is_ap_mode() ? 1 : 0, ip, mac,
+              wifi_prov_is_ap_mode() ? 1 : 0, ap_ssid, ip, mac,
               mqtt_pub_is_connected() ? 1 : 0, mqtt_pub_topic());
     } else if (!strcmp(line, "scan")) {
         /* The DUT's own view of the air. Without it, a DUT that will not
@@ -129,6 +183,8 @@ static void handle_line(char *line)
         reply("OK mark %s", rest);
     } else if (!strcmp(line, "wifi")) {
         cmd_wifi(rest);
+    } else if (!strcmp(line, "testap")) {
+        cmd_testap(rest);
     } else if (!strcmp(line, "forget")) {
         nvs_store_erase_wifi();
         reply("OK forget — rebooting into the provisioning portal");
@@ -142,7 +198,7 @@ static void handle_line(char *line)
         /* Name what was not understood. A bare "ERR" tells a caller nothing
            about whether it mistyped or is talking to the wrong device. */
         reply("ERR unknown command '%s' — try "
-              "ping|status|scan|info|mark|wifi|forget|reboot", line);
+              "ping|status|scan|info|mark|wifi|testap|forget|reboot", line);
     }
 }
 
@@ -185,6 +241,6 @@ esp_err_t serial_console_init(void)
     }
     xTaskCreate(console_task, "console", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "serial console ready — "
-                  "ping|status|scan|info|mark|wifi|forget|reboot");
+                  "ping|status|scan|info|mark|wifi|testap|forget|reboot");
     return ESP_OK;
 }

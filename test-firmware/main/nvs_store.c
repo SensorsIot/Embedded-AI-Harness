@@ -42,11 +42,61 @@ bool nvs_store_get_broker(char *uri, size_t uri_len)
     return err == ESP_OK && uri[0] != '\0';
 }
 
+esp_err_t nvs_store_set_test_ap(const char *ssid, const char *password)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_str(h, "tap_ssid", ssid);
+    if (err == ESP_OK) err = nvs_set_str(h, "tap_pass", password ? password : "");
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    ESP_LOGI(TAG, "test AP saved (SSID: %s, pass_len: %d)",
+             ssid, (int)(password ? strlen(password) : 0));
+    return err;
+}
+
+bool nvs_store_get_test_ap(char *ssid, size_t ssid_len,
+                           char *password, size_t pass_len)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) return false;
+    esp_err_t err = nvs_get_str(h, "tap_ssid", ssid, &ssid_len);
+    if (err == ESP_OK) {
+        size_t pl = pass_len;
+        /* An open test AP stores an empty string, and nvs_get_str is happy
+           to return one — but a missing key must not leave the caller with
+           an uninitialised buffer it then hands to esp_wifi. */
+        if (nvs_get_str(h, "tap_pass", password, &pl) != ESP_OK)
+            password[0] = '\0';
+    }
+    nvs_close(h);
+    return err == ESP_OK && ssid[0] != '\0';
+}
+
+esp_err_t nvs_store_clear_test_ap(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    nvs_erase_key(h, "tap_ssid");
+    nvs_erase_key(h, "tap_pass");
+    err = nvs_commit(h);
+    nvs_close(h);
+    return err;
+}
+
 esp_err_t nvs_store_set_wifi(const char *ssid, const char *password)
 {
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
+
+    /* Being given credentials means going back to being a station. Clearing
+       the test AP here rather than in a second command is what makes the
+       recovery path the one the fixtures already take. */
+    nvs_erase_key(h, "tap_ssid");
+    nvs_erase_key(h, "tap_pass");
 
     err = nvs_set_str(h, "wifi_ssid", ssid);
     if (err == ESP_OK) {
