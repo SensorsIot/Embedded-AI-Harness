@@ -25,6 +25,7 @@
 
 #include "driver/usb_serial_jtag.h"
 #include "esp_app_desc.h"
+#include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include <stdlib.h>
@@ -115,8 +116,11 @@ static void handle_line(char *line)
         }
     } else if (!strcmp(line, "info")) {
         const esp_app_desc_t *app = esp_app_get_description();
-        reply("OK info project=%s version=%s idf=%s",
-              app->project_name, app->version, app->idf_ver);
+        int8_t txp = 0;
+        esp_wifi_get_max_tx_power(&txp);
+        reply("OK info project=%s version=%s idf=%s txpower=%d(%.2fdBm)",
+              app->project_name, app->version, app->idf_ver,
+              txp, txp / 4.0);
     } else if (!strcmp(line, "mark")) {
         /* An observable the bench can ask for at a moment of its choosing,
          * rather than waiting up to 10 s for the next heartbeat. */

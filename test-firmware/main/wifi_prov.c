@@ -267,6 +267,19 @@ static esp_err_t start_sta(const char *ssid, const char *password)
      * nothing to save. */
     esp_wifi_set_ps(WIFI_PS_NONE);
 
+    /* Ask for full transmit power explicitly, and say what we actually got.
+     *
+     * A DUT that hears every AP in the building at normal levels and cannot
+     * complete an association with any of them is failing on the transmit
+     * side, and the two candidates are the antenna path and a radio that has
+     * quietly settled on a low power. Only one of those is fixable in
+     * software, and neither was distinguishable while nothing reported the
+     * figure. 80 = 20 dBm, in the quarter-dBm units this API uses. */
+    esp_wifi_set_max_tx_power(80);
+    int8_t tx_power = 0;
+    esp_wifi_get_max_tx_power(&tx_power);
+    ESP_LOGI(TAG, "max tx power: %d (%.2f dBm)", tx_power, tx_power / 4.0);
+
     wifi_mode_t mode;
     esp_wifi_get_mode(&mode);
     ESP_LOGI(TAG, "STA mode=%d, connecting to '%s' (pass len=%d)", mode, ssid, (int)strlen(password));
