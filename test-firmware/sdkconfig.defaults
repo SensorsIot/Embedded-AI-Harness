@@ -38,3 +38,13 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 # initialised and mute. A DUT that gets erased and reflashed several times a
 # day cannot carry that risk; the cost is about 100 ms of boot time.
 CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE=n
+
+# Console on the native USB port, not UART0.
+#
+# The default puts the primary console on UART0 (GPIO43/44) and mirrors it to
+# USB-Serial/JTAG as a *secondary* console. Secondary is output only. So the
+# bench could read this device perfectly and could not talk to it at all:
+# bytes written to the slot went to a peripheral nothing was listening on,
+# and the console's replies left through pins no cable touches. Everything
+# looked plausible from both ends.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
