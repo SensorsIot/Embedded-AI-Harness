@@ -2185,6 +2185,21 @@ class TestApiSurface:
         for ep in ("/api/sdr/live/stop", "/api/sdr/log/stop", "/api/sdr/stop"):
             assert workbench._api_post_raw(ep, {}).get("ok") is not None
 
+        # A declared instrument must be able to prove it exists. `available`
+        # was cached from the first probe and never revisited downwards, so a
+        # dongle unplugged hours ago went on being reported as present — and
+        # nothing here noticed, because these assertions only ask whether the
+        # endpoints answer, not whether the answer is true. A short power
+        # measurement touches the device, so it cannot succeed without one.
+        r = workbench._api_post_raw("/api/sdr/power",
+                                    {"freq_hz": 433920000, "duration": 1})
+        assert r.get("ok") is True, (
+            f"status says the SDR is available, and using it failed: {r}. "
+            f"Either the dongle is gone and `available` is stale, or the "
+            f"dongle is present and unusable — both are the bench claiming "
+            f"an instrument it does not have."
+        )
+
     def test_firmware_repository_round_trip(self, workbench):
         # The driver unwraps to the file list itself.
         assert isinstance(workbench.firmware_list(), list)

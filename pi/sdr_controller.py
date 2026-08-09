@@ -144,11 +144,18 @@ class SdrReceiver:
         re-probe in `_require_ready`). That inconsistency also makes every
         dongle-gated test skip forever, since they gate on this value.
 
-        Re-probe only when no device is known *and* nothing is using the dongle —
-        `rtl_test` opens the device, so probing mid-capture would fight it.
+        Re-probed in both directions. It used to re-probe only while no device
+        was known, so a dongle that had ever been seen stayed `device: true`
+        for the life of the process — unplug it and the bench went on
+        declaring an instrument it did not have, which is worse than the
+        blindness this was written to fix. A test gated on that value then
+        takes the present branch and fails against absent hardware, or passes
+        without touching it.
+
+        Still never while something is using the dongle: `rtl_test` opens the
+        device, so probing mid-capture would fight it.
         """
-        if (not self._hardware.get("device")
-                and not self._state.get("active")
+        if (not self._state.get("active")
                 and not self._live_running):
             now = time.monotonic()
             if now - self._hw_probed_at >= self.HW_REPROBE_INTERVAL_S:

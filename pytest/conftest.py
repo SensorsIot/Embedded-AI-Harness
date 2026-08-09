@@ -174,6 +174,14 @@ def ensure_bench_dut_firmware(workbench):
             return None                     # already the image we want
     if not image_dir or not os.path.isdir(image_dir):
         return None                         # nothing to restore from
+    # The image directory is built for one target, and the bench may now hold
+    # more than one kind of part. Flashing an esp32s3 image at an esp32c6 gets
+    # as far as esptool refusing it — "This chip is ESP32-C6, not ESP32-S3" —
+    # so prefer the slot the image is actually for.
+    want = os.path.basename(image_dir.rstrip("/")).rsplit("-", 1)[-1]
+    slots = ([d for d in slots if d.get("detected_chip") == want]
+             or [d for d in slots if d.get("detected_chip")])
+
     for dev in slots:
         chip = dev.get("detected_chip")
         if not chip:
