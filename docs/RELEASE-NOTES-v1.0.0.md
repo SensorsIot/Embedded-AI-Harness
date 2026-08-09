@@ -105,6 +105,22 @@ hidden behind a `--run-wifi-dut` flag rather than fixed. They now provision
 the bench's own DUT, and the flag is gone: a fixture that can tell *absent*
 from *broken* beats an opt-out that cannot.
 
+**And it no longer depends on anyone's house network.** Five tests read an
+SSID, a passphrase or a URL out of the environment and skipped without them,
+so on a fresh bench the station path and the relay's station leg — a good
+part of what this bench is for — went unproven, and the skip looked like
+absent hardware rather than absent configuration. The tempting fix is the
+one that cannot work: aim them at something on the house LAN and the bench's
+`eth0` carries the request, so the radio link under test does nothing and
+the test passes on the strength of the failure it exists to catch.
+
+They now aim at the DUT. The bench has one radio and so cannot be the access
+point its own station tests join, but the board already under test can be:
+`testap` puts it on the air as a WPA2 AP of a known name, which makes the
+right-passphrase and wrong-passphrase paths answerable, and `192.168.4.0/24`
+is somewhere `eth0` has no route to. The whole suite now runs on a bench
+nobody has configured.
+
 ## Known limits, stated rather than skipped
 
 - **SDR tests need a dongle**; two cases skip without one.

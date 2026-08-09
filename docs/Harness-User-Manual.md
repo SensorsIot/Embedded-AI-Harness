@@ -1099,7 +1099,30 @@ automatically.
 | `ota_update.c` | HTTP OTA from the workbench firmware server |
 | `http_server.c` | `/status`, `/ota`, `/wifi-reset` endpoints |
 | `nvs_store.c` | WiFi credential persistence in NVS (`wb_test` namespace) |
+| `mqtt_pub.c` | Publishes to the broker the portal was given, or to its own gateway |
+| `serial_console.c` | A line-oriented console on the USB serial port — see below |
 | Heartbeat task | Periodic log line confirming the firmware is alive |
+
+**The serial console.** One line in, one line out, no echo and no prompt:
+anything reading this port is a program, not a person.
+
+| Command | Answers | Why it exists |
+|---|---|---|
+| `ping` | `OK pong` | the only proof that a byte written to a slot *reached* something |
+| `status` | wifi / ap_mode / ap_ssid / ip / mac / mqtt / topic | the DUT's own account of itself |
+| `scan` | one AP per line, then `OK scan end` | two radios reporting is a measurement; one is an assertion |
+| `info` | project, version, IDF version, tx power | which image is actually running |
+| `mark <text>` | `OK mark <text>` | an observable at a moment of the caller's choosing |
+| `wifi <ssid> <pass>` | stores and reboots | provisioning that does not need the radio to work |
+| `testap <ssid> <pass>` | raises a WPA2 AP of that name and reboots | the bench has one radio and cannot be the AP its own station tests join |
+| `testap off` | reverts and reboots | — |
+| `forget` | erases credentials, reboots into the portal | puts the DUT back in front of its captive portal |
+| `reboot` | `OK reboot` | — |
+
+`testap` refuses a passphrase between one and seven characters rather than
+quietly raising an open AP under a name the caller believes is protected. It
+is cleared by the next `wifi` command, so provisioning over serial returns
+the board to being a station without a second step.
 
 | Skill | Test steps | What confirms it works |
 |-------|-----------|------------------------|

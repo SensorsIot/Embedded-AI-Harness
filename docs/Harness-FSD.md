@@ -1514,6 +1514,27 @@ wpa_supplicant + DHCP:
 - `POST /api/wifi/sta_leave` disconnects and releases DHCP
 - STA and AP are mutually exclusive — starting STA stops the AP
 
+**Testing this requirement needs an access point the bench does not own.**
+The last clause is the reason: one radio, so the bench cannot be the network
+its own station tests join, and no requirement here can be verified against
+the bench alone. The DUT supplies it. This is stated because the obvious
+substitute is the one that cannot work — pointing the tests at a network on
+the house LAN, which the bench's `eth0` is already on, so the association
+never carries the traffic and the test passes with the radio idle. The far
+end has to be somewhere only the station link reaches, which on this bench
+means the DUT's own `192.168.4.0/24`.
+
+Two of the four cases need that AP to be **protected**: a correct passphrase
+accepted (WT-401) and a wrong one refused (WT-402). A DUT's provisioning
+portal is open by design, so the bench's own suite asks its DUT firmware for
+a WPA2 AP of a known name — the `testap` console command in `test-firmware/`
+— and WT-402's refusal is then observed against an AP that is demonstrably
+beaconing, rather than being indistinguishable from WT-403's "nothing there".
+
+A project consuming this bench inherits the requirement as verified and owes
+nothing here; the obligation falls on whatever DUT firmware the *workbench's*
+own suite runs, alongside the FR-036 obligation above.
+
 ### FR-013 — WiFi Scan
 
 - `GET /api/wifi/scan` uses `iw dev wlan0 scan -u`
@@ -3442,8 +3463,8 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-301 | Station disconnect event | Station Events | Yes |
 | WT-302 | Station in AP status | Station Events | Yes |
 | WT-303 | IP matches event | Station Events | Yes |
-| WT-401 | Join WPA2 network | STA Mode | Yes |
-| WT-402 | Wrong password | STA Mode | Yes |
+| WT-401 | Join a WPA2 network the DUT hosts, right passphrase | STA Mode | Yes |
+| WT-402 | Wrong passphrase, against an AP that is on the air | STA Mode | Yes |
 | WT-403 | Nonexistent SSID | STA Mode | No |
 | WT-404 | Leave STA | STA Mode | Yes |
 | WT-405 | AP stops during STA | STA Mode | Yes |
