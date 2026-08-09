@@ -826,11 +826,18 @@ def scan():
     """
     _check_wifi_testing_mode()
 
-    # Scan on whichever interface currently owns the radio. While the AP is
-    # up, wlan0 is deliberately down — the driver will not carry a managed
-    # and an AP interface at once — so scanning wlan0 then returns nothing
-    # and the bench reports an empty sky instead of an unusable instrument.
-    iface = AP_IF if _ap_active else WLAN_IF
+    # One radio cannot beacon and survey at the same time. With the AP up,
+    # `iw dev ap0 scan` returns "Device or resource busy" and a scan on
+    # wlan0 returns nothing at all — so this is refused with its reason
+    # rather than answered with an empty list. The test that covers this
+    # used to pass, on a bench whose AP was silently not radiating: the
+    # radio was idle, so the scan worked and the capability looked real.
+    if _ap_active:
+        return {"error": "cannot scan while the AP is running: this radio "
+                         "cannot beacon and survey at once. Stop the AP "
+                         "first (POST /api/wifi/ap_stop)."}
+
+    iface = WLAN_IF
     try:
         _run(["ip", "link", "set", iface, "up"], check=False)
     except Exception:

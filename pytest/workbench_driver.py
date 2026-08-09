@@ -64,6 +64,23 @@ class CommandTimeout(WorkbenchError):
 # ── Driver ───────────────────────────────────────────────────────────
 
 
+def _body_reason(err) -> str:
+    """The `error` field of a refusal body, or the raw body if it is not JSON.
+
+    An HTTPError carries the response, and throwing it away leaves the caller
+    with a bare status code for a refusal the bench took the trouble to
+    explain.
+    """
+    try:
+        raw = err.read()
+    except Exception:
+        return "(no body)"
+    try:
+        return json.loads(raw).get("error") or raw.decode("utf-8", "replace")
+    except Exception:
+        return raw.decode("utf-8", "replace")[:300]
+
+
 class WorkbenchDriver:
     """HTTP driver for the Embedded Workbench."""
 
@@ -94,6 +111,13 @@ class WorkbenchDriver:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            # The bench refuses with a status *and a reason*, and the reason
+            # is the whole point: "cannot scan while the AP is running"
+            # tells a caller what to do, where "HTTP Error 503" tells it
+            # only that something went wrong somewhere. Reading the body is
+            # what turns the refusal back into information.
+            raise CommandTimeout(f"GET {path}: {e} — {_body_reason(e)}")
         except urllib.error.URLError as e:
             raise CommandTimeout(f"GET {path}: {e}")
         except Exception as e:

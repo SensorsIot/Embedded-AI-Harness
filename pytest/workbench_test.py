@@ -344,23 +344,50 @@ class TestWiFiScan:
             assert net["rssi"] < 0
 
     def test_wt602_scan_does_not_find_own_ap(self, workbench):
-        """WT-602: Our own AP does not appear in scan results."""
-        own_ssid = "WT-SCAN-602-UNIQUE"
-        workbench.ap_start(own_ssid, "password123")
-        time.sleep(1)
-        result = workbench.scan()
-        ssids = [n["ssid"] for n in result["networks"]]
-        assert own_ssid not in ssids
-        workbench.ap_stop()
+        """WT-602: our own AP does not appear in scan results.
+
+        Unanswerable on this bench, and recorded rather than quietly
+        dropped. The question needs a scan taken while our own AP is
+        beaconing, and one radio cannot do both — see WT-603, which asserts
+        the refusal. It passed before only because the AP was silently not
+        radiating, so the "own AP" it looked for was never on the air: the
+        assertion held for the one reason that makes it worthless.
+
+        A second radio would make it answerable, as would any bench whose
+        AP and scan are not the same chip.
+        """
+        pytest.skip(
+            "precondition unmet: this bench has one radio, which cannot "
+            "beacon and scan at once (WT-603 asserts that refusal). WT-602 "
+            "needs a scan taken while our own AP is up."
+        )
 
     def test_wt603_scan_while_ap_running(self, workbench):
-        """WT-603: Scan completes without stopping the AP."""
+        """WT-603: a scan attempted while the AP runs is refused, with its
+        reason, and does not cost the AP.
+
+        This asserted that the scan *succeeded* and the AP survived, and it
+        passed for a year on a bench whose AP was silently not radiating:
+        the radio was idle, so the scan worked and the capability looked
+        real. It is not. One radio cannot beacon and survey at the same
+        time — `iw` on the AP interface answers "Device or resource busy"
+        and a scan on the primary interface returns nothing at all.
+
+        What is worth testing is therefore what the bench *does* with an
+        impossible request: refuse it, name the reason, and leave the AP
+        up. An empty network list returned as a successful measurement is
+        the failure mode this whole class exists to prevent.
+        """
         workbench.ap_start("WT-SCAN-603", "password123")
-        result = workbench.scan()
-        assert "networks" in result
-        status = workbench.ap_status()
-        assert status["active"] is True
-        workbench.ap_stop()
+        try:
+            with pytest.raises((CommandError, WorkbenchError)) as exc:
+                workbench.scan()
+            assert "cannot scan while the AP is running" in str(exc.value), \
+                exc.value
+            assert workbench.ap_status()["active"] is True, \
+                "the refused scan took the AP down with it"
+        finally:
+            workbench.ap_stop()
 
 
 # =====================================================================

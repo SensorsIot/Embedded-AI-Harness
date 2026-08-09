@@ -298,7 +298,7 @@ def bench_dut(workbench, _bench_dut_session):
     # question — so returning here handed out a DUT that was still coming
     # up, and the first request timed out against hardware that was about
     # to be fine. Wait for the device to actually answer.
-    deadline = time.time() + 45
+    deadline = time.time() + 90
     while time.time() < deadline:
         try:
             if workbench.wifi_http(f"{url}/status",
