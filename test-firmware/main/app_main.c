@@ -8,6 +8,7 @@
 #include "wifi_prov.h"
 #include "ble_nus.h"
 #include "http_server.h"
+#include "serial_console.h"
 
 static const char *TAG = "app_main";
 
@@ -64,7 +65,13 @@ void app_main(void)
     /* 7. HTTP server — /status, /ota, /wifi-reset */
     http_server_start();
 
-    /* 8. Heartbeat — periodic log to confirm firmware is alive */
+    /* 8. Serial console — the way in that does not depend on the radio.
+     *    Started last so a failure here cannot stop the rest coming up, and
+     *    early enough that a board whose WiFi will not transmit is still
+     *    reachable and still provisionable. */
+    serial_console_init();
+
+    /* 9. Heartbeat — periodic log to confirm firmware is alive */
     xTaskCreate(heartbeat_task, "heartbeat", 4096, NULL, 1, NULL);
 
     ESP_LOGI(TAG, "Init complete, running event-driven");
