@@ -58,8 +58,20 @@ void app_main(void)
         ESP_LOGI(TAG, "Waiting for WiFi STA connection before starting BLE...");
         for (int i = 0; i < 150 && !wifi_prov_is_connected(); i++)
             vTaskDelay(pdMS_TO_TICKS(100));   /* up to 15s */
-        /* 6. BLE — NUS advertisement (no command handler) */
-        ble_nus_init();
+        /* 6. BLE — NUS advertisement (no command handler).
+         *
+         * Only once the station is actually up. The wait used to expire and
+         * start BLE anyway, so a DUT that could not join — the one case
+         * where the radio needs every slot it can get — got a continuous
+         * advertiser competing with its association attempts, and the log
+         * filled with "Coexist: Wi-Fi connect fail, apply reconnect coex
+         * policy". A DUT still trying to join is not a DUT with spare
+         * radio. */
+        if (wifi_prov_is_connected())
+            ble_nus_init();
+        else
+            ESP_LOGW(TAG, "STA not up — BLE stays off so the radio is the "
+                          "station's alone");
     }
 
     /* 7. HTTP server — /status, /ota, /wifi-reset */

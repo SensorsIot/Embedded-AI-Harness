@@ -258,6 +258,15 @@ static esp_err_t start_sta(const char *ssid, const char *password)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    /* No modem sleep. The station defaults to WIFI_PS_MIN_MODEM, which parks
+     * the radio between beacons — and the EAPOL exchange that follows
+     * association is exactly what gets lost when it does. The symptom is
+     * reason 15, 4WAY_HANDSHAKE_TIMEOUT: the DUT associates, reaches `run`,
+     * sits there and is dropped, over and over, while the AP logs an
+     * association and no handshake at all. A bench DUT on USB power has
+     * nothing to save. */
+    esp_wifi_set_ps(WIFI_PS_NONE);
+
     wifi_mode_t mode;
     esp_wifi_get_mode(&mode);
     ESP_LOGI(TAG, "STA mode=%d, connecting to '%s' (pass len=%d)", mode, ssid, (int)strlen(password));
