@@ -352,7 +352,26 @@ def console_dut(workbench):
     Found by asking, not configured: the board moves between slots and a
     written-down label goes stale silently. Absence is an unmet
     precondition and says which firmware to flash.
+
+    Asked more than once, because by the time this runs the DUT has been
+    through the WiFi tests and may be part-way through a reboot it was
+    deliberately given — and "no slot answers" would then report absent
+    hardware for a board that answers perfectly a few seconds later. That
+    is the FR-030 proof skipping itself for the wrong reason.
     """
+    for _ in range(4):
+        slot = _find_console_slot(workbench)
+        if slot:
+            return slot
+        time.sleep(8)
+    pytest.skip(
+        "precondition unmet: no slot answers `ping` with `OK pong`. Flash "
+        "test-firmware/ to a slot (CI publishes it as bench-dut-<target>)."
+    )
+
+
+def _find_console_slot(workbench):
+    """One pass over the present slots, asking each whether it answers."""
     import threading
     for dev in workbench.get_devices():
         if not dev.get("present"):
@@ -377,10 +396,7 @@ def console_dut(workbench):
         th.join()
         if result.get("r", {}).get("matched"):
             return slot
-    pytest.skip(
-        "precondition unmet: no slot answers `ping` with `OK pong`. Flash "
-        "test-firmware/ to a slot (CI publishes it as bench-dut-<target>)."
-    )
+    return None
 
 
 def _provision_over_serial(workbench, ssid: str, password: str) -> bool:
