@@ -730,7 +730,37 @@ class TestCaptivePortal:
                 j["portal_on_air"] = True
                 j["portal_rssi"] = hit[0].get("rssi")
                 break
+            j["heard"] = [(n.get("rssi"), n["ssid"]) for n in nets[:4]]
             time.sleep(5)
+
+        # Ask the DUT what it thinks it is doing. Not hearing a portal and
+        # the portal not existing are different findings, and only one of
+        # them is the DUT's fault: a bench that reports "the DUT never
+        # raised its portal" when the DUT is sitting there hosting it has
+        # blamed the wrong side, which is the failure this suite keeps
+        # meeting.
+        j["dut_says_ap_mode"] = None
+        for dev in workbench.get_devices():
+            if not dev.get("present"):
+                continue
+            try:
+                since = time.time()
+                workbench.serial_write(dev["label"], text="status")
+                deadline = time.time() + 6
+                while time.time() < deadline:
+                    for ln in workbench.serial_output(
+                            dev["label"], lines=200,
+                            since=since).get("lines", []):
+                        if "OK status" in ln.get("text", ""):
+                            j["dut_says_ap_mode"] = "ap_mode=1" in ln["text"]
+                            break
+                    if j["dut_says_ap_mode"] is not None:
+                        break
+                    time.sleep(0.5)
+            except Exception:
+                pass
+            if j["dut_says_ap_mode"] is not None:
+                break
 
         # ── Step 2: join the portal and read the form it serves ──────
         if j["portal_on_air"]:
@@ -815,10 +845,20 @@ class TestCaptivePortal:
     def test_wt2101_dut_raises_a_captive_portal(self, journey):
         """WT-2101: the DUT puts its provisioning portal on the air and
         serves the form."""
-        assert journey["portal_on_air"], (
-            f"no '{journey['portal_ssid']}' in the bench's scan. "
-            f"{'; '.join(journey['notes']) or 'the DUT never raised its portal'}"
-        )
+        if not journey["portal_on_air"]:
+            if journey.get("dut_says_ap_mode"):
+                pytest.fail(
+                    f"the DUT reports it is hosting '{journey['portal_ssid']}' "
+                    f"and the bench cannot hear it. The bench's radio is "
+                    f"working — it heard {journey.get('heard')} in the same "
+                    f"scan — so this is the DUT's transmitter, not its "
+                    f"firmware and not the portal."
+                )
+            pytest.fail(
+                f"no '{journey['portal_ssid']}' on the air and the DUT does "
+                f"not report AP mode (ap_mode={journey.get('dut_says_ap_mode')})"
+                f". {'; '.join(journey['notes'])}"
+            )
         form = journey["form"]
         assert form, f"the portal is beaconing but served no form: {journey['notes']}"
         # The fields the bench is about to fill in must exist, or WT-2102 is
