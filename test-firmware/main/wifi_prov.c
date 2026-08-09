@@ -22,6 +22,26 @@ static const char *TAG = "wifi_prov";
 #define AP_SSID        "WB-Test-Setup"
 #define STA_MAX_RETRY  20
 
+/* Transmit power, in the quarter-dBm units esp_wifi_set_max_tx_power takes.
+ * 20 = 5 dBm.
+ *
+ * The DUT and the bench sit a few centimetres apart. Full power there is not
+ * "more margin": a receiver that close is driven well into compression, and
+ * the bench radiates over every neighbouring network for no benefit. At
+ * 20 cm the bench already hears this device at -22 dBm with the radio turned
+ * down, which is 40 dB of margin over the noise floor. */
+#define TX_POWER_QDBM  20
+
+static void set_low_tx_power(void)
+{
+    /* Must follow esp_wifi_start(): the setting does not survive a stopped
+     * radio, and applying it earlier is silently discarded. */
+    esp_wifi_set_max_tx_power(TX_POWER_QDBM);
+    int8_t got = 0;
+    esp_wifi_get_max_tx_power(&got);
+    ESP_LOGI(TAG, "tx power set to %d (%.2f dBm)", got, got / 4.0);
+}
+
 extern const char portal_html_start[] asm("_binary_portal_html_start");
 extern const char portal_html_end[]   asm("_binary_portal_html_end");
 
@@ -288,19 +308,7 @@ static esp_err_t start_sta(const char *ssid, const char *password)
      * association and no handshake at all. A bench DUT on USB power has
      * nothing to save. */
     esp_wifi_set_ps(WIFI_PS_NONE);
-
-    /* Ask for full transmit power explicitly, and say what we actually got.
-     *
-     * A DUT that hears every AP in the building at normal levels and cannot
-     * complete an association with any of them is failing on the transmit
-     * side, and the two candidates are the antenna path and a radio that has
-     * quietly settled on a low power. Only one of those is fixable in
-     * software, and neither was distinguishable while nothing reported the
-     * figure. 80 = 20 dBm, in the quarter-dBm units this API uses. */
-    esp_wifi_set_max_tx_power(80);
-    int8_t tx_power = 0;
-    esp_wifi_get_max_tx_power(&tx_power);
-    ESP_LOGI(TAG, "max tx power: %d (%.2f dBm)", tx_power, tx_power / 4.0);
+    set_low_tx_power();
 
     wifi_mode_t mode;
     esp_wifi_get_mode(&mode);
@@ -336,6 +344,7 @@ static esp_err_t start_ap(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg));
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    set_low_tx_power();
     ESP_LOGI(TAG, "AP started: SSID='%s' channel=1 auth=OPEN", AP_SSID);
 
     /* Captive portal HTTP + DNS */

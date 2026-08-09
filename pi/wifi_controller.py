@@ -29,6 +29,15 @@ WLAN_IF = os.environ.get("WIFI_WLAN_IF", "wlan0")
 # _ensure_ap_iface() for what happens when it does.
 AP_IF = os.environ.get("WIFI_AP_IF", "ap0")
 
+# Transmit power for the test AP, in mBm (500 = 5 dBm).
+#
+# Everything on this bench is centimetres from everything else. Full power at
+# that range is not extra margin — it drives the receiver into compression and
+# splashes over every neighbouring network for no benefit. The DUT is heard at
+# -22 dBm with both radios turned down, which is ample. Raise it only for a
+# bench whose DUT is genuinely across a room.
+AP_TXPOWER_MBM = int(os.environ.get("WIFI_AP_TXPOWER_MBM", "500"))
+
 # A scan while another is in flight fails with "Device or resource busy",
 # and so does one issued while the radio is still settling into AP mode.
 # Both clear in seconds, so the bench absorbs them rather than making every
@@ -456,6 +465,8 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         # /usr/sbin, which is not on PATH for the service.
         _run(["/usr/sbin/iw", "dev", AP_IF, "set", "power_save", "off"],
              check=False)
+        _run(["/usr/sbin/iw", "dev", AP_IF, "set", "txpower", "fixed",
+              str(AP_TXPOWER_MBM)], check=False)
 
         # Address the interface only now. hostapd resets the netdev when it
         # claims it, which silently discards an address configured before —
