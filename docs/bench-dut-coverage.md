@@ -1,8 +1,9 @@
 # The bench DUT: what it is for, test by test
 
 The bench owns one ESP32 of its own — `test-firmware/`, built by CI, flashed
-by the bench, currently the ESP32-S3 in SLOT4. This page says what each of
-the 98 bench tests needs from it, so its firmware is driven by the suite's
+by the bench. Which slot holds it is not written down anywhere on purpose —
+boards move, and every fixture discovers the slot by asking. This page says
+what each of the bench tests needs from it, so its firmware is driven by the suite's
 demands rather than by whatever seemed useful at the time.
 
 **Why it exists at all.** A workbench test that asserts on a *project's*
@@ -26,8 +27,8 @@ its own questions.
 | 6 | TestWiFiScan | 4 | – | the Pi's radio; other APs suffice. One radio cannot beacon and survey at once, so a scan while the AP runs is refused with its reason (WT-603) and WT-602's question is unanswerable here |
 | 7 | TestSiggen | 5 | – | Si5351 + PE4302 |
 | 8 | TestRfLoopback | 1 | SDR | bench transmitter → bench receiver |
-| 9 | TestMqttBroker | 3 | – | mosquitto on the Pi |
-| 10 | **TestCaptivePortal** | 1 | ✓ | **host a provisioning portal**, accept credentials, join what it was given |
+| 9 | TestMqttBroker | 5 | – | mosquitto on the Pi — started, stopped, **and asked to carry a message** |
+| 10 | **TestCaptivePortal** | 4 | ✓ | **the whole provisioning journey**: raise a portal, accept SSID/password/broker through its form, reboot and join that AP, then publish to that broker |
 | 11 | TestUSBJTAGDebug | 7 | ✓ | be a **native-USB part with built-in JTAG** — nothing is asked of the firmware |
 | 12 | TestAutoDebug | 4 | ✓ | same; chip identity detectable over JTAG |
 | 13 | **TestPerSlotDebugIsolation** | 2 | ✓✓ | **two** built-in-JTAG boards, of different chip types |
@@ -79,13 +80,23 @@ and getting that backwards makes the whole table unreadable.
 `WT-503`/`WT-504` need the opposite: an address where nothing answers. They
 need no DUT at all.
 
-### Portal host — the S3 is the AP, the bench fills in its form (1)
+### Portal host — the S3 is the AP, the bench fills in its form (4)
+
+The provisioning journey, one gate per test. This is where the bench is the
+*client* of the S3's HTML UI rather than its access point.
 
 | Test | The S3's task |
 |---|---|
-| `WT-2100` provision_and_reach_lan | beacon `WB-Test-Setup`, serve the HTML form, accept `ssid`/`password` POSTed to `/connect`, store them, reboot, and join the network it was handed |
+| `WT-2101` raises a captive portal | beacon `WB-Test-Setup` and serve a form carrying `ssid`, `password` and `broker` |
+| `WT-2102` bench fills the form | accept those three POSTed to `/connect` and store them |
+| `WT-2103` reboots and joins — **success 1** | come back in station mode and join the network it was handed |
+| `WT-2104` publishes — **success 2** | reach the MQTT broker it was given and publish |
 
-This is the one test where the bench is the *client* of the S3's HTML UI.
+It was one test asserting the DUT had an address on the bench AP, which it
+called "provisioned through its portal". It was not: the fixture behind it
+provisions over the serial console first and falls back to the portal only
+if that fails, so the portal usually never ran — a test named after a
+capability, passing without exercising it.
 
 ### Console responder — the wire, no radio involved (1)
 
@@ -118,8 +129,8 @@ different chip types. It exists because two boards sharing VID:PID
 `303a:1001` were reported as each other. One S3 can never satisfy it; the
 tests skip, and that skip is honest.
 
-**29 tests need the S3 to act.** 18 of them ask only for things the wire
-and the silicon provide; 9 need the radio in one direction or the other;
+**32 tests need the S3 to act.** 18 of them ask only for things the wire
+and the silicon provide; 12 need the radio in one direction or the other;
 2 need a second board.
 
 ## What the firmware therefore provides
@@ -132,7 +143,8 @@ and the silicon provide; 9 need the radio in one direction or the other;
 | **Serial console** — `ping`, `status`, `scan`, `info`, `mark`, `wifi`, `forget`, `reboot` | row 18, and provisioning without the radio | built |
 | **`scan`** — the DUT's own view of the air | telling a deaf receiver from a silent AP | built |
 | Built-in USB-JTAG (a property of the part, not the firmware) | rows 11, 12, 13 | inherent |
-| BLE advertisement, off while the portal needs the radio | future BLE tests | built |
+| **MQTT client** — publishes to the broker the portal was given | WT-2104 | built |
+| BLE advertisement, off unless the station is actually up | future BLE tests | built |
 
 ## What the suite actually produced
 

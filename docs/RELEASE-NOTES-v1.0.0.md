@@ -54,15 +54,20 @@ fixed, and each left a test behind.
   spoke at the same moment.
 - A write reported `written: 8` about a socket that closed before the bytes
   reached the device.
-- **The bench AP reached `AP-ENABLED` and radiated nothing.** hostapd on the
-  primary interface installed a beacon the driver accepted — the SSID is
-  legible in the beacon hexdump — while a station 20 cm away heard seven
-  neighbouring APs and not one frame from this one. Nothing reported an
-  error anywhere: `iw` said `type AP` on the right channel, `ap_status` said
-  active, and the only symptom reached anyone as the DUT's own
-  `NO_AP_FOUND`, which accuses the DUT. Every test needing a station on the
-  bench AP had been failing on this. The AP now runs on a dedicated virtual
-  interface.
+- **The bench AP reached `AP-ENABLED` and radiated nothing.** hostapd
+  installed a beacon the driver accepted — the SSID is legible in the beacon
+  hexdump — while a station 20 cm away heard seven neighbouring APs and not
+  one frame from this one. Nothing reported an error anywhere: `iw` said
+  `type AP` on the right channel, `ap_status` said active, and the only
+  symptom reached anyone as the DUT's own `NO_AP_FOUND`, which accuses the
+  DUT. Every test needing a station on the bench AP had been failing on
+  this.
+
+  The cause was wpa_supplicant holding the radio. The installer disabled its
+  units and NetworkManager restarted it over D-Bus within seconds, because
+  it is NM's WiFi backend, so the portal lost that race on every AP start.
+  The installer now marks the interface unmanaged, which leaves NM no reason
+  to want a supplicant for it.
 - **A serial read returned the oldest lines, not the newest.** `lines=N`
   took the first N entries of a 1000-line ring, so any slot up for more than
   a few minutes answered with ancient history whose newest timestamp aged
