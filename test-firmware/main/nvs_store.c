@@ -20,6 +20,28 @@ esp_err_t nvs_store_init(void)
     return ESP_OK;
 }
 
+esp_err_t nvs_store_set_broker(const char *uri)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_str(h, "mqtt_broker", uri ? uri : "");
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    ESP_LOGI(TAG, "MQTT broker saved: '%s'", uri ? uri : "");
+    return err;
+}
+
+bool nvs_store_get_broker(char *uri, size_t uri_len)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) return false;
+    size_t len = uri_len;
+    esp_err_t err = nvs_get_str(h, "mqtt_broker", uri, &len);
+    nvs_close(h);
+    return err == ESP_OK && uri[0] != '\0';
+}
+
 esp_err_t nvs_store_set_wifi(const char *ssid, const char *password)
 {
     nvs_handle_t h;

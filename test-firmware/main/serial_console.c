@@ -22,6 +22,7 @@
 #include "serial_console.h"
 #include "nvs_store.h"
 #include "wifi_prov.h"
+#include "mqtt_pub.h"
 
 #include "driver/usb_serial_jtag.h"
 #include "esp_app_desc.h"
@@ -90,9 +91,10 @@ static void handle_line(char *line)
         char ip[16], mac[18];
         wifi_prov_get_ip(ip, sizeof(ip));
         wifi_prov_get_mac(mac, sizeof(mac));
-        reply("OK status wifi=%d ap_mode=%d ip=%s mac=%s",
+        reply("OK status wifi=%d ap_mode=%d ip=%s mac=%s mqtt=%d topic=%s",
               wifi_prov_is_connected() ? 1 : 0,
-              wifi_prov_is_ap_mode() ? 1 : 0, ip, mac);
+              wifi_prov_is_ap_mode() ? 1 : 0, ip, mac,
+              mqtt_pub_is_connected() ? 1 : 0, mqtt_pub_topic());
     } else if (!strcmp(line, "scan")) {
         /* The DUT's own view of the air. Without it, a DUT that will not
          * join the bench AP is indistinguishable from a bench AP that is

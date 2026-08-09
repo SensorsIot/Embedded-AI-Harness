@@ -9,6 +9,7 @@
 #include "esp_event.h"
 #include "lwip/inet.h"
 #include "dns_server.h"
+#include "mqtt_pub.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -93,6 +94,16 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         char gw[16];
         snprintf(gw, sizeof(gw), IPSTR, IP2STR(&e->ip_info.gw));
         udp_log_set_host(gw);
+
+        /* The provisioning journey does not end at an IP address. Start
+           publishing to the broker the portal was given — or, failing
+           that, to this lease's gateway, which is the bench. Started once:
+           a reconnect must not stack a second client. */
+        static bool mqtt_started = false;
+        if (!mqtt_started) {
+            mqtt_started = true;
+            mqtt_pub_start(gw);
+        }
     }
 }
 
@@ -143,7 +154,10 @@ static bool form_get(const char *body, const char *key, char *out, size_t out_sz
 
 static esp_err_t connect_post_handler(httpd_req_t *req)
 {
-    char buf[256];
+    /* SSID, password and a broker URI, URL-encoded, plus field names. 256
+       was already close for the first two; a truncated body would be
+       rejected as a missing SSID, which names the wrong field. */
+    char buf[512];
     int len = httpd_req_recv(req, buf, sizeof(buf) - 1);
     if (len <= 0) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No body");
@@ -153,19 +167,24 @@ static esp_err_t connect_post_handler(httpd_req_t *req)
 
     char ssid_buf[33] = {0};
     char pass_buf[65] = {0};
+    char broker_buf[128] = {0};
     const char *ssid = NULL;
     const char *pass = NULL;
+    const char *broker = NULL;
 
     /* Try JSON first, fall back to form-encoded */
     cJSON *json = cJSON_Parse(buf);
     if (json) {
         ssid = cJSON_GetStringValue(cJSON_GetObjectItem(json, "ssid"));
         pass = cJSON_GetStringValue(cJSON_GetObjectItem(json, "password"));
+        broker = cJSON_GetStringValue(cJSON_GetObjectItem(json, "broker"));
     } else {
         if (form_get(buf, "ssid", ssid_buf, sizeof(ssid_buf)))
             ssid = ssid_buf;
         form_get(buf, "password", pass_buf, sizeof(pass_buf));
         pass = pass_buf;
+        if (form_get(buf, "broker", broker_buf, sizeof(broker_buf)))
+            broker = broker_buf;
     }
 
     if (!ssid || strlen(ssid) == 0) {
@@ -175,6 +194,9 @@ static esp_err_t connect_post_handler(httpd_req_t *req)
     }
 
     nvs_store_set_wifi(ssid, pass ? pass : "");
+    /* The broker is optional. Stored even when empty, so a re-provision
+       without one clears a previous entry rather than silently keeping it. */
+    nvs_store_set_broker(broker ? broker : "");
     if (json) cJSON_Delete(json);
 
     httpd_resp_set_type(req, "application/json");
