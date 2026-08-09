@@ -14,7 +14,8 @@ import uuid
 
 import pytest
 
-from conftest import (BENCH_DUT_PORTAL, _ap_stop_quietly,
+from conftest import (BENCH_DUT_HTTP_PORT, BENCH_DUT_PORTAL,
+                      _ap_stop_quietly, _find_console_slot,
                       _wait_for_any_station, ensure_bench_dut_firmware)
 from workbench_driver import CommandError, CommandTimeout, WorkbenchError
 
@@ -294,17 +295,56 @@ class TestHTTPRelay:
         assert json.loads(resp.text), "relayed body is not the JSON the DUT sent"
 
     def test_wt506_http_via_sta_mode(self, workbench):
-        """WT-506: HTTP relay works in STA mode."""
-        import os
-        ssid = os.environ.get("WIFI_TEST_STA_SSID")
-        password = os.environ.get("WIFI_TEST_STA_PASS", "")
-        target_url = os.environ.get("WIFI_TEST_HTTP_URL")
-        if not ssid or not target_url:
-            pytest.skip("WIFI_TEST_STA_SSID and WIFI_TEST_HTTP_URL required")
-        workbench.sta_join(ssid, password)
-        resp = workbench.http_get(target_url)
-        assert resp.status_code == 200
-        workbench.sta_leave()
+        """WT-506: the relay carries a request over the station link.
+
+        Everywhere else the relay reaches a device on the bench's own AP
+        network. This is the other direction: the bench stops being an
+        access point, becomes a station, and the relay works from there.
+
+        The far end is the DUT's own portal AP. That matters more than
+        convenience — the target has to be somewhere only the station link
+        can reach. This test used to want an external network and a URL on
+        it, configured by hand, and skipped without them; the obvious fix
+        would have been to point it at something on the house LAN, and that
+        is the one thing that cannot work. The bench's eth0 is already on
+        that LAN, so `ip route get` sends the request out of eth0 and the
+        station link does nothing — the test would pass on the strength of
+        the failure it exists to catch. The DUT's AP is 192.168.4.0/24 and
+        eth0 has no route there.
+
+        So: no configuration, no external network, and a real HTTP server
+        answering a real request over the link under test.
+        """
+        # The DUT has to be in front of its own portal. It is provisioned
+        # onto the bench AP by the time this runs, so ask it to forget.
+        slot = _find_console_slot(workbench)
+        if not slot:
+            pytest.skip(
+                "precondition unmet: no slot answers the bench DUT console, "
+                "so no DUT can host the AP this test joins"
+            )
+        _ap_stop_quietly(workbench)          # the radio is about to be a station
+        workbench.serial_write(slot, text="forget")
+        time.sleep(20)
+
+        joined = workbench.sta_join(BENCH_DUT_PORTAL, "")
+        try:
+            assert joined.get("ip", "").startswith("192.168.4."), (
+                f"joined '{BENCH_DUT_PORTAL}' and got {joined}"
+            )
+            r = workbench.http_get(
+                f"http://192.168.4.1:{BENCH_DUT_HTTP_PORT}/status", timeout=10)
+            assert r.status_code == 200, (
+                f"the bench is a station on the DUT's AP and the relay got "
+                f"{r.status_code} from its HTTP server"
+            )
+            body = json.loads(r.text)
+            assert body.get("project"), f"relayed body is not the DUT's: {body}"
+        finally:
+            try:
+                workbench.sta_leave()
+            except Exception:
+                pass
 
 
 # =====================================================================
@@ -346,24 +386,36 @@ class TestWiFiScan:
             assert isinstance(net["rssi"], (int, float))
             assert net["rssi"] < 0
 
-    def test_wt602_scan_does_not_find_own_ap(self, workbench):
-        """WT-602: our own AP does not appear in scan results.
+    def test_wt602_scan_reports_the_air_now_not_last_time(self, workbench):
+        """WT-602: an SSID that has left the air is gone from the next scan.
 
-        Unanswerable on this bench, and recorded rather than quietly
-        dropped. The question needs a scan taken while our own AP is
-        beaconing, and one radio cannot do both — see WT-603, which asserts
-        the refusal. It passed before only because the AP was silently not
-        radiating, so the "own AP" it looked for was never on the air: the
-        assertion held for the one reason that makes it worthless.
+        This asked whether our own AP appears in our own scan, and could
+        not be answered: one radio cannot beacon and survey at once (see
+        WT-603), so it was skipped on every run — a test that can never run
+        is not coverage, it is noise. The claim was empty in any case, since
+        the scan parses `iw` output and cannot invent an SSID.
 
-        A second radio would make it answerable, as would any bench whose
-        AP and scan are not the same chip.
+        The property worth having is that the scan is a measurement rather
+        than a memory. A cached result is the same failure as the empty list
+        this class was built around: the bench reporting something other
+        than what is on the air, with nothing to distinguish the two. Our
+        own AP is the one transmitter here that can be switched off on
+        demand, which makes it the instrument for the question.
         """
-        pytest.skip(
-            "precondition unmet: this bench has one radio, which cannot "
-            "beacon and scan at once (WT-603 asserts that refusal). WT-602 "
-            "needs a scan taken while our own AP is up."
+        ssid = f"WT-STALE-{uuid.uuid4().hex[:6].upper()}"
+        workbench.ap_start(ssid, "password123")
+        time.sleep(2)
+        workbench.ap_stop()
+        time.sleep(3)
+
+        ssids = [n["ssid"] for n in workbench.scan().get("networks", [])]
+        assert ssid not in ssids, (
+            f"'{ssid}' was taken off the air and the scan still reports it — "
+            f"the result is cached, not measured: {ssids}"
         )
+        # And the scan still works at all, so a pass cannot come from an
+        # empty list.
+        assert ssids, "the scan saw nothing; absence of our SSID proves nothing"
 
     def test_wt603_scan_while_ap_running(self, workbench):
         """WT-603: a scan attempted while the AP runs is refused, with its
@@ -2191,8 +2243,12 @@ class TestApiSurface:
         # nothing here noticed, because these assertions only ask whether the
         # endpoints answer, not whether the answer is true. A short power
         # measurement touches the device, so it cannot succeed without one.
-        r = workbench._api_post_raw("/api/sdr/power",
-                                    {"freq_hz": 433920000, "duration": 1})
+        # `duration_s`, not `duration` — the wrong name is ignored and the
+        # endpoint takes its 10 s default, which then outran the driver's own
+        # 10 s timeout and failed a working dongle on a stopwatch.
+        r = workbench._api_post_raw(
+            "/api/sdr/power",
+            {"freq_hz": 433920000, "duration_s": 2}, timeout=60)
         assert r.get("ok") is True, (
             f"status says the SDR is available, and using it failed: {r}. "
             f"Either the dongle is gone and `available` is stale, or the "

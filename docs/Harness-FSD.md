@@ -3456,7 +3456,7 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-506 | HTTP via STA mode | HTTP Relay | Yes |
 | WT-600 | Scan finds networks | WiFi Scan | No |
 | WT-601 | Scan returns fields | WiFi Scan | No |
-| WT-602 | Own AP excluded | WiFi Scan | No |
+| WT-602 | Scan is measured, not cached — an SSID off the air is gone from the next scan | WiFi Scan | No |
 | WT-603 | Scan while AP running | WiFi Scan | No |
 
 | WT-700 | Human interaction confirm | Human Interaction | No |
