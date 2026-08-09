@@ -46,6 +46,8 @@ WORK_DIR = "/tmp/wifi-tester"
 HOSTAPD_CONF = os.path.join(WORK_DIR, "hostapd.conf")
 DNSMASQ_CONF = os.path.join(WORK_DIR, "dnsmasq.conf")
 DNSMASQ_LEASES = os.path.join(WORK_DIR, "dnsmasq.leases")
+HOSTAPD_LOG = os.path.join(WORK_DIR, "hostapd.log")
+DNSMASQ_LOG = os.path.join(WORK_DIR, "dnsmasq.log")
 WPA_CONF = os.path.join(WORK_DIR, "wpa_supplicant.conf")
 WPA_LOG = os.path.join(WORK_DIR, "wpa_supplicant.log")
 
@@ -152,6 +154,15 @@ def _check_wifi_testing_mode():
 
 def _ensure_work_dir():
     os.makedirs(WORK_DIR, exist_ok=True)
+
+
+def _tail(path, limit=500):
+    """Last `limit` characters of a log file, for an error message."""
+    try:
+        with open(path, "rb") as f:
+            return f.read().decode(errors="replace")[-limit:]
+    except OSError as exc:
+        return f"(could not read {path}: {exc})"
 
 
 def _kill_proc(proc, timeout=5.0):
@@ -408,16 +419,26 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         _flush_addr()
         _ensure_ap_iface()
 
-        # Start hostapd
-        _ap_hostapd_proc = subprocess.Popen(
-            ["hostapd", HOSTAPD_CONF],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        # Start hostapd, logging to a file rather than a pipe nobody drains.
+        #
+        # It used to inherit stdout=PIPE with no reader. A pipe holds about
+        # 64 KB and then blocks the writer, and hostapd logs a line per
+        # association, deauthentication and handshake — so a bench that has
+        # been raising APs and cycling stations all day eventually wedges its
+        # AP mid-operation. The kernel keeps beaconing, so the AP still looks
+        # up and `ap_status` still says active, while hostapd's EAPOL state
+        # machine has stopped: stations associate, get no 1/4 message, and
+        # are dropped a second later with reason 4 or 15. Started by hand
+        # with a terminal to write to, the identical config worked.
+        with open(HOSTAPD_LOG, "wb") as log:
+            _ap_hostapd_proc = subprocess.Popen(
+                ["hostapd", HOSTAPD_CONF],
+                stdout=log, stderr=subprocess.STDOUT,
+            )
         # Wait for hostapd to initialise
         time.sleep(1.5)
         if _ap_hostapd_proc.poll() is not None:
-            out = _ap_hostapd_proc.stdout.read().decode(errors="replace")
-            raise RuntimeError(f"hostapd failed to start: {out[:500]}")
+            raise RuntimeError(f"hostapd failed to start: {_tail(HOSTAPD_LOG)}")
 
         # brcmfmac re-enables WiFi power save whenever the interface cycles
         # (logged as "power save enabled"), and a power-saving AP sleeps
@@ -436,16 +457,18 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         _run(["ip", "addr", "add", f"{AP_IP}/24", "dev", AP_IF], check=False)
         _run(["ip", "link", "set", AP_IF, "up"], check=False)
 
-        # Start dnsmasq
-        _ap_dnsmasq_proc = subprocess.Popen(
-            ["dnsmasq", "-C", DNSMASQ_CONF],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        # Start dnsmasq — same reasoning as hostapd above. `log-dhcp` makes it
+        # chatty, and a blocked dnsmasq stops handing out leases while the AP
+        # still looks healthy.
+        with open(DNSMASQ_LOG, "wb") as log:
+            _ap_dnsmasq_proc = subprocess.Popen(
+                ["dnsmasq", "-C", DNSMASQ_CONF],
+                stdout=log, stderr=subprocess.STDOUT,
+            )
         time.sleep(0.5)
         if _ap_dnsmasq_proc.poll() is not None:
-            out = _ap_dnsmasq_proc.stdout.read().decode(errors="replace")
             _kill_proc(_ap_hostapd_proc)
-            raise RuntimeError(f"dnsmasq failed to start: {out[:500]}")
+            raise RuntimeError(f"dnsmasq failed to start: {_tail(DNSMASQ_LOG)}")
 
         if internet:
             _enable_nat()
