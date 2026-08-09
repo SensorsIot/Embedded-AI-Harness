@@ -23,7 +23,7 @@ its own questions.
 | 3 | **TestStationEvents** | 4 | ✓ | **join the bench AP** and hold the association so connect/disconnect/IP events are real |
 | 4 | TestSTAMode | 5 | – | the **Pi** joins an external network; no DUT |
 | 5 | **TestHTTPRelay** | 7 | ✓ (5 of 7) | **serve HTTP** on a known port and path so the relay has something to reach |
-| 6 | TestWiFiScan | 4 | – | the Pi's radio; other APs suffice |
+| 6 | TestWiFiScan | 4 | – | the Pi's radio; other APs suffice. One radio cannot beacon and survey at once, so a scan while the AP runs is refused with its reason (WT-603) and WT-602's question is unanswerable here |
 | 7 | TestSiggen | 5 | – | Si5351 + PE4302 |
 | 8 | TestRfLoopback | 1 | SDR | bench transmitter → bench receiver |
 | 9 | TestMqttBroker | 3 | – | mosquitto on the Pi |
@@ -133,6 +133,34 @@ and the silicon provide; 9 need the radio in one direction or the other;
 | **`scan`** — the DUT's own view of the air | telling a deaf receiver from a silent AP | built |
 | Built-in USB-JTAG (a property of the part, not the firmware) | rows 11, 12, 13 | inherent |
 | BLE advertisement, off while the portal needs the radio | future BLE tests | built |
+
+## What the suite actually produced
+
+98 tests: **88 passed, 0 failed, 10 skipped**, reproduced across three
+separate full runs on one ESP32-S3 and an RTL-SDR dongle.
+
+Every skip names an absent instrument or a question this bench cannot ask.
+None is a capability that quietly stopped working — which is the failure this
+page exists to catch:
+
+| Skips | Reason |
+|---:|---|
+| 3 | no ESP32-C3 DUT present |
+| 2 | FR-037 needs two built-in-JTAG boards; this bench has one |
+| 1 | the multi-slot test needs 2+ DUTs |
+| 1 | no Si5351 signal generator present |
+| 1 | no slot currently holds a debug session |
+| 1 | `WIFI_TEST_HTTP_URL` not set |
+| 1 | WT-602 needs a scan taken while our own AP beacons — see below |
+
+**Repeatability had to be fixed before any of this meant anything.** One run
+passed 74/74 and the next collapsed to 51 passes and 15 failures, on the same
+bench, cables and commit. WT-1800 flashes a throwaway image over the bench DUT
+to prove flashing works, and nothing put the real one back; the board sat
+printing `LOOP: n` and every later test that needed it to *answer* reported
+absent hardware. A defined bench (FR-036) is only half a defined starting
+state. The suite now restores its own DUT at session start and after the flash
+tests.
 
 ## Two gaps this list makes visible
 
