@@ -12,6 +12,7 @@ import time
 
 import pytest
 
+from conftest import ensure_bench_dut_firmware
 from workbench_driver import CommandError, CommandTimeout, WorkbenchError
 
 # Path to pre-built debug-test firmware binaries
@@ -1039,13 +1040,25 @@ class TestEndToEnd:
 
     @pytest.fixture(autouse=True, scope="class")
     def _end_test_session(self, workbench):
-        """Send test_end when all tests in this class are done."""
+        """Send test_end when all tests in this class are done, and give the
+        bench its own DUT back.
+
+        This class deliberately flashes a throwaway image over the bench DUT
+        — that is how it proves flashing works — and used to leave it there.
+        Every later test that needs the DUT to *answer* then found a board
+        printing `LOOP: n` and reported absent hardware, and so did the next
+        run, and the one after that. A suite that destroys its own
+        instrument has to rebuild it before it hands the bench on.
+        """
         yield
         try:
             workbench.test_end()
         except Exception:
             pass
         TestEndToEnd._test_session_started = False
+        restored = ensure_bench_dut_firmware(workbench)
+        if restored:
+            print(f"\n{restored}")
 
     @pytest.fixture(autouse=True)
     def _track_progress(self, workbench, request):

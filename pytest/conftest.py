@@ -84,6 +84,9 @@ def workbench(request):
                     f"state: {r}", returncode=3)
     if r.get("changed"):
         print(f"\nbench reset: {', '.join(r['changed'])}")
+    restored = ensure_bench_dut_firmware(driver)
+    if restored:
+        print(f"bench DUT: {restored}")
     yield driver
     try:
         driver.ap_stop()
@@ -106,6 +109,89 @@ def wifi_network(workbench):
 # The bench's own DUT — the firmware in test-firmware/, built by CI.
 BENCH_DUT_PORTAL = "WB-Test-Setup"   # SSID it advertises unprovisioned
 BENCH_DUT_HTTP_PORT = 8080           # its own server, not the portal's
+
+# Where a known-good bench-DUT image lives: a directory holding the images
+# and the `flash_args` that names their offsets, exactly as CI publishes it.
+BENCH_DUT_IMAGE_ENV = "WT_BENCH_DUT_IMAGE"
+
+
+def _dut_answers(workbench, slot, timeout=6.0) -> bool:
+    """Does this slot's device answer the bench DUT console?"""
+    try:
+        since = time.time()
+        workbench.serial_write(slot, text="ping")
+    except Exception:
+        return False
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            out = workbench.serial_output(slot, lines=200, since=since)
+        except Exception:
+            return False
+        if any("OK pong" in ln.get("text", "")
+               for ln in out.get("lines", [])):
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _flash_args_offsets(image_dir):
+    """Parse CI's `flash_args` into [(offset, path)] — never guess offsets.
+
+    They move whenever the partition table does; a guessed offset produces a
+    hash-verified write and a device that will not boot.
+    """
+    args_path = os.path.join(image_dir, "flash_args")
+    with open(args_path) as f:
+        tokens = f.read().split()
+    parts = []
+    for i, tok in enumerate(tokens):
+        if tok.startswith("0x") and i + 1 < len(tokens):
+            parts.append((tok, os.path.join(image_dir,
+                                            os.path.basename(tokens[i + 1]))))
+    return parts
+
+
+def ensure_bench_dut_firmware(workbench):
+    """Put the bench's own DUT back to the image the suite assumes.
+
+    A run has to begin from a defined bench *and* a defined DUT. FR-036
+    gives the first; this gives the second, and without it the suite is not
+    repeatable: WT-1800 deliberately flashes a throwaway image over the
+    bench DUT to prove flashing works, and nothing ever puts the real one
+    back. The next run then starts on a board that answers nothing, and the
+    console and provisioning fixtures report absent hardware — on hardware
+    that is present and was working an hour ago.
+
+    Returns a description of what it did, or None when nothing was needed.
+    Absence of a configured image is not an error: the fixtures downstream
+    already report an unmet precondition naming what to flash.
+    """
+    image_dir = os.environ.get(BENCH_DUT_IMAGE_ENV)
+    slots = [d for d in workbench.get_devices() if d.get("present")]
+    for dev in slots:
+        if _dut_answers(workbench, dev["label"]):
+            return None                     # already the image we want
+    if not image_dir or not os.path.isdir(image_dir):
+        return None                         # nothing to restore from
+    for dev in slots:
+        chip = dev.get("detected_chip")
+        if not chip:
+            continue
+        try:
+            images = dict(_flash_args_offsets(image_dir))
+            r = workbench.flash(dev["label"], images, chip=chip)
+            if not r.get("ok"):
+                return (f"could not restore {dev['label']}: "
+                        f"{r.get('error') or r}")
+        except Exception as exc:
+            return f"could not restore {dev['label']}: {exc}"
+        time.sleep(10)
+        if _dut_answers(workbench, dev["label"], timeout=15):
+            return f"restored bench DUT firmware on {dev['label']}"
+        return (f"flashed {dev['label']} from {image_dir} but it does not "
+                f"answer the console")
+    return None
 
 
 @pytest.fixture(scope="session")
