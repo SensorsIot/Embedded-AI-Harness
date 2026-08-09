@@ -577,6 +577,90 @@ class TestMqttBroker:
         assert r.get("ok") is True and r.get("port") == 1883
         workbench.mqtt_stop()
 
+    def test_wt2003_broker_carries_a_message(self, workbench):
+        """WT-2003: a message published to the broker reaches a subscriber.
+
+        The three tests above start it, stop it, and read a status flag —
+        none of them asks it to carry anything. A broker that accepts
+        connections and delivers nothing would pass all three, and the
+        bench would go on declaring MQTT as a capability it had never
+        demonstrated.
+        """
+        workbench.mqtt_start()
+        host = workbench.info()["host_ip"]
+        topic = f"workbench/selftest/{uuid.uuid4().hex[:8]}"
+        payload = f"hello-{uuid.uuid4().hex[:8]}"
+
+        got = self._roundtrip(host, topic, payload, timeout=20)
+        assert got == payload, (
+            f"published '{payload}' to {topic} on {host}:1883 and the "
+            f"subscriber received {got!r}"
+        )
+
+    def test_wt2004_stopped_broker_refuses_connections(self, workbench):
+        """WT-2004: after stop, the port is actually closed.
+
+        `running: false` is the broker's own opinion of itself. A process
+        left holding 1883 would report stopped and keep serving, and every
+        later test would pass against a broker nobody thought was there.
+        """
+        import socket as _socket
+        workbench.mqtt_stop()
+        host = workbench.info()["host_ip"]
+        try:
+            with _socket.create_connection((host, 1883), timeout=5):
+                refused = False
+        except OSError:
+            refused = True
+        finally:
+            workbench.mqtt_start()      # shared infrastructure; put it back
+        assert refused, f"{host}:1883 still accepts connections after stop"
+
+    @staticmethod
+    def _roundtrip(host, topic, payload, timeout):
+        """Publish and subscribe against the bench broker; return what came
+        back, or None."""
+        try:
+            import paho.mqtt.client as mqtt
+        except ImportError:
+            pytest.skip("precondition unmet: paho-mqtt not installed here")
+
+        received = []
+
+        def on_connect(client, userdata, flags, rc, properties=None):
+            client.subscribe(topic)
+
+        def on_message(client, userdata, msg):
+            received.append(msg.payload.decode(errors="replace"))
+
+        sub = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        sub.on_connect, sub.on_message = on_connect, on_message
+        sub.connect(host, 1883, 60)
+        sub.loop_start()
+        # Subscribing is asynchronous: publishing before the SUBACK lands
+        # loses the message and looks like a broker that dropped it.
+        deadline = time.time() + 5
+        while time.time() < deadline and not sub.is_connected():
+            time.sleep(0.2)
+        time.sleep(0.5)
+
+        pub = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        pub.connect(host, 1883, 60)
+        pub.loop_start()
+        pub.publish(topic, payload, qos=1)
+
+        deadline = time.time() + timeout
+        while time.time() < deadline and not received:
+            time.sleep(0.3)
+
+        for c in (pub, sub):
+            c.loop_stop()
+            try:
+                c.disconnect()
+            except Exception:
+                pass
+        return received[0] if received else None
+
 
 # =====================================================================
 # WT-21xx  Captive-Portal Provisioning (WiFiManager DUT onto NAT AP)

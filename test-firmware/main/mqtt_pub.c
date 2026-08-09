@@ -78,8 +78,11 @@ static void publish_task(void *arg)
 
 esp_err_t mqtt_pub_start(const char *fallback_host)
 {
-    char broker[128] = {0};
-    if (!nvs_store_get_broker(broker, sizeof(broker))) {
+    char stored[128] = {0};
+    /* Wider than what it may hold, because a scheme gets prepended to it. */
+    char broker[160];
+
+    if (!nvs_store_get_broker(stored, sizeof(stored))) {
         /* Nothing was entered in the portal. The bench hands out this
          * device's lease, so its gateway is the bench, and the bench runs
          * the broker — a sensible default that still lets the portal
@@ -87,11 +90,11 @@ esp_err_t mqtt_pub_start(const char *fallback_host)
         snprintf(broker, sizeof(broker), "mqtt://%s",
                  fallback_host ? fallback_host : "192.168.4.1");
         ESP_LOGI(TAG, "no broker configured, using %s", broker);
-    } else if (!strstr(broker, "://")) {
+    } else if (!strstr(stored, "://")) {
         /* An operator types an address, not a URI. Accept both. */
-        char host[128];
-        snprintf(host, sizeof(host), "mqtt://%s", broker);
-        strncpy(broker, host, sizeof(broker) - 1);
+        snprintf(broker, sizeof(broker), "mqtt://%s", stored);
+    } else {
+        snprintf(broker, sizeof(broker), "%s", stored);
     }
 
     uint8_t mac[6] = {0};
