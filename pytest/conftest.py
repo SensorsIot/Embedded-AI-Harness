@@ -426,10 +426,21 @@ def _provision_over_serial(workbench, ssid: str, password: str) -> bool:
 
 
 def _wait_for_any_station(workbench, timeout: float):
+    """Poll for a station on the bench AP. Returns it, or None on timeout.
+
+    A failed poll is not an answer. The radio is still settling into AP mode
+    while this runs, and `ap_status` can take longer than its own timeout —
+    at which point the exception propagated out of the session fixture and
+    ERRORed nine tests that had not been attempted. Whether a station joined
+    is decided by the deadline, not by one slow reply.
+    """
     import time
     deadline = time.time() + timeout
     while time.time() < deadline:
-        stations = workbench.ap_status().get("stations") or []
+        try:
+            stations = workbench.ap_status().get("stations") or []
+        except Exception:
+            stations = []
         if stations and stations[0].get("ip"):
             return stations[0]
         time.sleep(3)

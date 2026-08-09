@@ -895,7 +895,7 @@ def scan():
         if line.startswith("BSS "):
             if current.get("ssid"):
                 networks.append(current)
-            current = {"ssid": "", "rssi": 0, "auth": "OPEN"}
+            current = {"ssid": "", "rssi": 0, "auth": "OPEN", "channel": 0}
         elif line.startswith("SSID:"):
             ssid = line[5:].strip()
             current["ssid"] = ssid
@@ -904,6 +904,18 @@ def scan():
             m = re.search(r"(-?\d+\.?\d*)", line)
             if m:
                 current["rssi"] = int(float(m.group(1)))
+        elif line.startswith("DS Parameter set: channel"):
+            m = re.search(r"channel\s+(\d+)", line)
+            if m:
+                current["channel"] = int(m.group(1))
+        elif line.startswith("freq:") and not current.get("channel"):
+            # Not every AP emits a DS Parameter set element; the frequency
+            # is always there, and 2.4 GHz channels are a fixed grid.
+            m = re.search(r"(\d{4})", line)
+            if m:
+                mhz = int(m.group(1))
+                if 2412 <= mhz <= 2484:
+                    current["channel"] = (mhz - 2407) // 5
         elif "WPA" in line or "RSN" in line:
             current["auth"] = "WPA2" if "RSN" in line else "WPA"
         elif "WEP" in line:

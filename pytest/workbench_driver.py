@@ -209,7 +209,10 @@ class WorkbenchDriver:
         self._api_post("/api/wifi/ap_stop", timeout=10)
 
     def ap_status(self) -> dict:
-        result = self._api_get("/api/wifi/ap_status", timeout=10)
+        # Longer than the AP takes to reconfigure. ap_start holds the radio
+        # lock while it rearranges interfaces and starts two daemons, and a
+        # status poll arriving in that window waited behind it.
+        result = self._api_get("/api/wifi/ap_status", timeout=30)
         return {k: v for k, v in result.items() if k != "ok"}
 
     def wifi_http(self, url: str, method: str = "GET",
