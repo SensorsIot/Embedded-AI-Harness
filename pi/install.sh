@@ -9,6 +9,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# The radio the portal owns. Must match WIFI_WLAN_IF in wifi_controller.py.
+WLAN_IF="${WIFI_WLAN_IF:-wlan0}"
 UPDATE_ONLY=false
 if [ "$1" = "--update" ]; then
     UPDATE_ONLY=true
@@ -85,6 +87,29 @@ if [ "$UPDATE_ONLY" = false ]; then
     # when it needs station mode.
     systemctl disable --now wpa_supplicant.socket 2>/dev/null || true
     systemctl disable --now wpa_supplicant.service 2>/dev/null || true
+
+    # ...and disabling the units is not enough on its own. NetworkManager uses
+    # wpa_supplicant as its WiFi backend and starts it again over D-Bus within
+    # seconds, so the portal's own attempts to clear wlan0 lost that race every
+    # time. The symptom is vicious: hostapd reaches AP-ENABLED, installs a
+    # beacon the driver accepts — the SSID is legible in the beacon hexdump —
+    # and radiates nothing at all. Nothing reports an error. `iw` says the
+    # interface is an AP on the right channel, the portal says the AP is
+    # active, and the only sign reaches anyone as the DUT's own NO_AP_FOUND,
+    # which accuses the DUT.
+    #
+    # Marking the interface unmanaged is what actually settles it: NM then has
+    # no reason to want a supplicant for it.
+    echo "Telling NetworkManager to leave $WLAN_IF to the portal..."
+    mkdir -p /etc/NetworkManager/conf.d
+    cat > /etc/NetworkManager/conf.d/99-workbench.conf <<NMCONF
+# Installed by the Embedded Workbench. The portal owns this radio: it runs
+# hostapd on it for the test AP and its own wpa_supplicant for station mode.
+[keyfile]
+unmanaged-devices=interface-name:$WLAN_IF
+NMCONF
+    nmcli general reload 2>/dev/null || systemctl reload NetworkManager 2>/dev/null || true
+    pkill -f "wpa_supplicant" 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------
