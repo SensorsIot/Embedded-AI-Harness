@@ -34,7 +34,7 @@
 
 static const char *TAG = "console";
 
-#define LINE_MAX   192
+#define CONSOLE_LINE_MAX   192   /* LINE_MAX belongs to limits.h */
 #define RX_CHUNK   64
 
 static void reply(const char *fmt, ...)
@@ -107,7 +107,7 @@ static void handle_line(char *line)
 
 static void console_task(void *arg)
 {
-    char line[LINE_MAX];
+    char line[CONSOLE_LINE_MAX];
     size_t len = 0;
     uint8_t chunk[RX_CHUNK];
 
