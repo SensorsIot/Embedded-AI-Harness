@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 WLAN_IF = os.environ.get("WIFI_WLAN_IF", "wlan0")
+# The AP runs on its own virtual interface, never on WLAN_IF — see
+# _ensure_ap_iface() for what happens when it does.
+AP_IF = os.environ.get("WIFI_AP_IF", "ap0")
 
 # A scan while another is in flight fails with "Device or resource busy",
 # and so does one issued while the radio is still settling into AP mode.
@@ -232,12 +235,72 @@ def _release_wlan():
         pass
 
 
-def _flush_addr():
-    """Remove all IP addresses from wlan0."""
+def _flush_addr(iface: str = None):
+    """Remove all IP addresses from an interface (wlan0 unless told otherwise)."""
     try:
-        _run(["ip", "addr", "flush", "dev", WLAN_IF], check=False)
+        _run(["ip", "addr", "flush", "dev", iface or WLAN_IF], check=False)
     except Exception:
         pass
+
+
+def _ensure_ap_iface():
+    """Create the dedicated AP interface, replacing any stale one.
+
+    The AP does not run on wlan0, and this is not tidiness.
+
+    On this Pi's brcmfmac radio, hostapd on the primary interface reaches
+    `AP-ENABLED`, installs a beacon the driver accepts — the SSID is visible
+    in the beacon hexdump — and then radiates nothing at all. A station
+    20 cm away hears seven neighbouring APs at -63 dBm and not one frame
+    from this one; hostapd, left running for 45 s beside a device retrying
+    every 5 s, logs no authentication attempt. Meanwhile the same radio
+    joins external networks as a station perfectly, so the transmitter is
+    fine. Nothing reports an error anywhere: `iw` says `type AP` on the
+    right channel, hostapd says enabled, and the only symptom reaches the
+    log as the DUT's `NO_AP_FOUND` — which accuses the DUT.
+
+    A separate `__ap` virtual interface works immediately: the same
+    hostapd config, the same channel, and the station associates, takes a
+    DHCP lease and passes traffic.
+    """
+    _run(["/usr/sbin/iw", "dev", AP_IF, "del"], check=False)
+    _run(["/usr/sbin/iw", "dev", WLAN_IF, "interface", "add", AP_IF,
+          "type", "__ap"], check=False)
+
+    # The netdev appears asynchronously. Addressing it too early fails
+    # silently, and the first thing that then complains is dnsmasq —
+    # "unknown interface ap0" — which points at DHCP rather than at the
+    # interface that was never finished.
+    for _ in range(30):
+        if os.path.exists(f"/sys/class/net/{AP_IF}"):
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError(f"{AP_IF} did not appear after creating it on "
+                           f"{WLAN_IF}")
+
+    # The primary interface must be down for the AP to run on the virtual
+    # one. Left up in managed mode, hostapd gets "Failed to set beacon
+    # parameters / Could not connect to kernel driver" — the radio will not
+    # carry a managed and an AP interface at once.
+    _run(["ip", "link", "set", WLAN_IF, "down"], check=False)
+    _run(["ip", "link", "set", AP_IF, "up"], check=False)
+    # The driver needs a moment after the interfaces are rearranged. Starting
+    # hostapd immediately gets the same "Could not connect to kernel driver"
+    # as leaving wlan0 up, so the settle is part of the sequence, not a
+    # tidy-up.
+    time.sleep(1.0)
+
+
+def _delete_ap_iface():
+    """Remove the AP interface and give the radio back to wlan0.
+
+    Scanning and station mode both use the primary interface, which
+    _ensure_ap_iface had to put down; leaving it down turns every later
+    scan into "no networks", which is the bench lying about the air again.
+    """
+    _run(["/usr/sbin/iw", "dev", AP_IF, "del"], check=False)
+    _run(["ip", "link", "set", WLAN_IF, "up"], check=False)
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +318,8 @@ def _enable_nat():
     # (table, chain, rule-args) — added only if not already present (-C).
     rules = [
         ("nat", "POSTROUTING", ["-o", "eth0", "-j", "MASQUERADE"]),
-        ("filter", "FORWARD", ["-i", WLAN_IF, "-o", "eth0", "-j", "ACCEPT"]),
-        ("filter", "FORWARD", ["-i", "eth0", "-o", WLAN_IF, "-m", "state",
+        ("filter", "FORWARD", ["-i", AP_IF, "-o", "eth0", "-j", "ACCEPT"]),
+        ("filter", "FORWARD", ["-i", "eth0", "-o", AP_IF, "-m", "state",
                                "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"]),
     ]
     for table, chain, args in rules:
@@ -288,12 +351,21 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
 
         # Write hostapd config
         hostapd_lines = [
-            f"interface={WLAN_IF}",
+            f"interface={AP_IF}",
             "driver=nl80211",
             f"ssid={ssid}",
             "hw_mode=g",
             f"channel={channel}",
-            "wmm_enabled=0",
+            # 802.11n with WMM, and a regulatory domain. With `wmm_enabled=0`
+            # and no `ieee80211n`, stations associated and then sat there:
+            # hostapd logged "associated" followed by "disassociated" without
+            # ever sending 1/4 of the 4-way handshake, and the DUT reported
+            # reason 15, 4WAY_HANDSHAKE_TIMEOUT. QoS is not optional for an
+            # 11n-capable station negotiating EAPOL on this driver.
+            "ieee80211n=1",
+            "wmm_enabled=1",
+            "country_code=CH",
+            "ieee80211d=1",
             "macaddr_acl=0",
             "auth_algs=1",
             "ignore_broadcast_ssid=0",
@@ -313,7 +385,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         lease_script = "/usr/local/bin/wifi-lease-notify.sh"
         dns_log = os.path.join(WORK_DIR, "dns.log")
         dnsmasq_lines = [
-            f"interface={WLAN_IF}",
+            f"interface={AP_IF}",
             "bind-interfaces",
             f"dhcp-range={DHCP_RANGE_START},{DHCP_RANGE_END},{AP_NETMASK},{DHCP_LEASE_TIME}",
             f"dhcp-leasefile={DNSMASQ_LEASES}",
@@ -331,11 +403,10 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         with open(DNSMASQ_CONF, "w") as f:
             f.write("\n".join(dnsmasq_lines) + "\n")
 
-        # Release wlan and configure static IP
+        # Release wlan, then raise the AP on its own interface
         _release_wlan()
         _flush_addr()
-        _run(["ip", "addr", "add", f"{AP_IP}/24", "dev", WLAN_IF], check=False)
-        _run(["ip", "link", "set", WLAN_IF, "up"], check=False)
+        _ensure_ap_iface()
 
         # Start hostapd
         _ap_hostapd_proc = subprocess.Popen(
@@ -353,8 +424,17 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         # between beacons: stations associate, lose the AP, and report
         # NO_AP_FOUND for minutes. Force it off every AP start. iw lives in
         # /usr/sbin, which is not on PATH for the service.
-        _run(["/usr/sbin/iw", "dev", WLAN_IF, "set", "power_save", "off"],
+        _run(["/usr/sbin/iw", "dev", AP_IF, "set", "power_save", "off"],
              check=False)
+
+        # Address the interface only now. hostapd resets the netdev when it
+        # claims it, which silently discards an address configured before —
+        # and the first thing to notice is dnsmasq refusing to bind with
+        # "unknown interface ap0", which reads as a missing interface rather
+        # than a missing address on a present one.
+        _flush_addr(AP_IF)
+        _run(["ip", "addr", "add", f"{AP_IP}/24", "dev", AP_IF], check=False)
+        _run(["ip", "link", "set", AP_IF, "up"], check=False)
 
         # Start dnsmasq
         _ap_dnsmasq_proc = subprocess.Popen(
@@ -402,6 +482,8 @@ def _ap_stop_unlocked():
     _ap_channel = 0
     _stations.clear()
 
+    _flush_addr(AP_IF)
+    _delete_ap_iface()
     _flush_addr()
     logger.info("AP stopped")
 
@@ -831,15 +913,15 @@ def sniffer_start(ssid, password="", channel=6):
     # Add NAT masquerade on eth0
     _run(["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0",
           "-j", "MASQUERADE"], check=False)
-    _run(["iptables", "-A", "FORWARD", "-i", WLAN_IF, "-o", "eth0",
+    _run(["iptables", "-A", "FORWARD", "-i", AP_IF, "-o", "eth0",
           "-j", "ACCEPT"], check=False)
-    _run(["iptables", "-A", "FORWARD", "-i", "eth0", "-o", WLAN_IF,
+    _run(["iptables", "-A", "FORWARD", "-i", "eth0", "-o", AP_IF,
           "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
          check=False)
 
     # Start sniffer capture threads
     dns_log = os.path.join(WORK_DIR, "dns.log")
-    sniffer.start(interface=WLAN_IF, log_path=dns_log)
+    sniffer.start(interface=AP_IF, log_path=dns_log)
 
     _sniffer_active = True
     _sniffer_ssid = ssid
@@ -857,9 +939,9 @@ def sniffer_stop():
     # Remove NAT rules
     _run(["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", "eth0",
           "-j", "MASQUERADE"], check=False)
-    _run(["iptables", "-D", "FORWARD", "-i", WLAN_IF, "-o", "eth0",
+    _run(["iptables", "-D", "FORWARD", "-i", AP_IF, "-o", "eth0",
           "-j", "ACCEPT"], check=False)
-    _run(["iptables", "-D", "FORWARD", "-i", "eth0", "-o", WLAN_IF,
+    _run(["iptables", "-D", "FORWARD", "-i", "eth0", "-o", AP_IF,
           "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
          check=False)
 
