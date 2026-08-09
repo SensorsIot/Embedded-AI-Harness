@@ -1645,39 +1645,42 @@ class TestSerialWrite:
 
     SLOT = "SLOT3"
 
-    def test_write_reaches_the_device_and_the_reply_is_captured(self, workbench):
+    def test_write_reaches_the_device_and_the_reply_is_captured(
+            self, workbench, console_dut):
         """The only test here that proves bytes leave the bench.
 
-        It needs something on the far end that answers, and the bench owns
-        no such thing: it borrowed a project's simulator, whose console
-        answered `status` with `OK …` until the project reflashed it and
-        this test went red for a reason that had nothing to do with the
-        workbench. A bench test that depends on a project's firmware is the
-        law inverted — see BENCH-GAP below.
+        It needs something on the far end that answers. The bench used to
+        own nothing that did, so this borrowed a project's M-Bus simulator —
+        and went red when that project reflashed it, for a reason that had
+        nothing to do with the workbench. The bench now carries its own
+        console (test-firmware/): `ping` answers `OK pong`.
 
-        Until the bench has its own responder, the responder is declared by
-        the operator and its absence is an unmet precondition, not a pass.
-
-            WT_ECHO_SLOT=SLOT3 WT_ECHO_CMD=status WT_ECHO_REPLY='OK '
+        The monitor has to be listening *before* the write. A reply to a
+        one-line command arrives in milliseconds, so a monitor opened
+        afterwards finds an empty buffer and reads it as silence — the same
+        mistake as watching for a boot banner after the reset.
         """
-        slot = os.environ.get("WT_ECHO_SLOT")
-        cmd = os.environ.get("WT_ECHO_CMD")
-        reply = os.environ.get("WT_ECHO_REPLY")
-        if not (slot and cmd and reply):
-            pytest.skip(
-                "precondition unmet: no declared responder. BENCH-GAP — the "
-                "bench cannot prove a byte arrived without one; it needs a "
-                "loopback slot or an on-demand ROM download-mode SYNC of its "
-                "own. Set WT_ECHO_SLOT/WT_ECHO_CMD/WT_ECHO_REPLY to use a "
-                "device you know answers."
-            )
-        w = workbench.serial_write(slot, text=cmd)
+        import threading
+        slot = console_dut
+        result = {}
+
+        def watch():
+            result["r"] = workbench.serial_monitor(
+                slot, pattern="OK pong", timeout=12)
+
+        t = threading.Thread(target=watch)
+        t.start()
+        time.sleep(1.5)
+        w = workbench.serial_write(slot, text="ping\n")
         assert w["ok"] is True, w
         assert w["written"] > 0
-        matched, lines = workbench.monitor_or_buffer(slot, reply)
-        assert matched, (
-            f"{cmd!r} was written to {slot} but {reply!r} never came back; "
-            f"last lines: {lines[-3:]}"
+        t.join()
+
+        assert result["r"].get("matched"), (
+            f"'ping' was written to {slot} and nothing answered. The bench "
+            f"reports the write succeeded, which is a statement about the "
+            f"socket, not the device. Last lines: "
+            f"{result['r'].get('output', [])[-3:]}"
         )
 
     def test_hex_form_is_accepted(self, workbench):

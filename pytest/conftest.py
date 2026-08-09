@@ -5,6 +5,7 @@ Usage:
 """
 
 import os
+import time
 import uuid
 
 import pytest
@@ -172,6 +173,44 @@ def _ap_stop_quietly(workbench):
         workbench.ap_stop()
     except Exception:
         pass
+
+
+@pytest.fixture(scope="session")
+def console_dut(workbench):
+    """A slot whose device answers the bench DUT console (`ping` → `OK pong`).
+
+    Found by asking, not configured: the board moves between slots and a
+    written-down label goes stale silently. Absence is an unmet
+    precondition and says which firmware to flash.
+    """
+    import threading
+    for dev in workbench.get_devices():
+        if not dev.get("present"):
+            continue
+        slot = dev["label"]
+        result = {}
+
+        def watch():
+            try:
+                result["r"] = workbench.serial_monitor(
+                    slot, pattern="OK pong", timeout=8)
+            except Exception:
+                result["r"] = {}
+
+        th = threading.Thread(target=watch)
+        th.start()
+        time.sleep(1.0)
+        try:
+            workbench.serial_write(slot, text="ping\n")
+        except Exception:
+            pass
+        th.join()
+        if result.get("r", {}).get("matched"):
+            return slot
+    pytest.skip(
+        "precondition unmet: no slot answers `ping` with `OK pong`. Flash "
+        "test-firmware/ to a slot (CI publishes it as bench-dut-<target>)."
+    )
 
 
 def _wait_for_any_station(workbench, timeout: float):
