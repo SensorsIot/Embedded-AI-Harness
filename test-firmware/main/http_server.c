@@ -6,6 +6,8 @@
 #include "esp_ota_ops.h"
 #include "esp_log.h"
 #include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "http_srv";
 
@@ -52,6 +54,20 @@ static esp_err_t ota_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+/* Reboot after the reply, not during it.
+ *
+ * wifi_prov_reset() does not return: it erases the credentials and calls
+ * esp_restart(). Called straight from the handler, that killed the device
+ * before httpd could finish the response cycle, so the caller waited out its
+ * whole timeout and reported failure — for a reset that had in fact worked.
+ * The handler now answers, returns, and lets this task do the rebooting. */
+static void deferred_reset_task(void *arg)
+{
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    wifi_prov_reset();
+    vTaskDelete(NULL);
+}
+
 /* POST /wifi-reset — erase credentials and reboot */
 static esp_err_t wifi_reset_handler(httpd_req_t *req)
 {
@@ -59,7 +75,7 @@ static esp_err_t wifi_reset_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"status\":\"ok\",\"message\":\"Resetting WiFi...\"}");
 
-    wifi_prov_reset();  /* does not return — reboots */
+    xTaskCreate(deferred_reset_task, "wifi_reset", 3072, NULL, 5, NULL);
     return ESP_OK;
 }
 

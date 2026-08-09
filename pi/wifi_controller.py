@@ -377,6 +377,15 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
             "wmm_enabled=1",
             "country_code=CH",
             "ieee80211d=1",
+            # Notice a station that vanished, in seconds rather than in five
+            # minutes. A DUT that reboots or is reflashed does not send a
+            # deauth frame — it simply stops being there — and hostapd's
+            # default `ap_max_inactivity` is 300 s, so the bench went on
+            # listing a station that had been gone for minutes and no
+            # disconnect event was raised. hostapd still polls the station
+            # before giving up on it, so one that is merely idle survives.
+            "ap_max_inactivity=20",
+            "disassoc_low_ack=1",
             "macaddr_acl=0",
             "auth_algs=1",
             "ignore_broadcast_ssid=0",
@@ -474,6 +483,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
             _enable_nat()
 
         _ap_active = True
+        _start_hostapd_watcher()
         _ap_ssid = ssid
         _ap_password = password
         _ap_channel = channel
@@ -525,6 +535,47 @@ def ap_status():
 # ---------------------------------------------------------------------------
 # Station tracking (called by lease notify script via portal)
 # ---------------------------------------------------------------------------
+
+_AP_STA_RE = re.compile(r"AP-STA-(CONNECTED|DISCONNECTED)\s+"
+                        r"([0-9a-fA-F:]{17})")
+
+
+def _start_hostapd_watcher():
+    """Raise station events from hostapd, not from DHCP lease expiry.
+
+    Association and disassociation are 802.11 events and hostapd knows them
+    the moment they happen. The only source of station events used to be
+    dnsmasq, which reports `del` when a *lease* ends — and the lease is an
+    hour long. So a DUT that left the air produced no STA_DISCONNECT for an
+    hour, and a test that asked for one within a minute timed out against a
+    bench that had simply not noticed yet.
+
+    Watching the log is possible only because hostapd now writes to a file;
+    it used to write into a pipe nobody read.
+    """
+    def run():
+        pos = 0
+        while _ap_active:
+            try:
+                with open(HOSTAPD_LOG) as f:
+                    f.seek(pos)
+                    for line in f:
+                        m = _AP_STA_RE.search(line)
+                        if not m:
+                            continue
+                        kind, mac = m.group(1), m.group(2).lower()
+                        if kind == "DISCONNECTED":
+                            _stations.pop(mac, None)
+                            _event_queue.put({"type": "STA_DISCONNECT",
+                                              "mac": mac})
+                            logger.info("Station left the AP: mac=%s", mac)
+                    pos = f.tell()
+            except OSError:
+                pass
+            time.sleep(0.5)
+
+    threading.Thread(target=run, name="hostapd-watch", daemon=True).start()
+
 
 def handle_lease_event(action, mac, ip, hostname=""):
     """Called when dnsmasq sends a lease event."""

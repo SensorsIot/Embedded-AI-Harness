@@ -195,14 +195,14 @@ def ensure_bench_dut_firmware(workbench):
 
 
 @pytest.fixture(scope="session")
-def bench_dut(workbench):
-    """A DUT on the bench AP, provisioned through its captive portal.
+def _bench_dut_session(workbench):
+    """Provision the bench DUT onto a fresh AP, once per run.
 
-    Session-scoped on purpose. Provisioning costs a reboot and half a
-    minute, and every test that needs a joined DUT needs the same one; a
-    per-test fixture would re-provision a dozen times and prove nothing
-    extra. The SSID is still fresh per session, so a pass still shows the
-    DUT used what it was just given rather than something cached.
+    Provisioning costs a reboot and half a minute, and every test that
+    needs a joined DUT needs the same one; doing it per test would
+    re-provision a dozen times and prove nothing extra. The SSID is still
+    fresh per session, so a pass still shows the DUT used what it was just
+    given rather than something cached.
 
     The device is the bench's own — never a project's board. A workbench
     test that asserts on project firmware goes red when that project ships,
@@ -256,6 +256,62 @@ def bench_dut(workbench):
         "url": f"http://{station['ip']}:{BENCH_DUT_HTTP_PORT}",
     }
     _ap_stop_quietly(workbench)
+
+
+@pytest.fixture
+def bench_dut(workbench, _bench_dut_session):
+    """The provisioned bench DUT, confirmed reachable for *this* test.
+
+    The provisioning is session-scoped; the AP is not, and must not be
+    assumed. Other tests legitimately take the radio — TestSTAMode joins an
+    external network, the scan tests stop the AP to scan — and when the AP
+    goes the route to 192.168.4.0/24 goes with it. The relay then fails with
+    "No route to host" against a DUT that is perfectly healthy, which reads
+    as a broken relay or a dead device.
+
+    Re-provisioning is not needed to recover: the DUT still holds the
+    credentials, so raising the same AP again brings it back by itself.
+    """
+    d = _bench_dut_session
+    status = workbench.ap_status()
+    if not (status.get("active") and status.get("ssid") == d["ssid"]):
+        workbench.ap_start(d["ssid"], d["password"], internet=True)
+
+    station = _wait_for_any_station(workbench, timeout=60)
+    if not station:
+        # It may have forgotten the network rather than merely lost it:
+        # WT-301 proves the disconnect event by asking the DUT to erase its
+        # credentials, which is the correct way to cause a disconnect and
+        # leaves the next test with a DUT that cannot rejoin anything. Hand
+        # them back over the wire — it costs a reboot, not a re-flash.
+        if _provision_over_serial(workbench, d["ssid"], d["password"]):
+            station = _wait_for_any_station(workbench, timeout=90)
+    if not station:
+        pytest.skip(
+            f"precondition unmet: the bench DUT did not rejoin '{d['ssid']}'"
+        )
+    # The lease can differ from the session's first one.
+    url = f"http://{station['ip']}:{BENCH_DUT_HTTP_PORT}"
+
+    # A DHCP lease is not a served port. The lease appears the moment the
+    # DUT associates, and every consumer of this fixture then asks it a
+    # question — so returning here handed out a DUT that was still coming
+    # up, and the first request timed out against hardware that was about
+    # to be fine. Wait for the device to actually answer.
+    deadline = time.time() + 45
+    while time.time() < deadline:
+        try:
+            if workbench.wifi_http(f"{url}/status",
+                                   timeout=5).get("status") == 200:
+                break
+        except Exception:
+            pass
+        time.sleep(3)
+    else:
+        pytest.skip(f"precondition unmet: the bench DUT joined '{d['ssid']}' "
+                    f"as {station['ip']} but never served {url}/status")
+
+    return {**d, "mac": station["mac"], "ip": station["ip"], "url": url}
 
 
 def _ap_stop_quietly(workbench):

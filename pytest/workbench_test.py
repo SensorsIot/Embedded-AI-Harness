@@ -143,7 +143,14 @@ class TestStationEvents:
         goes wrong.
         """
         workbench.drain_events()
-        workbench.wifi_http(f"{bench_dut['url']}/wifi-reset", timeout=6)
+        # POST, because that is how the DUT registers the route. This used to
+        # send a GET, which the device answered with 404 and then carried on
+        # happily connected — so the test waited sixty seconds for a
+        # disconnect it had not caused, exactly as the paragraph above warns.
+        # Asserting on the reply is the part that stops it recurring.
+        r = workbench.wifi_http(f"{bench_dut['url']}/wifi-reset",
+                                method="POST", timeout=6)
+        assert r["status"] == 200, f"the DUT refused the reset: {r}"
         evt = workbench.wait_for_event("STA_DISCONNECT", timeout=60)
         assert evt["mac"] == bench_dut["mac"], evt
 
@@ -571,7 +578,11 @@ class TestCaptivePortal:
         workbench.mqtt_start()
 
         st = self._dut_status(workbench, bench_dut["url"])
-        assert st.get("wifi") is True, st
+        # The bench DUT's own field name. `wifi` was a project firmware's,
+        # left behind when this test was moved onto the bench's own board:
+        # `.get("wifi")` on a body that says `wifi_connected` is None, and
+        # the assertion failed against a DUT that was plainly connected.
+        assert st.get("wifi_connected") is True, st
 
         # The DUT logs over UDP to the gateway of its own lease, which is
         # the bench. Those lines arriving on the bench's LAN address is the
