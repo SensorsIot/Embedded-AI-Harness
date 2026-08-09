@@ -31,11 +31,14 @@ AP_IF = os.environ.get("WIFI_AP_IF", "ap0")
 
 # Transmit power for the test AP, in mBm (500 = 5 dBm).
 #
-# Everything on this bench is centimetres from everything else. Full power at
-# that range is not extra margin — it drives the receiver into compression and
-# splashes over every neighbouring network for no benefit. The DUT is heard at
-# -22 dBm with both radios turned down, which is ample. Raise it only for a
-# bench whose DUT is genuinely across a room.
+# Everything on this bench is centimetres from everything else, and full power
+# at that range is not extra margin — it drives the receiver into compression
+# and splashes over every neighbouring network for no benefit.
+#
+# Applied on a best-effort basis: this Pi's brcmfmac refuses nl80211 txpower
+# control, so in practice only the DUT's end comes down (to 5 dBm, which the
+# bench still hears at -36 dBm). Kept because a bench with a radio that does
+# support it should use it.
 AP_TXPOWER_MBM = int(os.environ.get("WIFI_AP_TXPOWER_MBM", "500"))
 
 # A scan while another is in flight fails with "Device or resource busy",
@@ -465,8 +468,21 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         # /usr/sbin, which is not on PATH for the service.
         _run(["/usr/sbin/iw", "dev", AP_IF, "set", "power_save", "off"],
              check=False)
-        _run(["/usr/sbin/iw", "dev", AP_IF, "set", "txpower", "fixed",
-              str(AP_TXPOWER_MBM)], check=False)
+        # Best effort, and said out loud when it fails. This Pi's brcmfmac
+        # refuses nl80211 txpower control outright — "Input/example error
+        # (-5)" on every interface — and `iw dev … info` then keeps
+        # reporting a fixed 31 dBm that is not a measurement of anything.
+        # Swallowing that would leave the bench believing it had turned its
+        # radio down when it had not.
+        try:
+            subprocess.run(["/usr/sbin/iw", "dev", AP_IF, "set", "txpower",
+                            "fixed", str(AP_TXPOWER_MBM)],
+                           capture_output=True, text=True, timeout=10,
+                           check=True)
+            logger.info("AP tx power set to %d mBm", AP_TXPOWER_MBM)
+        except Exception as exc:
+            logger.info("AP tx power not settable on this radio (%s); the "
+                        "DUT's own power is turned down instead", exc)
 
         # Address the interface only now. hostapd resets the netdev when it
         # claims it, which silently discards an address configured before —
