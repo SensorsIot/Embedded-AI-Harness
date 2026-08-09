@@ -78,7 +78,31 @@ an auto-reset circuit, so the effect is a restart rather than a halt — quieter
 still, because the device looks alive.
 
 **To write to a device, use `POST /api/serial/write`** (FR-030). It takes
-`text` or `hex`, opens nothing, and disturbs no control line. Raw RFC2217 is
+`text` or `hex`, opens nothing, and disturbs no control line.
+
+**The bench's own DUT answers.** `test-firmware/` gives the bench a device
+that talks back, so a write can be *proved* to have arrived rather than
+assumed. One line in, one line out, no echo and no prompt:
+
+| Command | Reply | Use |
+|---|---|---|
+| `ping` | `OK pong` | the write reached the device |
+| `status` | `OK status wifi=… ap_mode=… ip=… mac=…` | what the DUT thinks its network is |
+| `scan` | `OK scan <n>`, then `<rssi> <ch> <auth> <ssid>` per line | **what the DUT's own radio can hear** |
+| `info` | `OK info project=… version=… idf=…` | which image is *actually* running |
+| `mark <text>` | `OK mark <text>` | an observable on demand, without waiting for the heartbeat |
+| `wifi <ssid> [pass]` | `OK wifi stored …` then reboots | provision over the wire, no radio needed |
+| `forget` / `reboot` | `OK …` then reboots | back to the portal / restart |
+
+`scan` is the one worth reaching for first when a DUT will not join. The
+bench can scan and the DUT could not, so a failure to meet had only one
+witness — and `NO_AP_FOUND` from the DUT reads as the DUT's fault when it
+is just as often the AP that is not on the air. Two radios reporting is a
+measurement; one is an assertion.
+
+`info` settles the other recurring waste of time: after a flash, ask the
+device what it is running rather than inferring it from a log tail, which
+may still hold the previous image's lines. Raw RFC2217 is
 now only for a peer you are driving deliberately with a protocol the API
 cannot express. When you do reach for it, the control lines must be low
 **before** the port opens, not after:
@@ -100,9 +124,14 @@ no longer a reason to reach for raw serial:
 
 - `GET /api/serial/output?slot=…` — a recorder runs on every present slot
   whether or not anyone is watching, so the banner is already in the buffer
-  by the time you ask. Check the entries' `ts`: a buffer whose newest line is
-  minutes old is telling you the device went quiet, which is itself the
-  observation.
+  by the time you ask. `lines=N` returns the **most recent** N of a
+  1000-line ring; pass `since=<ts>` to get only what arrived after a moment
+  you chose. Check the entries' `ts`: a buffer whose newest line is minutes
+  old is telling you the device went quiet, which is itself the observation.
+  (It once returned the *oldest* N, so a slot that had been up a while
+  always answered with ancient history whose newest timestamp aged
+  steadily — indistinguishable from a dead recorder. If you are reading an
+  older bench and the tail never advances, that is the bug, not the device.)
 - **the reset's own reply.** `POST /api/serial/reset` captures the boot while
   it performs it and returns those lines in `output` — the simplest route,
   and the one to reach for first.
