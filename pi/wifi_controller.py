@@ -638,13 +638,31 @@ def sta_join(ssid, password="", timeout=15, _internal=False):
         # dhcpcd on Bookworm runs as a system daemon; -1 sends a control
         # command that returns immediately while the daemon does DHCP in the
         # background (including ARP probing which takes ~3s).
+        #
+        # `--nohook resolv.conf` is what keeps the bench usable afterwards. The
+        # networks this joins are test networks — a DUT's captive portal, the
+        # test partner's own AP — and their DHCP offers name the DUT itself as
+        # nameserver. dhcpcd believed them and overwrote /etc/resolv.conf with
+        # `nameserver 192.168.4.1`, an ESP32 that answers no DNS at all and
+        # vanishes when the test ends. `sta_leave` never put it back, so a
+        # single STA test cost the bench its name resolution until somebody
+        # noticed: apt, git and `gh` all failed with "Could not resolve host"
+        # while the network itself was perfectly fine, which reads as an
+        # outage rather than as leftover state. The bench's DNS belongs to
+        # eth0, its management link, and no test network gets a say in it.
         try:
-            _run(["/usr/sbin/dhcpcd", "-1", "-4", WLAN_IF], timeout=timeout, check=False)
+            _run(["/usr/sbin/dhcpcd", "-1", "-4", "--nohook", "resolv.conf", WLAN_IF],
+                 timeout=timeout, check=False)
         except Exception:
             try:
-                _run(["dhclient", "-1", "-v", WLAN_IF], timeout=timeout, check=False)
+                # dhclient has no per-hook switch; -e suppresses the script's
+                # resolv.conf handling on Debian's dhclient-script.
+                _run(["dhclient", "-1", "-v", "-e", "PEERDNS=no", WLAN_IF],
+                     timeout=timeout, check=False)
             except Exception:
                 try:
+                    # busybox udhcpc: -n exit if lease fails, no default script
+                    # side effects when we hand it no -s handler.
                     _run(["udhcpc", "-i", WLAN_IF, "-n", "-q"], timeout=timeout, check=False)
                 except Exception:
                     pass
