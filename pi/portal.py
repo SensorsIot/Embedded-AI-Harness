@@ -1256,7 +1256,13 @@ def _slot_info(slot: dict) -> dict:
     info["recovering"] = slot["_recovering"]
     info["recover_retries"] = slot["_recover_retries"]
     info["devnodes"] = list(slot.get("_devnodes", {}).values())
+    # Two different facts, deliberately separate: `has_gpio` says pins are
+    # configured, `gpio_wired` says a measurement found them connected to
+    # this board. Collapsing them is what let recovery claim a capability
+    # nothing had checked.
     info["has_gpio"] = slot.get("gpio_boot") is not None
+    info["gpio_wired"] = slot.get("gpio_wired")          # True/False/None
+    info["gpio_wired_detail"] = slot.get("gpio_wired_detail")
     # Debug status
     label = slot.get("label") or slot.get("slot_key", "")[-20:]
     if label and debug_controller.is_debugging(label):
@@ -2243,7 +2249,17 @@ def _start_flap_recovery(slot: dict):
         slot["state"] = STATE_FLAPPING
         return
 
-    has_gpio = slot.get("gpio_boot") is not None
+    # Configured pins are not connected pins. Take the GPIO path only when
+    # the wiring has actually been measured (POST /api/serial/gpio-test);
+    # otherwise fall back to the unbind/rebind cycle, which needs no wires
+    # and, unlike the GPIO path, has always been honest about its outcome.
+    if slot.get("gpio_boot") is not None and not slot.get("gpio_wired"):
+        log_activity(
+            f"{label}: BOOT/EN wiring unconfirmed — using the no-GPIO "
+            f"recovery. Run POST /api/serial/gpio-test to measure it.",
+            "warn")
+    has_gpio = (slot.get("gpio_boot") is not None
+                and bool(slot.get("gpio_wired")))
     if has_gpio:
         t = threading.Thread(
             target=_recover_with_gpio, args=(slot, usb_device),
@@ -2287,6 +2303,141 @@ def _download_mode_reached(devnode: str, timeout_s: float = 25.0) -> tuple:
     if proc.returncode == 0:
         return True, out[-300:]
     return False, out[-300:] or f"esptool exited {proc.returncode}"
+
+
+
+# ── GPIO wiring: measured, not assumed ──────────────────────────────────
+#
+# `gpio_boot`/`gpio_en` are *configuration*: the portal fills in 18 and 17 by
+# default, and nothing in software can see whether a wire exists. Recovery
+# believed the configuration, drove two pins that went nowhere on most
+# benches, and reported success — so the bench claimed a capability it did
+# not have, which is the failure this whole file keeps trying to eliminate.
+#
+# The operator could be asked to confirm the wiring, but a person recalling
+# what they soldered is an observation by eye, and this project's own rule is
+# that observations belong to instruments. So measure it: pulsing EN on a
+# wired board resets it and the ROM says so on serial; holding BOOT low
+# across that reset puts a wired board in download mode, which esptool can
+# confirm. Both are answerable in about fifteen seconds.
+GPIO_WIRING_FILE = os.environ.get(
+    "GPIO_WIRING_FILE", "/var/lib/rfc2217/gpio-wiring.json")
+
+_ROM_BANNER = re.compile(r"ESP-ROM:|rst:0x[0-9a-fA-F]+|boot:0x[0-9a-fA-F]+")
+
+
+def _load_gpio_wiring() -> dict:
+    try:
+        with open(GPIO_WIRING_FILE) as fh:
+            return json.load(fh)
+    except Exception:
+        return {}
+
+
+def _save_gpio_wiring(label: str, record: dict):
+    data = _load_gpio_wiring()
+    data[label] = record
+    try:
+        os.makedirs(os.path.dirname(GPIO_WIRING_FILE), exist_ok=True)
+        with open(GPIO_WIRING_FILE, "w") as fh:
+            json.dump(data, fh, indent=1)
+    except OSError as exc:
+        print(f"[portal] could not persist GPIO wiring: {exc}", flush=True)
+
+
+def _saw_rom_banner(slot: dict, since: float, timeout: float) -> bool:
+    """Did the device print a ROM boot banner after *since*?"""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for entry in list(slot.get("_serial_buf") or []):
+            if entry.get("ts", 0) > since and _ROM_BANNER.search(entry.get("text", "")):
+                return True
+        time.sleep(0.3)
+    return False
+
+
+def test_gpio_wiring(slot: dict) -> dict:
+    """Drive EN and BOOT and observe whether this board is actually wired.
+
+    Returns {ok, en_wired, boot_wired, detail}. Leaves the board running.
+    """
+    label = slot["label"] or slot["slot_key"][-20:]
+    gpio_boot = slot.get("gpio_boot")
+    gpio_en = slot.get("gpio_en")
+    if gpio_boot is None and gpio_en is None:
+        return {"ok": False, "error": f"{label}: no GPIO pins configured"}
+
+    result = {"ok": True, "en_wired": False, "boot_wired": False, "detail": ""}
+
+    # ── EN: pulse it and listen for the ROM ──────────────────────────
+    if gpio_en is None:
+        result["detail"] = "no gpio_en configured, so EN cannot be tested; "
+    else:
+        log_activity(f"gpio-test({label}): pulsing EN (GPIO{gpio_en})", "step")
+        since = time.time()
+        try:
+            _gpio_set(gpio_en, 0)
+            time.sleep(0.15)
+            _gpio_set(gpio_en, 1)
+        except Exception as exc:
+            return {"ok": False, "error": f"{label}: driving EN failed: {exc}"}
+        result["en_wired"] = _saw_rom_banner(slot, since, timeout=8.0)
+        result["detail"] = (
+            "EN pulse produced a ROM boot banner; "
+            if result["en_wired"] else
+            "EN pulse produced no reset — the pin is not connected to this "
+            "board (or the board is unresponsive); ")
+
+    # ── BOOT: only meaningful if we can reset the board ──────────────
+    if result["en_wired"] and gpio_boot is not None:
+        log_activity(f"gpio-test({label}): holding BOOT (GPIO{gpio_boot}) "
+                     f"across a reset", "step")
+        was_running = slot.get("running")
+        with slot["_lock"]:
+            if was_running:
+                stop_proxy(slot)
+        try:
+            _gpio_set(gpio_boot, 0)
+            time.sleep(0.05)
+            _gpio_set(gpio_en, 0)
+            time.sleep(0.15)
+            _gpio_set(gpio_en, 1)
+            time.sleep(1.5)
+            ok, detail = _download_mode_reached(slot.get("devnode") or "")
+            result["boot_wired"] = ok
+            result["detail"] += (
+                "BOOT held across the reset reached download mode."
+                if ok else
+                f"BOOT held across the reset did not reach download mode "
+                f"({detail}).")
+        except Exception as exc:
+            result["detail"] += f"BOOT test failed: {exc}"
+        finally:
+            # Always hand the board back running, whatever we learned.
+            try:
+                _release_slot_gpio(slot)
+            except Exception:
+                pass
+            if was_running:
+                with slot["_lock"]:
+                    start_proxy(slot)
+    elif result["en_wired"]:
+        result["detail"] += "no gpio_boot configured, so BOOT was not tested."
+
+    wired = bool(result["en_wired"] and result["boot_wired"])
+    slot["gpio_wired"] = wired
+    slot["gpio_wired_detail"] = result["detail"]
+    _save_gpio_wiring(label, {
+        "en_wired": result["en_wired"],
+        "boot_wired": result["boot_wired"],
+        "gpio_wired": wired,
+        "detail": result["detail"],
+        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    })
+    log_activity(f"gpio-test({label}): EN={result['en_wired']} "
+                 f"BOOT={result['boot_wired']} — {result['detail']}",
+                 "ok" if wired else "warn")
+    return result
 
 
 def _recover_with_gpio(slot: dict, usb_device: str):
@@ -2669,6 +2820,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_serial_monitor()
         elif path == "/api/serial/recover":
             self._handle_serial_recover()
+        elif path == "/api/serial/gpio-test":
+            self._handle_gpio_test()
         elif path == "/api/serial/release":
             self._handle_serial_release()
         elif path == "/api/enter-portal":
@@ -3492,6 +3645,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_json({"ok": True, "lines": fresh[-max_lines:]})
 
     # -- recovery handlers --
+
+    def _handle_gpio_test(self):
+        """POST /api/serial/gpio-test {"slot": "SLOT1"} — measure BOOT/EN.
+
+        Synchronous: it takes about fifteen seconds and the answer is the
+        whole point, so returning "started" would reproduce the defect this
+        exists to remove.
+        """
+        body = self._read_json() or {}
+        slot_label = body.get("slot")
+        if not slot_label:
+            self._send_json({"ok": False, "error": "missing 'slot' field"}, 400)
+            return
+        slot = _find_slot_by_label(slot_label)
+        if not slot:
+            self._send_json({"ok": False,
+                             "error": f"slot '{slot_label}' not found"})
+            return
+        if not slot.get("present"):
+            self._send_json({"ok": False,
+                             "error": f"{slot_label}: no device present"})
+            return
+        self._send_json(test_gpio_wiring(slot))
 
     def _handle_serial_recover(self):
         """POST /api/serial/recover {"slot": "SLOT1"} — manual recovery trigger."""
@@ -5225,6 +5401,11 @@ function renderSlots(slots) {
             actionBtns = '<div class="slot-actions">' +
                 '<button class="btn-release" onclick="releaseSlot(\\'' + label + '\\')">Release &amp; Reboot</button>' +
                 '</div>';
+        } else if (s.has_gpio && s.gpio_wired === true) {
+            statusMsg = '<div class="probe-info">&#10003; BOOT/EN wiring verified</div>';
+        } else if (s.has_gpio && s.gpio_wired === false) {
+            statusMsg = '<div class="flap-warning">&#9888; BOOT/EN pins configured but NOT wired to this board — ' +
+                'GPIO recovery is unavailable for this slot</div>';
         } else if (s.is_probe) {
             statusMsg = '<div class="probe-info">&#10003; ESP-Prog debug probe</div>';
         } else if (s.usb_warning) {
@@ -5236,6 +5417,13 @@ function renderSlots(slots) {
             actionBtns = '<div class="slot-actions">' +
                 '<button class="btn-recover" onclick="recoverSlot(\\'' + label + '\\')">Retry Recovery</button>' +
                 '</div>';
+        }
+        if (s.has_gpio && s.present && st !== 'download_mode' && st !== 'recovering') {
+            const verb = (s.gpio_wired === null || s.gpio_wired === undefined)
+                ? 'Test BOOT/EN wiring' : 'Re-test BOOT/EN wiring';
+            actionBtns += '<div class="slot-actions">' +
+                '<button class="btn-recover" onclick="testGpio(\\'' + label + '\\')">' +
+                verb + '</button></div>';
         }
         return `
         <div class="slot ${st}">
@@ -5337,6 +5525,27 @@ async function releaseSlot(label) {
         });
         const data = await resp.json();
         if (!data.ok) alert('Release failed: ' + (data.error || 'unknown'));
+    } catch (e) { alert('Error: ' + e); }
+    refresh();
+}
+
+async function testGpio(label) {
+    const btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.textContent = 'Testing…'; }
+    try {
+        const resp = await fetch('/api/serial/gpio-test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slot: label})
+        });
+        const d = await resp.json();
+        if (!d.ok) {
+            alert('GPIO test failed: ' + (d.error || 'unknown'));
+        } else {
+            alert(label + '\\n\\nEN wired:   ' + (d.en_wired ? 'yes' : 'no') +
+                  '\\nBOOT wired: ' + (d.boot_wired ? 'yes' : 'no') +
+                  '\\n\\n' + (d.detail || ''));
+        }
     } catch (e) { alert('Error: ' + e); }
     refresh();
 }
@@ -5783,6 +5992,17 @@ def main():
     global slots, host_ip, hostname
 
     slots = load_config(CONFIG_FILE)
+
+    # A measurement that does not survive a restart is an assumption again by
+    # morning. Reload what was measured, keyed by slot label.
+    _wiring = _load_gpio_wiring()
+    for _s in slots.values():
+        _rec = _wiring.get(_s.get("label") or "")
+        if _rec:
+            _s["gpio_wired"] = _rec.get("gpio_wired")
+            _s["gpio_wired_detail"] = (
+                f"{_rec.get('detail', '')} (measured {_rec.get('checked_at')})")
+
     host_ip = get_host_ip()
     hostname = get_hostname()
 
