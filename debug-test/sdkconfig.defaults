@@ -1,0 +1,24 @@
+# Console on the native USB port, not UART0.
+#
+# This image had no sdkconfig.defaults at all, so it took ESP-IDF's: primary
+# console on UART0, USB-Serial/JTAG mirrored as a *secondary* console, which
+# is output only. The bench could therefore read the board perfectly — the
+# `LOOP:` heartbeat arrived every 500 ms — and could not write to it at all.
+#
+# The failure that produces is worth naming, because it looks like broken
+# hardware for a long time. esptool's reset works: the chip leaves the
+# application and the heartbeat stops. What it cannot then do is talk, so
+# every attempt ends in `Write timeout` or `No more data to read from the
+# serial port`, on a board whose USB device enumerates cleanly with no kernel
+# error anywhere. Rebinding the USB device does not clear it, and neither
+# does a JTAG CPU reset — only removing power does, which is why the board
+# appeared to need replugging every hour.
+#
+# `test-firmware` hit exactly this and fixed it; this image was left behind.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# ...and only once. The secondary console defaults to USB-Serial/JTAG too, so
+# once the primary moves there every line goes out the same peripheral twice.
+# A pattern match still passes on doubled output, but anything counting lines
+# quietly sees two of everything.
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
