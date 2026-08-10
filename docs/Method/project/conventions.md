@@ -25,7 +25,7 @@
 ```bash
 ruff check .
 mypy --strict .
-pytest pytest/ --wt-url http://testbench.local:8080
+pytest pytest/ --wt-url http://$BENCH:8080
 ```
 
 **Current state, stated honestly:** `ruff check .` reports 36 findings and

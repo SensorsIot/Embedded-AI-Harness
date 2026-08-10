@@ -87,7 +87,14 @@ spec true for the product's whole life.
 | A **Raspberry Pi testbench** (Pi 3/4/5, or Zero 2 W + USB hub + Ethernet adapter) with an ESP32 board in a slot | The loop's hands and eyes — flash, reset, observe on real hardware | Build it: [Quick Start](#-quick-start--building-the-bench) below |
 | A **GitHub account**, `git` + `gh` authenticated | **This is where the firmware is built** — see below | [github.com](https://github.com) |
 | **Claude Code** with this repo's skills | The AI that pulls; the skills are the method | `npm i -g @anthropic-ai/claude-code`, then copy `.claude/skills/` from this repo into your project |
-| **Same LAN** | Your dev machine or devcontainer must reach the bench | `curl http://testbench.local:8080/api/devices` answers |
+| **Same LAN** | Your dev machine or devcontainer must reach the bench | `curl http://$BENCH:8080/api/devices` answers |
+
+Throughout this README, **`$BENCH` is the bench's IP address** — never a
+`.local` name, which does not resolve from inside a container. Find it once:
+
+```bash
+BENCH=$(python3 .claude/skills/esp-idf-handling/discover-testbench.py | jq -r .ip)
+```
 
 Nothing else — and in particular **no local ESP-IDF or PlatformIO
 installation.** The forward path runs through GitHub Actions:
@@ -124,7 +131,7 @@ and turns everything into HTTP:
        | eth0 (wired)
        v
   Raspberry Pi ---- wlan0 (WiFi test AP: 192.168.4.x)
-  testbench.local      hci0  (Bluetooth LE)
+  testbench_7e71     hci0  (Bluetooth LE)
        |             UDP :5555 (log receiver)
        | USB hub (internal on Pi 3/4/5, external on Zero)
        |
@@ -139,7 +146,7 @@ and turns everything into HTTP:
   always. That's **slot-based identity**: a slot is a physical hole in the
   hub, so scripts and `platformio.ini` never go stale when boards swap or the
   kernel renames `/dev/ttyACM0`.
-- **Serial over the network** at `rfc2217://testbench.local:4001` — esptool,
+- **Serial over the network** at `rfc2217://$BENCH:4001` — esptool,
   PlatformIO, ESP-IDF and anything on pyserial speak it natively.
 - **Flash three ways** — over the network, locally on the Pi, or over the air.
 - **Debugging out of the box** — OpenOCD starts itself for USB-JTAG chips and
@@ -193,7 +200,7 @@ OpenOCD, rtl-sdr/rtl_433, mosquitto), sets up the udev hotplug rules, and
 starts the portal as a systemd service. Plug in a board and check:
 
 ```bash
-curl http://testbench.local:8080/api/devices | jq
+curl http://$BENCH:8080/api/devices | jq
 ```
 
 Slots are auto-detected — no config file needed. Create
@@ -210,16 +217,16 @@ for you.
 **Watch a board boot** — no client library, just HTTP:
 
 ```bash
-curl -X POST http://testbench.local:8080/api/serial/reset \
+curl -X POST http://$BENCH:8080/api/serial/reset \
   -H 'Content-Type: application/json' -d '{"slot":"SLOT1"}'
 ```
 
 **Point your existing tools at it.** PlatformIO needs one line
-(`upload_port = rfc2217://testbench.local:4001`); esptool takes the same URL,
+(`upload_port = rfc2217://$BENCH:4001`); esptool takes the same URL,
 and the binaries stay on your machine:
 
 ```bash
-esptool --port rfc2217://testbench.local:4001 --chip esp32c3 \
+esptool --port rfc2217://$BENCH:4001 --chip esp32c3 \
   write-flash 0x10000 firmware.bin
 ```
 
@@ -228,7 +235,7 @@ network to join, wait for it to appear, then talk to it:
 
 ```python
 from testbench_driver import TestbenchDriver
-wt = TestbenchDriver("http://testbench.local:8080")
+wt = TestbenchDriver("http://$BENCH:8080")
 
 wt.serial_reset("SLOT1")
 wt.serial_monitor("SLOT1", pattern="WiFi connected", timeout=30)

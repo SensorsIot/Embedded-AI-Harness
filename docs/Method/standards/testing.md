@@ -82,8 +82,8 @@ bench-only suite as the natural order of things.
 Never SSH into the Pi to check something — every observation has an endpoint.
 
 ```bash
-pytest pytest/ --wt-url http://testbench.local:8080            # no DUT needed
-pytest pytest/ --wt-url http://testbench.local:8080 --run-dut  # full
+pytest pytest/ --wt-url http://$BENCH:8080            # no DUT needed
+pytest pytest/ --wt-url http://$BENCH:8080 --run-dut  # full
 ```
 
 ## Security testing

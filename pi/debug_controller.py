@@ -467,8 +467,39 @@ def start(slot_label: str, slot: dict, gdb_port: int, telnet_port: int,
             "telnet_port": telnet_port,
             "probe": probe,
             "gdb_target": f"target extended-remote "
-                          f"testbench.local:{gdb_port}",
+                          f"{_bench_ip()}:{gdb_port}",
         }
+
+
+def _bench_ip() -> str:
+    """The address a client can actually reach this bench on.
+
+    This used to hand back an mDNS name, which is unreachable from the
+    place most callers run: a container. mDNS does not cross the Docker
+    bridge, so the portal was answering a debug-start request with a GDB
+    command line that could not connect, and the failure surfaced as GDB
+    timing out rather than as a name that never resolved.
+    """
+    try:
+        out = subprocess.check_output(
+            ["ip", "-4", "-o", "addr", "show", "eth0"],
+            timeout=2, stderr=subprocess.DEVNULL,
+        ).decode()
+        for part in out.split():
+            if "/" in part:
+                ip = part.split("/")[0]
+                if ip and not ip.startswith("127."):
+                    return ip
+    except Exception:
+        pass
+    try:
+        sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sk.connect(("8.8.8.8", 80))
+        ip = sk.getsockname()[0]
+        sk.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 
 def stop(slot_label: str) -> dict:

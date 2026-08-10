@@ -19,18 +19,19 @@ transmitter keyed while a phase says it is listening.
 Usage:
     python3 tools/sdr_acquire.py                 # 433.92 MHz, default Pi
     python3 tools/sdr_acquire.py --freq 315.0
-    python3 tools/sdr_acquire.py --url http://testbench.local:8080 --flex "n=r,m=OOK_PWM,s=416,l=2150,r=16000"
+    python3 tools/sdr_acquire.py --url http://<bench-ip>:8080 --flex "n=r,m=OOK_PWM,s=416,l=2150,r=16000"
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
 import urllib.request
 
-DEFAULT_URL = "http://testbench.local:8080"
+DEFAULT_URL = os.environ.get("TESTBENCH_URL", "http://localhost:8080")
 DEFAULT_FLEX = "n=rmt,m=OOK_PWM,s=416,l=2150,r=16000"
 GAIN_STEPS = [0.9, 16.6, 25.4, 33.8, 40.2, 49.6]
 

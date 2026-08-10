@@ -178,29 +178,47 @@ fi
 # ---------------------------------------------------------------------------
 # 6b. Hostname
 # ---------------------------------------------------------------------------
-# The bench answers at testbench.local. Anything still pointing at
-# workbench.local must be updated — this is not aliased, deliberately: two
-# names for one machine is what the rename removed.
-# A bench called Workbench2 becomes testbench2, not testbench: the suffix is
-# how an operator with more than one of these tells them apart, and collapsing
-# them onto one name would put two machines on one mDNS record.
+# One bench, one name, derived from the hardware: testbench_XXXX, where XXXX
+# is the last four hex digits of the MAC. Two benches on a bench-and-a-number
+# scheme collide the moment somebody reimages one; the MAC cannot.
+#
+# wlan0 first: it is on the SoC on every supported Pi, where eth0 on a Zero 2 W
+# is a USB adapter that can be unplugged and replaced — which would rename the
+# machine.
+#
+# NOTE: `_` is not a legal hostname character (RFC 1123 allows letters, digits
+# and `-`, and systemd checks exactly that), so hostnamectl may refuse it. If
+# it does, the name is applied with `-` and the difference is reported rather
+# than hidden — a hostname nothing can resolve is worse than one that differs
+# from the spec by a character.
+HOST_SEP="_"
+MAC_IF=wlan0
+[ -r "/sys/class/net/$MAC_IF/address" ] || MAC_IF=eth0
+MAC_SUFFIX="$(sed 's/://g' "/sys/class/net/$MAC_IF/address" 2>/dev/null | tail -c 5)"
 CURRENT_HOST="$(hostname)"
-NEW_HOST="$(echo "$CURRENT_HOST" | sed -E 's/^[Ww]orkbench/testbench/')"
-if [ "$NEW_HOST" = "$CURRENT_HOST" ]; then
-    NEW_HOST="${TESTBENCH_HOSTNAME:-testbench}"
-fi
-if [ "$CURRENT_HOST" != "$NEW_HOST" ]; then
-    echo "Renaming host '$CURRENT_HOST' -> '$NEW_HOST' (mDNS: ${NEW_HOST}.local)"
-    hostnamectl set-hostname "$NEW_HOST" 2>/dev/null || \
-        echo "$NEW_HOST" > /etc/hostname
-    # /etc/hosts must follow, or sudo stalls on every call resolving the old name
-    if grep -q "127.0.1.1" /etc/hosts; then
-        sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t$NEW_HOST/" /etc/hosts
-    else
-        printf '127.0.1.1\t%s\n' "$NEW_HOST" >> /etc/hosts
+
+if [ -n "$MAC_SUFFIX" ]; then
+    NEW_HOST="testbench${HOST_SEP}${MAC_SUFFIX}"
+    if [ "$CURRENT_HOST" != "$NEW_HOST" ]; then
+        echo "Renaming host '$CURRENT_HOST' -> '$NEW_HOST' (from $MAC_IF MAC)"
+        if ! hostnamectl set-hostname "$NEW_HOST" 2>/dev/null; then
+            NEW_HOST="testbench-${MAC_SUFFIX}"
+            echo "  NOTE: '_' refused as a hostname character; using '$NEW_HOST'"
+            hostnamectl set-hostname "$NEW_HOST" 2>/dev/null || \
+                echo "$NEW_HOST" > /etc/hostname
+        fi
+        # /etc/hosts must follow, or sudo stalls on every call resolving the old name
+        if grep -q "127.0.1.1" /etc/hosts; then
+            sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t$NEW_HOST/" /etc/hosts
+        else
+            printf '127.0.1.1\t%s\n' "$NEW_HOST" >> /etc/hosts
+        fi
+        systemctl restart avahi-daemon 2>/dev/null || true
+        echo "  Host renamed to '$NEW_HOST'."
+        echo "  Reach the bench by IP: mDNS does not resolve from containers."
     fi
-    systemctl restart avahi-daemon 2>/dev/null || true
-    echo "  Host renamed. Anything using ${CURRENT_HOST}.local must now use ${NEW_HOST}.local"
+else
+    echo "WARNING: no MAC readable on wlan0 or eth0; leaving hostname '$CURRENT_HOST'"
 fi
 
 if [ ! -f /etc/rfc2217/signalgen.json ]; then

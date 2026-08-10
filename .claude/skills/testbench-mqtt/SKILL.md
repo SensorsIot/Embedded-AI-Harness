@@ -10,7 +10,7 @@ Base URL: `$TESTBENCH_URL` — see Step 0
 ## Step 0: Point at a bench
 
 There are several benches and their addresses move, so nothing here writes one
-down. `testbench.local` is not usable either — a container cannot resolve mDNS.
+down. `$BENCH` is not usable either — a container cannot resolve mDNS.
 Discover the bench and export its URL:
 
 ```bash

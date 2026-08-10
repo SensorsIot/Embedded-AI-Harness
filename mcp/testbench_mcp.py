@@ -10,7 +10,7 @@ with the Python standard library only (stdio JSON-RPC + urllib), so it runs on a
 Python 3 with no `pip install` — which is what lets it ship as a one-file .mcpb
 Desktop extension.
 
-Run (stdio):  TESTBENCH_URL=http://testbench.local:8080 python3 testbench_mcp.py
+Run (stdio):  TESTBENCH_URL=http://<bench-ip>:8080 python3 testbench_mcp.py
 """
 import json
 import os
@@ -19,7 +19,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = os.environ.get("TESTBENCH_URL", "http://testbench.local:8080").rstrip("/")
+# An IP, not a hostname: mDNS does not cross a container bridge, which is
+# where most callers run. localhost is the one name that is always right
+# — it means "this MCP server is running on the bench itself".
+BASE = os.environ.get("TESTBENCH_URL", "http://localhost:8080").rstrip("/")
 
 S_INT = {"type": "integer"}
 S_NUM = {"type": "number"}

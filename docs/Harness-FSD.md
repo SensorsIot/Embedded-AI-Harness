@@ -70,7 +70,7 @@ and reporting station events — all controlled over the same HTTP API.
        ▼                                               ▼
 ┌─────────────────────────┐              ┌─────────────────────────────────┐
 │  Testbench              │              │  VM Host (192.168.0.160)        │
-│  testbench.local        │              │                                 │
+│  $BENCH        │              │                                 │
 │                         │              │  ┌─────────────────────┐        │
 │  ┌───────────┐          │              │  │ Container A         │        │
 │  │ SLOT1     │──────────┼─ :4001 ──────┼──│ rfc2217://:4001     │        │
@@ -114,7 +114,7 @@ and reporting station events — all controlled over the same HTTP API.
 
 | Component | Details |
 |-----------|---------|
-| Raspberry Pi Zero W | testbench.local, onboard wlan0 radio |
+| Raspberry Pi Zero W | $BENCH, onboard wlan0 radio |
 | USB Hub | 4-port hub connected to single USB port |
 | USB Ethernet adapter | eth0 — wired LAN for management and serial traffic |
 | Devices | ESP32, Arduino, or any USB serial device |
@@ -411,7 +411,7 @@ jack count, and add any unoccupied prefix(es) to the table.
       "devnode": "/dev/ttyACM0",
       "devnodes": ["/dev/ttyACM0", "/dev/ttyACM1"],
       "pid": 1234,
-      "url": "rfc2217://testbench.local:4001",
+      "url": "rfc2217://$BENCH:4001",
       "seq": 5,
       "last_action": "add",
       "last_event_ts": "2026-02-05T12:34:56+00:00",
@@ -428,8 +428,8 @@ jack count, and add any unoccupied prefix(es) to the table.
       ]
     }
   ],
-  "host_ip": "testbench.local",
-  "hostname": "testbench.local"
+  "host_ip": "$BENCH",
+  "hostname": "$BENCH"
 }
 ```
 
@@ -611,12 +611,12 @@ holds the serial port.  esptool connects through the proxy as a client.
 **Example:**
 
 ```bash
-esptool --port rfc2217://testbench.local:4001 --chip esp32c3 \
+esptool --port rfc2217://$BENCH:4001 --chip esp32c3 \
   --before default-reset --after no-reset \
   write-flash --flash-mode dio --flash-size 4MB \
   0x0000 bootloader.bin 0x8000 partition-table.bin 0x10000 firmware.bin
 
-curl -X POST http://testbench.local:8080/api/serial/reset \
+curl -X POST http://$BENCH:8080/api/serial/reset \
   -H "Content-Type: application/json" -d '{"slot":"SLOT1"}'
 ```
 
@@ -659,7 +659,7 @@ Standard ESP32 (Arduino) layout: `0x1000` bootloader, `0x8000` partitions,
 **Example:**
 
 ```bash
-curl -X POST http://testbench.local:8080/api/flash \
+curl -X POST http://$BENCH:8080/api/flash \
   -F slot=SLOT3 -F chip=esp32 -F baud=921600 \
   -F 'bin@0x1000=@.pio/build/<env>/bootloader.bin' \
   -F 'bin@0x8000=@.pio/build/<env>/partitions.bin' \
@@ -716,7 +716,7 @@ the board: the ESP32 only switches partitions on a verified success.
 **Example:**
 
 ```bash
-curl -X POST http://testbench.local:8080/api/ota \
+curl -X POST http://$BENCH:8080/api/ota \
   -F target=192.168.0.176 \
   -F firmware=@.pio/build/<env>/firmware.bin
 ```
@@ -749,7 +749,7 @@ always carries the raw text.
 **Example:**
 
 ```bash
-curl -X POST http://testbench.local:8080/api/chip/info \
+curl -X POST http://$BENCH:8080/api/chip/info \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
 ```
 
@@ -759,7 +759,7 @@ When connecting to an ESP32-C3 via RFC2217, the client must prevent DTR
 assertion during connection negotiation:
 
 ```python
-ser = serial.serial_for_url('rfc2217://testbench.local:4001', do_not_open=True)
+ser = serial.serial_for_url('rfc2217://$BENCH:4001', do_not_open=True)
 ser.baudrate = 115200
 ser.timeout = 2
 ser.dtr = False   # CRITICAL: prevents download mode
@@ -964,7 +964,7 @@ The device is now stable in the bootloader.  Flash firmware directly on
 the Pi (the RFC2217 proxy is not running in this state):
 
 ```bash
-ssh pi@testbench.local "python3 -m esptool --chip esp32s3 --port /dev/ttyACM1 \
+ssh pi@$BENCH "python3 -m esptool --chip esp32s3 --port /dev/ttyACM1 \
   write_flash 0x0 bootloader.bin 0x8000 partition-table.bin \
   0xf000 ota_data_initial.bin 0x20000 app.bin"
 ```
@@ -1429,7 +1429,7 @@ its extra portal fields (MQTT host/port/user/pass) via `extra`.
 {"portal_ssid": "Device-Setup", "ssid": "test-net", "password": "testpass123",
  "save_path": "/wifisave", "field_ssid": "s", "field_password": "p",
  "method": "POST", "internet": true,
- "extra": {"host": "testbench.local", "port": "1883"}}
+ "extra": {"host": "$BENCH", "port": "1883"}}
 ```
 
 | Parameter | Required | Default | Description |
@@ -1814,7 +1814,7 @@ wt.udplog_clear()
 **Implementation notes:**
 - Thread-safe: deque operations are atomic; timestamp+source stored per entry
 - Non-blocking: UDP recv in a loop with 1s timeout for clean shutdown
-- ESP32 remote_log.c sends to the configured host:port (default testbench.local:5555)
+- ESP32 remote_log.c sends to the configured host:port (default $BENCH:5555)
 
 ### FR-021 — OTA Firmware Repository
 
@@ -1852,7 +1852,7 @@ internet access or external hosting during development and testing.
 Serves the raw binary file with `Content-Type: application/octet-stream`.
 This is the URL the ESP32 OTA client points to, e.g.:
 ```
-http://testbench.local:8080/firmware/ios-keyboard/ios-keyboard.bin
+http://$BENCH:8080/firmware/ios-keyboard/ios-keyboard.bin
 ```
 
 Path traversal is rejected (no `..` allowed in project or filename).
@@ -1889,7 +1889,7 @@ Path traversal is rejected (no `..` allowed in project or filename).
 files = wt.firmware_list()
 wt.firmware_upload("ios-keyboard", "/path/to/ios-keyboard.bin")
 wt.firmware_delete("ios-keyboard", "ios-keyboard.bin")
-# ESP32 OTA URL: http://testbench.local:8080/firmware/ios-keyboard/ios-keyboard.bin
+# ESP32 OTA URL: http://$BENCH:8080/firmware/ios-keyboard/ios-keyboard.bin
 ```
 
 **End-to-end OTA workflow:**
@@ -1912,7 +1912,7 @@ client on the LAN.
    POST /api/wifi/http  {"method":"POST", "url":"http://192.168.4.15/ota"}
    ```
    The ESP32 must expose a `POST /ota` endpoint that calls `esp_ota_ops`
-   to download from `http://testbench.local:8080/firmware/<project>/<file>.bin`.
+   to download from `http://$BENCH:8080/firmware/<project>/<file>.bin`.
 4. **Monitor progress** via UDP logs:
    ```
    GET /api/udplog?source=192.168.4.15
@@ -2284,7 +2284,7 @@ blocked — the chip's CPU is under OpenOCD control.
   "gdb_port": 3333,
   "telnet_port": 4444,
   "chip": "esp32c3",
-  "gdb_target": "target extended-remote testbench.local:3333"
+  "gdb_target": "target extended-remote $BENCH:3333"
 }
 ```
 
@@ -2365,7 +2365,7 @@ during debug sessions for native USB-Serial/JTAG devices.
 # Start debug session
 info = wt.debug_start("SLOT1", chip="esp32c3")
 print(f"GDB port: {info['gdb_port']}")
-# → Connect GDB: target extended-remote testbench.local:3333
+# → Connect GDB: target extended-remote $BENCH:3333
 
 # Check status
 status = wt.debug_status()
@@ -2383,7 +2383,7 @@ wt.debug_stop("SLOT1")
   "request": "launch",
   "program": "${workspaceFolder}/build/project.elf",
   "miDebuggerPath": "riscv32-esp-elf-gdb",
-  "miDebuggerServerAddress": "testbench.local:3333",
+  "miDebuggerServerAddress": "$BENCH:3333",
   "setupCommands": [
     {"text": "set remote hardware-breakpoint-limit 2"},
     {"text": "monitor reset halt"}
@@ -2394,7 +2394,7 @@ wt.debug_stop("SLOT1")
 **Command-line GDB:**
 ```bash
 riscv32-esp-elf-gdb build/project.elf \
-  -ex "target extended-remote testbench.local:3333" \
+  -ex "target extended-remote $BENCH:3333" \
   -ex "monitor reset halt"
 ```
 
@@ -2403,7 +2403,7 @@ riscv32-esp-elf-gdb build/project.elf \
 debug_tool = esp-builtin
 debug_server =
   # empty — use remote server instead
-debug_port = testbench.local:3333
+debug_port = $BENCH:3333
 ```
 
 #### 24.13 Auto-Start on Hotplug
@@ -2732,7 +2732,7 @@ slot.  The portal tracks which slot's DUT is connected to the probe.
   "chip": "esp32",
   "gdb_port": 3333,
   "telnet_port": 4444,
-  "gdb_target": "target extended-remote testbench.local:3333"
+  "gdb_target": "target extended-remote $BENCH:3333"
 }
 ```
 
@@ -4071,7 +4071,7 @@ skills, the Pi and the MCP bundle.
 
 **Renames:**
 - everything `workbench` → `testbench`, including the Pi's hostname
-  (`testbench.local`), the eight `testbench-*` skills, `testbench_test.py`,
+  (`$BENCH`), the eight `testbench-*` skills, `testbench_test.py`,
   `testbench_driver.py`, `testbench_mcp.py`, `/etc/rfc2217/testbench.json`,
   `TESTBENCH_URL`, `TestbenchDriver`, `TestbenchError`, and the discovery
   beacon's `service` field

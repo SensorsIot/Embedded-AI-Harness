@@ -1497,7 +1497,7 @@ class TestEndToEnd:
     run.  If flash fails, all subsequent tests are skipped.
 
     Usage:
-        pytest testbench_test.py -k TestEndToEnd --run-dut --wt-url http://testbench.local:8080
+        pytest testbench_test.py -k TestEndToEnd --run-dut --wt-url http://<bench-ip>:8080
     """
 
     _test_session_started = False

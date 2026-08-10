@@ -36,6 +36,5 @@
     "postCreateCommand": "npm install -g @anthropic-ai/claude-code && (pip install -r requirements-dev.txt 2>/dev/null || pip install pyserial pytest ruff)",
     "remoteUser": "dev",
     "containerEnv": {
-        "SERIAL_PI": "testbench.local"
     }
 }

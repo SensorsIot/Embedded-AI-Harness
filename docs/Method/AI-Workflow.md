@@ -55,8 +55,8 @@ The service runs from `/usr/local/bin/`, **not** from the git checkout — editi
 the repo on the Pi changes nothing until you copy it across.
 
 ```bash
-scp pi/portal.py pi@testbench.local:/tmp/portal.py
-ssh pi@testbench.local 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
+scp pi/portal.py pi@$BENCH:/tmp/portal.py
+ssh pi@$BENCH 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
 ```
 
 Other modules install under their own names (`debug_controller.py`,

@@ -2,7 +2,7 @@
 #
 # A green tick here does NOT mean the bench works. The bench tests drive a
 # live Raspberry Pi with DUTs plugged into it, and a GitHub-hosted runner cannot
-# reach testbench.local. Those stay a pre-release step run against real hardware —
+# reach the bench. Those stay a pre-release step run against real hardware —
 # see docs/Method/standards/testing.md.
 name: host tests + lint
 
