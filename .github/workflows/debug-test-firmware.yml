@@ -62,6 +62,12 @@ jobs:
           # The whole reason this workflow exists. A build that quietly loses
           # this setting reproduces a fault that presents as dead hardware, so
           # fail here where the cause is still legible.
+          case "${{ matrix.target }}" in
+            esp32)
+              echo "classic ESP32: no USB-Serial/JTAG peripheral, console is"
+              echo "UART0 through a bridge chip. Nothing to assert."
+              exit 0 ;;
+          esac
           cfg=debug-test/build/config/sdkconfig.h
           grep -q "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG 1" "$cfg" || {
             echo "console is not on USB-Serial/JTAG — the bench could read this"

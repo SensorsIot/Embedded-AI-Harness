@@ -15,10 +15,9 @@
 # appeared to need replugging every hour.
 #
 # `test-firmware` hit exactly this and fixed it; this image was left behind.
-CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
-
-# ...and only once. The secondary console defaults to USB-Serial/JTAG too, so
-# once the primary moves there every line goes out the same peripheral twice.
-# A pattern match still passes on doubled output, but anything counting lines
-# quietly sees two of everything.
-CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+#
+# The settings themselves live in sdkconfig.defaults.<target>, because they
+# only exist on parts with a USB-Serial/JTAG peripheral. The classic ESP32
+# reaches the bench through a bridge chip on UART0 and has no such symbol —
+# putting it here builds an image for it that warns about a key nobody
+# applied.

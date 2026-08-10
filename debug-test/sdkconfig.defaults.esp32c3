@@ -1,0 +1,8 @@
+# Console on the native USB port. See sdkconfig.defaults for why this matters
+# and what it looked like when it was missing: a board the bench could read
+# perfectly and could not write to at all.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# ...and only once. The secondary console defaults to USB-Serial/JTAG too, so
+# once the primary moves there every line goes out the same peripheral twice.
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
