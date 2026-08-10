@@ -178,44 +178,49 @@ fi
 # ---------------------------------------------------------------------------
 # 6b. Hostname
 # ---------------------------------------------------------------------------
-# One bench, one name, derived from the hardware: testbench_XXXX, where XXXX
-# is the last four hex digits of the MAC. Two benches on a bench-and-a-number
-# scheme collide the moment somebody reimages one; the MAC cannot.
+# One bench, one name, derived from the hardware: testbench-XXXX, where XXXX
+# is the last four hex digits of the MAC. A bench-and-a-number scheme collides
+# the moment somebody reimages one; the MAC cannot.
 #
 # wlan0 first: it is on the SoC on every supported Pi, where eth0 on a Zero 2 W
 # is a USB adapter that can be unplugged and replaced — which would rename the
 # machine.
 #
-# NOTE: `_` is not a legal hostname character (RFC 1123 allows letters, digits
-# and `-`, and systemd checks exactly that), so hostnamectl may refuse it. If
-# it does, the name is applied with `-` and the difference is reported rather
-# than hidden — a hostname nothing can resolve is worse than one that differs
-# from the spec by a character.
-HOST_SEP="_"
+# The separator is `-`, not `_`, and this is not a preference. `_` is not a
+# legal hostname character (RFC 1123: letters, digits, `-`), and systemd does
+# not refuse it — it *silently strips it*, which is the worse failure. Asking
+# for testbench_7e71 gets you a kernel hostname of testbench7e71 while
+# /etc/hosts still says testbench_7e71, the two disagree, and every sudo then
+# stalls on "unable to resolve host". Observed on this bench.
 MAC_IF=wlan0
 [ -r "/sys/class/net/$MAC_IF/address" ] || MAC_IF=eth0
 MAC_SUFFIX="$(sed 's/://g' "/sys/class/net/$MAC_IF/address" 2>/dev/null | tail -c 5)"
 CURRENT_HOST="$(hostname)"
 
 if [ -n "$MAC_SUFFIX" ]; then
-    NEW_HOST="testbench${HOST_SEP}${MAC_SUFFIX}"
-    if [ "$CURRENT_HOST" != "$NEW_HOST" ]; then
-        echo "Renaming host '$CURRENT_HOST' -> '$NEW_HOST' (from $MAC_IF MAC)"
-        if ! hostnamectl set-hostname "$NEW_HOST" 2>/dev/null; then
-            NEW_HOST="testbench-${MAC_SUFFIX}"
-            echo "  NOTE: '_' refused as a hostname character; using '$NEW_HOST'"
-            hostnamectl set-hostname "$NEW_HOST" 2>/dev/null || \
-                echo "$NEW_HOST" > /etc/hostname
+    WANT_HOST="testbench-${MAC_SUFFIX}"
+    if [ "$CURRENT_HOST" != "$WANT_HOST" ]; then
+        echo "Renaming host '$CURRENT_HOST' -> '$WANT_HOST' (from $MAC_IF MAC)"
+        hostnamectl set-hostname "$WANT_HOST" 2>/dev/null || \
+            echo "$WANT_HOST" > /etc/hostname
+
+        # Read back what the system actually accepted rather than assuming it
+        # took what we asked for — see the note above about silent stripping.
+        NEW_HOST="$(hostname)"
+        [ -n "$NEW_HOST" ] || NEW_HOST="$WANT_HOST"
+        if [ "$NEW_HOST" != "$WANT_HOST" ]; then
+            echo "  NOTE: system stored '$NEW_HOST', not '$WANT_HOST'"
         fi
-        # /etc/hosts must follow, or sudo stalls on every call resolving the old name
+
+        # /etc/hosts must match the *stored* name, or sudo stalls on every call
         if grep -q "127.0.1.1" /etc/hosts; then
             sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t$NEW_HOST/" /etc/hosts
         else
             printf '127.0.1.1\t%s\n' "$NEW_HOST" >> /etc/hosts
         fi
         systemctl restart avahi-daemon 2>/dev/null || true
-        echo "  Host renamed to '$NEW_HOST'."
-        echo "  Reach the bench by IP: mDNS does not resolve from containers."
+        echo "  Host is now '$NEW_HOST'."
+        echo "  Reach the bench by IP — mDNS does not resolve from containers."
     fi
 else
     echo "WARNING: no MAC readable on wlan0 or eth0; leaving hostname '$CURRENT_HOST'"
