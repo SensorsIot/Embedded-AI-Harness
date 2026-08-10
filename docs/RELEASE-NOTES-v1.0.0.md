@@ -128,6 +128,20 @@ nobody has configured.
 - **No authentication on the API.** Keep the bench on a network you trust.
 - **The MCP surface has not caught up** with serial write, bench reset, or the
   slot access manager; those are HTTP and skills only.
+- **`/api/serial/recover` asserts its outcome instead of checking it.** GPIO
+  recovery drives BOOT low, pulses EN, rebinds USB — and then sets the slot to
+  `download_mode` and logs "device in download mode" without asking the device
+  anything. If nothing is physically wired to that board's BOOT/EN pins the
+  call still reports `ok: true, "recovery started"`, because `has_gpio` is a
+  statement about *configuration* and the bench cannot see wires. Found the
+  honest way: an ESP32-C6 whose firmware enumerated its USB-CDC but never
+  serviced the endpoint — reads returned nothing, writes timed out, JTAG
+  worked fine — and recovery cheerfully declared it recovered. A physical
+  replug fixed it. The fix is for recovery to verify (does the port answer an
+  esptool sync?) and report what it found, and it is not in this release
+  because it cannot be tested without a board that genuinely flaps. It is the
+  same defect class as the rest of this section: **an instrument reporting a
+  failure of its own as an observation about the world.**
 
 ## Upgrading
 
