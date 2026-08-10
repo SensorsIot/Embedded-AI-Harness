@@ -1,0 +1,76 @@
+# Builds the debug-test image the JTAG and flash tests put on a spare slot.
+#
+# This image was committed as prebuilt binaries — bootloader.bin, debug-test.bin
+# and an .elf, dated March, with nothing in the repository able to reproduce
+# them. That is how it came to differ from the firmware beside it without
+# anyone noticing: `test-firmware` fixed its console configuration and this one
+# could not be rebuilt to match, so the board carrying it could be read and
+# never written to, and looked like failing hardware for weeks.
+#
+# The .elf matters as much as the .bin here: the debug tests set breakpoints by
+# symbol, so a binary without the symbols it was built from is only half an
+# artefact.
+name: debug-test firmware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'debug-test/**'
+      - '.github/workflows/debug-test-firmware.yml'
+  pull_request:
+    paths:
+      - 'debug-test/**'
+      - '.github/workflows/debug-test-firmware.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every target the committed binaries covered, so replacing them costs
+        # nothing and a board swap does not become a red build later.
+        target: [esp32, esp32c3, esp32c6, esp32h2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.target }}
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.0.2
+          target: ${{ matrix.target }}
+          path: debug-test
+
+      - name: Collect the flashable set
+        run: |
+          cd debug-test/build
+          test -f flash_args || { echo "no flash_args — nothing to flash"; exit 1; }
+          mkdir -p ../../dbg-${{ matrix.target }}
+          cp flash_args ../../dbg-${{ matrix.target }}/
+          for f in $(grep -oE '[^ ]+\.bin' flash_args); do
+            cp "$f" ../../dbg-${{ matrix.target }}/ || {
+              echo "flash_args names $f, which the build did not produce"; exit 1; }
+          done
+          # The debug tests break on symbols, so ship what they resolve against.
+          cp debug-test.elf ../../dbg-${{ matrix.target }}/ || true
+          ls -l ../../dbg-${{ matrix.target }}/
+
+      - name: Prove the console reaches the native USB port
+        run: |
+          # The whole reason this workflow exists. A build that quietly loses
+          # this setting reproduces a fault that presents as dead hardware, so
+          # fail here where the cause is still legible.
+          cfg=debug-test/build/config/sdkconfig.h
+          grep -q "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG 1" "$cfg" || {
+            echo "console is not on USB-Serial/JTAG — the bench could read this"
+            echo "image and never write to it. Check sdkconfig.defaults."
+            exit 1; }
+          echo "console: USB-Serial/JTAG, primary"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-test-${{ matrix.target }}
+          path: dbg-${{ matrix.target }}/
+          if-no-files-found: error
