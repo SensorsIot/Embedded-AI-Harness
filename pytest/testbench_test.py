@@ -809,7 +809,8 @@ class TestCaptivePortal:
     TOPIC = "testbench/dut/+/hello"
 
     @pytest.fixture(scope="class")
-    def journey(self, testbench):
+    @classmethod
+    def journey(cls, testbench):
         j = {"portal_ssid": TEST_PARTNER_PORTAL, "portal_on_air": False,
              "form": "", "submitted": None, "station": None,
              "mqtt_message": None, "notes": []}
@@ -1504,7 +1505,8 @@ class TestEndToEnd:
     _flash_ok = False
 
     @pytest.fixture(autouse=True, scope="class")
-    def _end_test_session(self, testbench):
+    @classmethod
+    def _end_test_session(cls, testbench):
         """Send test_end when all tests in this class are done, and give the
         the bench its test partner back.
 

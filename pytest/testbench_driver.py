@@ -46,6 +46,12 @@ class Response:
 class TestbenchError(Exception):
     """Base exception for testbench errors."""
 
+    # pytest collects anything named Test*, so the rename to `Testbench…`
+    # turned the driver and its exceptions into candidate test classes. It
+    # warns and skips them, which is noise now and a silent gap the day one
+    # of them gains a method called test_something.
+    __test__ = False
+
 
 class CommandError(TestbenchError):
     """Portal returned ok=false."""
@@ -83,6 +89,8 @@ def _body_reason(err) -> str:
 
 class TestbenchDriver:
     """HTTP driver for the testbench."""
+
+    __test__ = False        # not a test class — see TestbenchError above
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
