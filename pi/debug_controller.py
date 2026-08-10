@@ -503,11 +503,38 @@ def _bench_ip() -> str:
 
 
 def stop(slot_label: str) -> dict:
-    """Stop OpenOCD debug session for a slot."""
+    """Stop OpenOCD debug session for a slot, leaving the chip running.
+
+    Killing the debugger is not the same as detaching from it. This used to
+    kill OpenOCD and nothing else, so whatever state the session left behind
+    — a halted core, a software breakpoint, the chip's debug module still
+    flagged — outlived the session that caused it.
+
+    The consequence lands on a *later* test and accuses the wrong thing.
+    ESP-IDF's panic handler is OCD-aware: when it believes a debugger is
+    attached it prints "Setting breakpoint at 0x… and returning" and returns
+    instead of rebooting, so the debugger can catch the fault. With no
+    debugger left to catch it the board panics again immediately and spins,
+    watchdog-resetting, until something reflashes it. WT-1800 then flashes
+    firmware, waits 20 s for a marker the board prints every 500 ms, sees
+    only Guru Meditation errors, and reports a flash failure — three test
+    classes after the session that actually did it.
+
+    So resume first, then kill: `reset run` over the session's own telnet
+    port. Best-effort with a short timeout, because a wedged OpenOCD must
+    still be killable — a stop that can hang is worse than one that leaves
+    a board halted.
+    """
     with _lock:
         session = _sessions.pop(slot_label, None)
         if not session:
             return {"ok": True}  # idempotent
+
+        try:
+            _openocd_command(session["telnet_port"], "reset run", timeout=5)
+        except Exception as e:
+            print(f"[debug] {slot_label}: could not resume before stop: {e}",
+                  flush=True)
 
         _kill_process(session["pid"])
 

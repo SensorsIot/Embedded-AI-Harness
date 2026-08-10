@@ -175,6 +175,24 @@ if [ -f /etc/rfc2217/workbench.json ] && [ ! -f /etc/rfc2217/testbench.json ]; t
     mv /etc/rfc2217/workbench.json /etc/rfc2217/testbench.json
 fi
 
+# The bench's DNS belongs to eth0, its management link. wlan0 joins test
+# networks whose DHCP offers name a microcontroller as nameserver, and dhcpcd
+# runs as a daemon here — so a `--nohook` flag on a `dhcpcd -1 wlan0` control
+# command is ignored, and only this per-interface stanza is obeyed. Without
+# it, one station test replaces the bench's resolver with an ESP32 that
+# answers nothing and then disappears.
+if ! grep -q "^interface ${WLAN_IF}$" /etc/dhcpcd.conf 2>/dev/null; then
+    echo "Telling dhcpcd not to take DNS from $WLAN_IF (test networks)..."
+    cat >> /etc/dhcpcd.conf <<DHCPCDCONF
+
+# Added by the testbench installer: $WLAN_IF joins test networks whose DHCP
+# offers advertise the DUT as nameserver. The bench resolves via eth0.
+interface ${WLAN_IF}
+    nohook resolv.conf
+DHCPCDCONF
+    systemctl restart dhcpcd 2>/dev/null || true
+fi
+
 # ---------------------------------------------------------------------------
 # 6b. Hostname
 # ---------------------------------------------------------------------------

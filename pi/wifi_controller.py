@@ -639,17 +639,22 @@ def sta_join(ssid, password="", timeout=15, _internal=False):
         # command that returns immediately while the daemon does DHCP in the
         # background (including ARP probing which takes ~3s).
         #
-        # `--nohook resolv.conf` is what keeps the bench usable afterwards. The
-        # networks this joins are test networks — a DUT's captive portal, the
-        # test partner's own AP — and their DHCP offers name the DUT itself as
-        # nameserver. dhcpcd believed them and overwrote /etc/resolv.conf with
-        # `nameserver 192.168.4.1`, an ESP32 that answers no DNS at all and
-        # vanishes when the test ends. `sta_leave` never put it back, so a
-        # single STA test cost the bench its name resolution until somebody
-        # noticed: apt, git and `gh` all failed with "Could not resolve host"
-        # while the network itself was perfectly fine, which reads as an
-        # outage rather than as leftover state. The bench's DNS belongs to
-        # eth0, its management link, and no test network gets a say in it.
+        # The networks this joins are test networks — a DUT's captive portal,
+        # the test partner's own AP — and their DHCP offers name the DUT
+        # itself as nameserver. Left alone, dhcpcd believes them and
+        # overwrites /etc/resolv.conf with `nameserver 192.168.4.1`: an ESP32
+        # that answers no DNS and vanishes when the test ends. The bench then
+        # fails every name lookup — apt, git, gh — on a network that is
+        # perfectly healthy, which reads as an outage rather than as leftover
+        # state from a test twenty minutes ago.
+        #
+        # The switch below does NOT prevent that on its own, and believing it
+        # did cost a run: dhcpcd here runs as a system daemon, so `-1` is a
+        # *control command* to that daemon, which does the work with its own
+        # configured hooks and ignores this process's flags. What actually
+        # holds is the per-interface `nohook resolv.conf` that install.sh
+        # writes into /etc/dhcpcd.conf. The flag stays for the case where no
+        # daemon is running and this invocation does the DHCP itself.
         try:
             _run(["/usr/sbin/dhcpcd", "-1", "-4", "--nohook", "resolv.conf", WLAN_IF],
                  timeout=timeout, check=False)
