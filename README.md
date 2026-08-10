@@ -85,13 +85,32 @@ spec true for the product's whole life.
 | You need | For | Where |
 |---|---|---|
 | A **Raspberry Pi testbench** (Pi 3/4/5, or Zero 2 W + USB hub + Ethernet adapter) with an ESP32 board in a slot | The loop's hands and eyes — flash, reset, observe on real hardware | Build it: [Quick Start](#-quick-start--building-the-bench) below |
-| A **GitHub account**, `git` + `gh` authenticated | CI builds, releases, and the release-verify runner | [github.com](https://github.com) |
+| A **GitHub account**, `git` + `gh` authenticated | **This is where the firmware is built** — see below | [github.com](https://github.com) |
 | **Claude Code** with this repo's skills | The AI that pulls; the skills are the method | `npm i -g @anthropic-ai/claude-code`, then copy `.claude/skills/` from this repo into your project |
 | **Same LAN** | Your dev machine or devcontainer must reach the bench | `curl http://testbench.local:8080/api/devices` answers |
-| For your project: **ESP-IDF or PlatformIO** toolchain | The forward path — the `esp-idf-handling` / `esp-pio-handling` skills set this up | Handled during Phase 1 |
 
-Nothing else. The FSD, tests, firmware, CI and documentation are what the loop
-*produces*, not what you bring.
+Nothing else — and in particular **no local ESP-IDF or PlatformIO
+installation.** The forward path runs through GitHub Actions:
+
+```
+git push ─► CI builds in a pinned container ─► gh run download ─► flash to a slot ─► observe
+```
+
+The loop flashes **the artefact CI produced**, never a binary that happens to
+be sitting in a local `build/` directory. That is not a convenience, it is
+what makes the evidence mean anything: the bytes on the chip are the bytes in
+the run you can point at, built by a toolchain whose version is pinned in the
+workflow rather than whatever is installed on somebody's laptop. The same
+property is what lets a tag ship — the release-verify job flashes the
+*released* artefact to the bench and reruns the journey, so a red journey is a
+release that does not happen.
+
+The toolchain skills (`esp-idf-handling`, `esp-pio-handling`) drive that
+pipeline and know how to build locally too, which is useful when you are
+iterating by hand. The loop does not depend on it.
+
+The FSD, tests, firmware, CI and documentation are what the loop *produces*,
+not what you bring.
 
 ## 🔌 The Testbench — the loop's hands and eyes
 
