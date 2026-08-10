@@ -40,3 +40,11 @@ requirement is met and the journey still runs.**
 All three planes are present-state and single-home: state a fact once, link to
 it from anywhere else. Routing rule and edge cases:
 [`Method/standards/documentation.md`](Method/standards/documentation.md).
+
+One document sits under WHAT without being about the bench itself:
+[`bench-dut.md`](bench-dut.md) states what the **bench's own ESP32** must do,
+test by test. The bench cannot verify half its requirements alone — it has one
+radio, one serial port per slot, and no way to answer its own `ping` — so the
+suite needs a counterpart, and that counterpart's obligations are requirements
+like any other. The firmware discharging them is `test-firmware/`, built by CI
+as `bench-dut-<target>`.
