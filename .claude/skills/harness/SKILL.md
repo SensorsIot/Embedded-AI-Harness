@@ -8,7 +8,7 @@ description: >
   journey tests, declared testbench capabilities, firmware integration, CI
   with release verification, and the devcontainer with its per-repo runner.
   Use this skill for a new project, "set up this project", "harness this
-  project", "integrate with the workbench", or when a project has an FSD but
+  project", "integrate with the testbench", or when a project has an FSD but
   none of the machinery to build against it. Exit gate: AI harnessed.
 ---
 
@@ -27,7 +27,7 @@ phase, a `/build` session can open, state its position, and act.
 | 2 | Three planes installed or bound: FSD home, `docs/Method/`, `docs/UserDocumentation/` + `docs/00-Overview.md` at the docs root | `/define` planes mode |
 | 3 | Testing standard stamped (setup/teardown/evidence rules + shared procedures, one file) | `/define` templates |
 | 4 | `testing/test-plan.yaml` created; **capabilities declared** — bench capabilities copied from what the bench reports (`available: yes` as declared — a project never proves them), plus this project's own peers and equipment. Blocked is computed from these, never typed | this skill |
-| 5 | Firmware integration — **only the modules the FSD requires.** UDP logging always (the loop's eyes inside the DUT); WiFi provisioning, OTA, BLE hooks only when the FSD carries the corresponding requirements. A module the spec never asked for is silent pack adoption | `workbench-integration` |
+| 5 | Firmware integration — **only the modules the FSD requires.** UDP logging always (the loop's eyes inside the DUT); WiFi provisioning, OTA, BLE hooks only when the FSD carries the corresponding requirements. A module the spec never asked for is silent pack adoption | `testbench-integration` |
 | 6 | CI: build on push, release on tag **plus the release-verify job** (flash the released artifact to the testbench, run the journey; red journey = no release) | `setup-action` |
 | 7 | Devcontainer and toolchain, with the **GitHub Actions runner inside it** — see below | `esp-idf-handling` / `esp-pio-handling` (project + toolchain setup) |
 | 8 | **Generate this project's gate checks** — one file per gate under `testing/gates/`, filled with this project's paths, ids, DUT, capabilities, markers and CI. A generic checklist cannot catch a project-specific omission | this skill · `../build/references/gate-checks.md` |
@@ -64,7 +64,7 @@ Symptoms that Phase 1 has drifted:
 ## Step 7 — the runner lives in the project's devcontainer
 
 One project, one container — no separate infrastructure. The devcontainer
-already holds the pytest bench tier, WorkbenchDriver, discovery, and slot
+already holds the pytest bench tier, TestbenchDriver, discovery, and slot
 config, which is everything the verify job needs (it downloads an artifact and
 speaks HTTP; it never builds). **Installation is automated; registration is a
 human grant** — a registered runner accepts and executes workflow code that
@@ -90,7 +90,7 @@ harvestable from any document:
 1. **What has to be debugged before testing starts?** Which **project-side**
    parts — this board, its wiring, its peers and simulators — have never been
    observed doing their job here. Becomes the **debugging agenda** that
-   `/commission` burns down. **The workbench is not on this list**: a project
+   `/commission` burns down. **The testbench is not on this list**: a project
    depends on its quality, never proves it (`../commission/SKILL.md`).
 2. **What does one ordinary successful run look like, end to end?** Ordered
    steps, an observable at each. Becomes the **journey tests** — one test per

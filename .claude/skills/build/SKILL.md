@@ -81,7 +81,7 @@ failed to lead.
 
 - **Debugging agenda has open items** → Phase 2. Lead commissioning: next
   unproven **project-side** part, how to prove it (`../commission/SKILL.md`
-  owns the phase and its four checks; the workbench is depended on, never
+  owns the phase and its four checks; the testbench is depended on, never
   proven by a project).
 - **Agenda burned down, requirements unmet** → Phase 3. Derive the **wave**
   first, then name the next act from the chain below, per requirement — never
@@ -150,8 +150,8 @@ flash, or drive instruments — it dispatches:
 |---|---|
 | Amend the WHAT (new/changed requirement, contract fix) | `/define` update mode |
 | Code · build · flash · monitor | `esp-idf-handling` / `esp-pio-handling` |
-| Verify: WiFi, MQTT, BLE, logging, RF | `workbench-*` skills |
-| Run the bench suite, operator prompts | `workbench-test-handling` |
+| Verify: WiFi, MQTT, BLE, logging, RF | `testbench-*` skills |
+| Run the bench suite, operator prompts | `testbench-test-handling` |
 | CI, release workflow | `setup-action` |
 
 **Contracts flow down; spec defects flow up.** When a declaration or an

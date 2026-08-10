@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Discover ESP32 Workbench instances on the network.
+"""Discover ESP32 Testbench instances on the network.
 
 Sends UDP DISCOVER probes to every host on the gateway subnet and collects
-responses from any workbench portal running a beacon responder (port 5888).
+responses from any testbench portal running a beacon responder (port 5888).
 
 Works from inside Docker containers where broadcast/multicast cannot cross
 the Docker bridge — uses a fast unicast sweep of the /24 subnet instead.
 
 Usage:
-    python3 discover-workbench.py              # print JSON result
-    python3 discover-workbench.py --hosts      # also write /etc/hosts entry
-    python3 discover-workbench.py --timeout 2  # custom timeout
+    python3 discover-testbench.py              # print JSON result
+    python3 discover-testbench.py --hosts      # also write /etc/hosts entry
+    python3 discover-testbench.py --timeout 2  # custom timeout
 """
 
 import argparse
@@ -75,9 +75,9 @@ def discover(timeout=DEFAULT_TIMEOUT):
 
 
 def write_hosts_entry(hostname, ip):
-    """Add or update an /etc/hosts entry for the workbench."""
+    """Add or update an /etc/hosts entry for the testbench."""
     hosts_path = "/etc/hosts"
-    marker = "# workbench-discovery"
+    marker = "# testbench-discovery"
     new_line = f"{ip}\t{hostname}\t{marker}\n"
 
     try:
@@ -101,15 +101,15 @@ def write_hosts_entry(hostname, ip):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Discover ESP32 Workbench")
+    parser = argparse.ArgumentParser(description="Discover ESP32 Testbench")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
                         help=f"Seconds to wait for responses (default: {DEFAULT_TIMEOUT})")
     parser.add_argument("--hosts", action="store_true",
-                        help="Write discovered workbench to /etc/hosts")
+                        help="Write discovered testbench to /etc/hosts")
     parser.add_argument("--quiet", action="store_true",
                         help="Only output on success")
     parser.add_argument("--url", action="store_true",
-                        help="Print only the base URL, for: export WORKBENCH_URL=$(... --url)")
+                        help="Print only the base URL, for: export TESTBENCH_URL=$(... --url)")
     parser.add_argument("--name",
                         help="Only the bench with this hostname (case-insensitive). "
                              "Needed once more than one bench answers.")
@@ -125,7 +125,7 @@ def main():
     if not results:
         if not args.quiet:
             which = f" named {args.name}" if args.name else ""
-            print(f"No ESP32 Workbench{which} found", file=sys.stderr)
+            print(f"No ESP32 Testbench{which} found", file=sys.stderr)
         return 1
 
     # --url must name exactly one bench, or the caller would export the wrong
@@ -140,7 +140,7 @@ def main():
         return 0
 
     for wb in results:
-        hostname = wb.get("hostname", "workbench")
+        hostname = wb.get("hostname", "testbench")
         # The address the reply actually came from, not the one the payload
         # claims. The portal caches its own IP and refreshes it periodically,
         # so after the bench changes address the beacon advertises the old one

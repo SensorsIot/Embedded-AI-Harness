@@ -1,6 +1,6 @@
 ---
 name: setup-action
-description: Sets up GitHub Actions for ESP32 projects — building ESP-IDF firmware in a pinned container, taking the version from the git tag, proving a published image is the variant it claims to be, and publishing artefacts and a release when a tag is pushed. Also covers the pre-merge gate: lint plus the tests a hosted runner can actually run, and which tiers it cannot reach. Use this skill whenever CI comes up for an ESP32 or workbench project — a new project needing a build workflow, a release that should publish firmware, a gate that keeps turning red, or the question "why isn't this checked automatically". Triggers on "GitHub Action", "CI", "workflow", "pipeline", "build firmware in CI", "publish a release", "release on tag", ".github/workflows", "pre-merge check", "self-hosted runner", "lint on push".
+description: Sets up GitHub Actions for ESP32 projects — building ESP-IDF firmware in a pinned container, taking the version from the git tag, proving a published image is the variant it claims to be, and publishing artefacts and a release when a tag is pushed. Also covers the pre-merge gate: lint plus the tests a hosted runner can actually run, and which tiers it cannot reach. Use this skill whenever CI comes up for an ESP32 or testbench project — a new project needing a build workflow, a release that should publish firmware, a gate that keeps turning red, or the question "why isn't this checked automatically". Triggers on "GitHub Action", "CI", "workflow", "pipeline", "build firmware in CI", "publish a release", "release on tag", ".github/workflows", "pre-merge check", "self-hosted runner", "lint on push".
 ---
 
 # CI for ESP32 projects
@@ -325,7 +325,7 @@ OTA-select data; one using the old app offset writes into the wrong partition an
 boots the previous firmware. Both look like a successful flash.
 
 Keep the build's own filenames in the bundle: `flash_args` refers to each image
-by basename, and the workbench's `/api/flash` pairs them on it.
+by basename, and the testbench's `/api/flash` pairs them on it.
 
 Publish the generated `sdkconfig` too. It is derived from `sdkconfig.defaults`
 and not committed, so once the runner is gone the effective configuration of a
@@ -467,7 +467,7 @@ release:
 ```
 
 **The runner lives inside the project's devcontainer** — one project, one
-container; the devcontainer already holds the bench tier, WorkbenchDriver,
+container; the devcontainer already holds the bench tier, TestbenchDriver,
 discovery and slot config, which is everything this job needs (it never
 builds). Register per-repo, ephemeral, labels `[self-hosted, testbench]`;
 trigger on tag push only; approval required for outside contributors — the
@@ -488,5 +488,5 @@ When a gate lands or its scope changes, the project's build contract changes wit
 it. Update the testing standard in the same commit — documentation describes what
 is enforced now, not what was planned.
 
-The workbench's own gate, its tiers, and its lint debt are in
-[`references/workbench-gate.md`](references/workbench-gate.md).
+The testbench's own gate, its tiers, and its lint debt are in
+[`references/testbench-gate.md`](references/testbench-gate.md).

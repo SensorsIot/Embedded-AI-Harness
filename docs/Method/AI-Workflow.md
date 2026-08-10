@@ -55,15 +55,15 @@ The service runs from `/usr/local/bin/`, **not** from the git checkout — editi
 the repo on the Pi changes nothing until you copy it across.
 
 ```bash
-scp pi/portal.py pi@workbench.local:/tmp/portal.py
-ssh pi@workbench.local 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
+scp pi/portal.py pi@testbench.local:/tmp/portal.py
+ssh pi@testbench.local 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
 ```
 
 Other modules install under their own names (`debug_controller.py`,
 `wifi_controller.py`, …) — same pattern, same restart.
 
 **SSH is for deploying code and nothing else.** Never drive the bench over SSH:
-every operation has an HTTP endpoint, and `pytest/workbench_driver.py` wraps them
+every operation has an HTTP endpoint, and `pytest/testbench_driver.py` wraps them
 all. Reaching for SSH to *do* something means the API is missing a capability —
 add the endpoint instead.
 

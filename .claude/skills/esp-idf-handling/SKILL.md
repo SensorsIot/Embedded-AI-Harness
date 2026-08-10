@@ -2,11 +2,11 @@
 name: esp-idf-handling
 description: >
   Complete ESP-IDF lifecycle: project setup, build, flash, monitor, and OTA.
-  Automatically detects whether a workbench is available or the device is
+  Automatically detects whether a testbench is available or the device is
   connected locally via USB. Covers sdkconfig, partition tables, esptool,
   RFC2217 remote flashing, GPIO download mode, OTA updates, crash recovery,
   and flapping. Triggers on "flash", "build", "upload", "idf.py", "monitor",
-  "serial console", "slot", "workbench", "esptool", "OTA", "erase",
+  "serial console", "slot", "testbench", "esptool", "OTA", "erase",
   "download mode", "crash loop", "flapping", "bricked", "menuconfig",
   "set-target", "sdkconfig", "partition".
 ---
@@ -14,22 +14,22 @@ description: >
 # ESP-IDF Handling
 
 Complete lifecycle for ESP-IDF projects — from project creation to flashing
-and monitoring. Automatically adapts to local USB or remote workbench.
+and monitoring. Automatically adapts to local USB or remote testbench.
 
 ## Step 1: Detect Environment
 
-Determine whether a workbench is available or the device is local.
+Determine whether a testbench is available or the device is local.
 
 ```bash
-curl -s $WORKBENCH_URL/api/info
+curl -s $TESTBENCH_URL/api/info
 ```
 
-- **Response received** → workbench is available, use remote flashing (RFC2217/OTA)
+- **Response received** → testbench is available, use remote flashing (RFC2217/OTA)
 - **Connection refused / timeout** → try the discovery script:
   ```bash
-  sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
+  sudo python3 .claude/skills/esp-idf-handling/discover-testbench.py --hosts
   ```
-- **Still no response** → no workbench, use local USB flashing
+- **Still no response** → no testbench, use local USB flashing
 
 ## Step 2: Project Setup
 
@@ -125,7 +125,7 @@ Ask the bench — it reads the chip directly
 ([FSD §6.7.3](../../../docs/Harness-FSD.md#673-chip-identity-via-post-apichipinfo)):
 
 ```bash
-curl -X POST $WORKBENCH_URL/api/chip/info \\
+curl -X POST $TESTBENCH_URL/api/chip/info \\
   -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
 # -> "flash_size": "4MB", plus chip, revision, MAC and USB mode
 ```
@@ -162,7 +162,7 @@ possible at all, and it is cheapest to discover before the firmware exists.
 
 ## Step 4a: Flash — Local USB
 
-When the device is connected directly via USB (no workbench).
+When the device is connected directly via USB (no testbench).
 
 ```bash
 source /opt/esp-idf/export.sh
@@ -200,9 +200,9 @@ Stop debug before flashing native USB chips (serial + JTAG share USB).
 2. Press **RESET** button
 3. Release **RESET**, then **BOOT**
 
-## Step 4b: Flash — Workbench (RFC2217)
+## Step 4b: Flash — Testbench (RFC2217)
 
-When a workbench is available. Use serial flashing when:
+When a testbench is available. Use serial flashing when:
 - Device has **no firmware** (blank/bricked/first flash)
 - Firmware **lacks OTA support**
 - You need to **erase NVS** or flash a **bootloader/partition table**
@@ -210,10 +210,10 @@ When a workbench is available. Use serial flashing when:
 
 ### Discover devices and slot
 
-Slots are mapped to physical USB hub ports via prefix matching. The portal auto-detects the slot count from the Pi's USB topology at startup (typically 3–4); `workbench.json` is optional and only needed for custom labels/ports. Slot labels are `SLOT1`, `SLOT2`, ..., `SLOTn`; TCP ports are `4000 + slot_index` (e.g. SLOT1 = :4001). Always read slot info from `/api/devices` to learn the actual layout and verify the device is present.
+Slots are mapped to physical USB hub ports via prefix matching. The portal auto-detects the slot count from the Pi's USB topology at startup (typically 3–4); `testbench.json` is optional and only needed for custom labels/ports. Slot labels are `SLOT1`, `SLOT2`, ..., `SLOTn`; TCP ports are `4000 + slot_index` (e.g. SLOT1 = :4001). Always read slot info from `/api/devices` to learn the actual layout and verify the device is present.
 
 ```bash
-curl -s $WORKBENCH_URL/api/devices | jq .
+curl -s $TESTBENCH_URL/api/devices | jq .
 ```
 
 Response fields per slot: `label`, `state`, `url` (RFC2217, auto-assigned port), `present`, `running`, `detected_chip`, `debugging`.
@@ -222,7 +222,7 @@ Response fields per slot: `label`, `state`, `url` (RFC2217, auto-assigned port),
 VID:PID `303a:1001` and OpenOCD claims the interface by it, so a session on a
 different board fails this slot with `A serial exception error occurred: Write
 timeout` while it reads `idle` and `debugging: false`. Stop every session, not
-just this slot's — see `workbench-debug`.
+just this slot's — see `testbench-debug`.
 
 **`state: "idle"` is not enough — check `debugging` too.** A slot with a live
 OpenOCD session reads `idle` while still holding the port, and `/api/flash` is
@@ -230,7 +230,7 @@ refused. On native-USB parts serial and JTAG share the one interface, so this is
 the normal state of a board you have been debugging:
 
 ```bash
-curl -X POST $WORKBENCH_URL/api/debug/stop \
+curl -X POST $TESTBENCH_URL/api/debug/stop \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
 ```
 
@@ -242,7 +242,7 @@ curl -X POST $WORKBENCH_URL/api/debug/stop \
 
 The portal stops the proxy, runs esptool directly on the Pi against the
 local devnode, then restarts the proxy. Use this whenever your client is
-not on the same LAN as the workbench — RFC2217's SET_CONTROL roundtrip is
+not on the same LAN as the testbench — RFC2217's SET_CONTROL roundtrip is
 too slow to keep the auto-reset window open from a high-latency path.
 
 **Multipart with ESP-IDF `flash_args`** (recommended — uses what the build
@@ -250,7 +250,7 @@ already produces):
 
 ```bash
 cd build
-curl -s -X POST $WORKBENCH_URL/api/flash \
+curl -s -X POST $TESTBENCH_URL/api/flash \
   -F slot=SLOT1 -F chip=esp32 -F baud=921600 \
   -F flash_args=@flash_args \
   -F bootloader.bin=@bootloader/bootloader.bin \
@@ -270,7 +270,7 @@ one-off single-binary flash. The part name is `bin@<offset>`; a part named just
 `no binaries to flash`:
 
 ```bash
-curl -s -X POST $WORKBENCH_URL/api/flash \
+curl -s -X POST $TESTBENCH_URL/api/flash \
   -F slot=SLOT1 -F chip=esp32c3 \
   -F 'bin@0x0000=@bootloader.bin' \
   -F 'bin@0x8000=@partition-table.bin' \
@@ -287,7 +287,7 @@ table. JSON body, no upload; same proxy lifecycle as a flash (it stops the
 proxy and does a reset, so it disturbs the running firmware just like a flash).
 
 ```bash
-curl -s -X POST $WORKBENCH_URL/api/flash/read \
+curl -s -X POST $TESTBENCH_URL/api/flash/read \
   -H 'Content-Type: application/json' \
   -d '{"slot":"SLOT3","offset":"0x3F0000","length":"0x10000","chip":"esp32c3"}'
 # -> {"ok":true,"offset":4128768,"length":65536,"sha256":"...","data_b64":"..."}
@@ -301,21 +301,21 @@ open it. For a coredump, decode the bytes then
 
 #### Fallback: direct esptool over RFC2217
 
-Only viable when your client is on the same LAN as the workbench
+Only viable when your client is on the same LAN as the testbench
 (sub-millisecond RTT). Slow paths break the auto-reset timing window
 because each pyserial `SET_CONTROL` is a network roundtrip.
 
 ```bash
-SLOT_URL=$(curl -s $WORKBENCH_URL/api/devices | jq -r '.slots[0].url')
+SLOT_URL=$(curl -s $TESTBENCH_URL/api/devices | jq -r '.slots[0].url')
 esptool --port "$SLOT_URL" --chip esp32c3 \
   --before default-reset --after no-reset \
   write-flash --flash-mode dio --flash-size 4MB \
   0x0000 bootloader.bin 0x8000 partition-table.bin 0x10000 firmware.bin
-curl -X POST $WORKBENCH_URL/api/serial/reset \
+curl -X POST $TESTBENCH_URL/api/serial/reset \
   -H "Content-Type: application/json" -d '{"slot":"SLOT1"}'
 ```
 
-### Workbench API endpoints
+### Testbench API endpoints
 
 The full endpoint reference is [FSD Appendix D](../../../docs/Harness-FSD.md#appendix-d-http-api--mcp-reference)
 — D.1 discovery, D.2 serial, D.8 firmware repository, D.9 flashing. Read it there
@@ -335,35 +335,35 @@ flash: **`idle`** (via `/api/flash` or RFC2217) and **`download_mode`** (direct
 serial on the Pi). Anything else means wait or recover first — see
 Flapping & Automatic Recovery below.
 
-## Step 4c: Flash — Workbench OTA
+## Step 4c: Flash — Testbench OTA
 
 Use OTA when the device already runs firmware with an OTA HTTP endpoint and
 is on the WiFi network. Faster than serial and doesn't block the serial port.
 
 ```bash
-# 1. Upload firmware to workbench
-curl -X POST $WORKBENCH_URL/api/firmware/upload \
+# 1. Upload firmware to testbench
+curl -X POST $TESTBENCH_URL/api/firmware/upload \
   -F "project=my-project" \
   -F "file=@build/firmware.bin"
 
 # 2. Verify upload
-curl -s $WORKBENCH_URL/api/firmware/list | jq .
+curl -s $TESTBENCH_URL/api/firmware/list | jq .
 
 # 3. Trigger OTA on the ESP32 via HTTP relay
-OTA_BODY=$(echo -n '{"url":"$WORKBENCH_URL/firmware/my-project/firmware.bin"}' | base64)
-curl -X POST $WORKBENCH_URL/api/wifi/http \
+OTA_BODY=$(echo -n '{"url":"$TESTBENCH_URL/firmware/my-project/firmware.bin"}' | base64)
+curl -X POST $TESTBENCH_URL/api/wifi/http \
   -H 'Content-Type: application/json' \
   -d "{\"method\": \"POST\", \"url\": \"http://192.168.4.2/ota\", \"headers\": {\"Content-Type\": \"application/json\"}, \"body\": \"$OTA_BODY\", \"timeout\": 30}"
 
 # 4. Monitor OTA progress via UDP logs
-curl "$WORKBENCH_URL/api/udplog?limit=50"
+curl "$TESTBENCH_URL/api/udplog?limit=50"
 ```
 
 ### Firmware repository management
 
 Upload, list and delete are [FSD Appendix D.8](../../../docs/Harness-FSD.md#d8-firmware-repository). The
 one detail this flow depends on: an uploaded image is served to the device at
-`$WORKBENCH_URL/firmware/<project>/<filename>`, and that URL is
+`$TESTBENCH_URL/firmware/<project>/<filename>`, and that URL is
 what step 3 above hands to the ESP32.
 
 ## Step 5: Monitor
@@ -372,9 +372,9 @@ what step 3 above hands to the ESP32.
 # Local
 idf.py -p /dev/ttyUSB0 monitor
 
-# Workbench — via serial monitor API (see workbench-logging skill)
+# Testbench — via serial monitor API (see testbench-logging skill)
 # or via UDP logs
-curl "$WORKBENCH_URL/api/udplog?limit=50"
+curl "$TESTBENCH_URL/api/udplog?limit=50"
 ```
 
 ### Monitor shortcuts
@@ -383,7 +383,7 @@ curl "$WORKBENCH_URL/api/udplog?limit=50"
 - `Ctrl+T` `Ctrl+H` — Show help
 - `Ctrl+T` `Ctrl+R` — Reset target
 
-## GPIO Download Mode (Workbench)
+## GPIO Download Mode (Testbench)
 
 When DTR/RTS reset doesn't work (no auto-download circuit), use GPIO.
 
@@ -400,19 +400,19 @@ Allowed BCM pins: `5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27`
 
 ```bash
 # 1. Hold BOOT LOW
-curl -X POST $WORKBENCH_URL/api/gpio/set \
+curl -X POST $TESTBENCH_URL/api/gpio/set \
   -H 'Content-Type: application/json' -d '{"pin": 18, "value": 0}'
 sleep 1
 # 2. Pull EN LOW (reset)
-curl -X POST $WORKBENCH_URL/api/gpio/set \
+curl -X POST $TESTBENCH_URL/api/gpio/set \
   -H 'Content-Type: application/json' -d '{"pin": 17, "value": 0}'
 sleep 0.2
 # 3. Release EN HIGH (ESP32 exits reset, samples BOOT=LOW → download mode)
-curl -X POST $WORKBENCH_URL/api/gpio/set \
+curl -X POST $TESTBENCH_URL/api/gpio/set \
   -H 'Content-Type: application/json' -d '{"pin": 17, "value": 1}'
 sleep 0.5
 # 4. Release BOOT HIGH
-curl -X POST $WORKBENCH_URL/api/gpio/set \
+curl -X POST $TESTBENCH_URL/api/gpio/set \
   -H 'Content-Type: application/json' -d '{"pin": 18, "value": 1}'
 ```
 
@@ -436,14 +436,14 @@ Not all boards have EN/BOOT wired to Pi GPIOs. Run once per board:
 
 **Dual-USB hub boards** have onboard auto-download circuit — GPIO wiring not needed.
 
-## Crash-Loop Recovery (Workbench)
+## Crash-Loop Recovery (Testbench)
 
 When firmware crashes on boot (repeated `rst:0xc (RTC_SW_CPU_RST)` with backtraces),
 use the `/api/flash` endpoint to reflash working firmware. The portal handles proxy
 lifecycle safely. If the device is completely unresponsive, use GPIO download mode
 (if available) or reflash directly on the Pi with the portal stopped.
 
-## Flapping & Automatic Recovery (Workbench)
+## Flapping & Automatic Recovery (Testbench)
 
 Empty or corrupt flash can cause USB connection cycling (`flapping` state).
 The portal actively recovers by unbinding USB and re-entering download mode.
@@ -468,7 +468,7 @@ ssh pi@<bench-hostname> "python3 -m esptool --chip esp32s3 --port /dev/ttyACM1 \
 Then release GPIO:
 
 ```bash
-curl -X POST $WORKBENCH_URL/api/serial/release \
+curl -X POST $TESTBENCH_URL/api/serial/release \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT1"}'
 ```
 
@@ -483,7 +483,7 @@ After 2 failed attempts, flash directly on the Pi with `esptool --before=usb_res
 ### Manual recovery trigger
 
 ```bash
-curl -X POST $WORKBENCH_URL/api/serial/recover \
+curl -X POST $TESTBENCH_URL/api/serial/recover \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT1"}'
 ```
 
@@ -521,7 +521,7 @@ one, unless the bench has isolated DUT power.
 | No serial port found | Check USB cable, `ls /dev/ttyUSB*` or `ls /dev/ttyACM*` |
 | Permission denied | `sudo usermod -aG dialout $USER`, re-login |
 
-### Workbench
+### Testbench
 
 | Problem | Fix |
 |---------|-----|
@@ -539,5 +539,5 @@ one, unless the bench has isolated DUT power.
 | Problem | Fix |
 |---------|-----|
 | Upload fails | Use `-F` flags (multipart), not `-d` |
-| ESP32 can't download firmware | Device must reach workbench; check WiFi |
+| ESP32 can't download firmware | Device must reach testbench; check WiFi |
 | OTA trigger times out | Check device's OTA endpoint URL; increase timeout |

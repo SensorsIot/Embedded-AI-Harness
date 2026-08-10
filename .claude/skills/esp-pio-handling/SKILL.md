@@ -3,7 +3,7 @@ name: esp-pio-handling
 description: >
   PlatformIO lifecycle for ESP32 firmware: platformio.ini, environment
   selection, build, upload and serial monitor, on local USB or through the
-  workbench. Covers what differs from ESP-IDF — the .pio/build layout, the
+  testbench. Covers what differs from ESP-IDF — the .pio/build layout, the
   boot_app0 image an Arduino-framework build needs, and RFC2217 upload ports.
   Triggers on "pio", "platformio", "pio run", "pio upload", "platformio.ini",
   "lib_deps", "Arduino framework".
@@ -12,9 +12,9 @@ description: >
 # PlatformIO Handling
 
 Build, upload and monitor a PlatformIO ESP32 project, locally or through the
-workbench.
+testbench.
 
-**The workbench does not care which build system produced the image.** Slot
+**The testbench does not care which build system produced the image.** Slot
 discovery, `/api/flash`, GPIO download mode, crash-loop and flapping recovery are
 the same either way and live in
 [`esp-idf-handling`](../esp-idf-handling/SKILL.md). This skill covers only what
@@ -24,9 +24,9 @@ than the build, read that skill.
 ## Step 1: Detect environment
 
 Same as [`esp-idf-handling`](../esp-idf-handling/SKILL.md): if `/api/info`
-answers, use the workbench; if nothing answers, flash over local USB. The
+answers, use the testbench; if nothing answers, flash over local USB. The
 discovery script is shared —
-`.claude/skills/esp-idf-handling/discover-workbench.py --hosts`.
+`.claude/skills/esp-idf-handling/discover-testbench.py --hosts`.
 
 ## Step 2: Build
 
@@ -50,7 +50,7 @@ pio run -e esp32dev -t upload
 pio run -t upload && pio device monitor
 ```
 
-## Step 3b: Upload — workbench
+## Step 3b: Upload — testbench
 
 Prefer `POST /api/flash` over driving esptool through RFC2217, for the reasons in
 [`esp-idf-handling`](../esp-idf-handling/SKILL.md). What differs here is where the
@@ -61,7 +61,7 @@ so use the explicit `bin@<offset>` form:
 
 ```bash
 cd .pio/build/<env>
-curl -s -X POST $WORKBENCH_URL/api/flash \
+curl -s -X POST $TESTBENCH_URL/api/flash \
   -F slot=SLOT1 -F chip=esp32 \
   -F 'bin@0x1000=@bootloader.bin' \
   -F 'bin@0x8000=@partitions.bin' \
@@ -75,11 +75,11 @@ it the bootloader has no OTA-selection data and boots the wrong slot after an
 update. An ESP-IDF project has no equivalent, which is why this step is not
 simply a pointer.
 
-`workbench-flash.py` beside this skill collects all four and posts them:
+`testbench-flash.py` beside this skill collects all four and posts them:
 
 ```bash
 pio run
-python3 .claude/skills/esp-pio-handling/workbench-flash.py \
+python3 .claude/skills/esp-pio-handling/testbench-flash.py \
   --host <bench>:8080 --slot SLOT3 --chip esp32
 ```
 
@@ -108,7 +108,7 @@ pio device monitor --port 'rfc2217://<bench>:4001?ign_set_control'
 ```
 
 For pattern matching, UDP logs, or watching a device whose USB port is occupied,
-use [`workbench-logging`](../workbench-logging/SKILL.md).
+use [`testbench-logging`](../testbench-logging/SKILL.md).
 
 ## Troubleshooting
 

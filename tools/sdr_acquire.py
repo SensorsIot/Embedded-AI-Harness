@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Interactive guided SDR acquisition for the Embedded AI Harness workbench.
+"""Interactive guided SDR acquisition for the Embedded AI Harness testbench.
 
 Runs the four-phase receive procedure — locate → level → decode → classify —
-against the workbench SDR HTTP API, printing live instructions and results so
+against the testbench SDR HTTP API, printing live instructions and results so
 the *operator* drives the timing, not a chat round-trip:
 
   1. LOCATE   — waits (polling rtl_power) for the carrier to appear, then
@@ -19,7 +19,7 @@ transmitter keyed while a phase says it is listening.
 Usage:
     python3 tools/sdr_acquire.py                 # 433.92 MHz, default Pi
     python3 tools/sdr_acquire.py --freq 315.0
-    python3 tools/sdr_acquire.py --url http://workbench.local:8080 --flex "n=r,m=OOK_PWM,s=416,l=2150,r=16000"
+    python3 tools/sdr_acquire.py --url http://testbench.local:8080 --flex "n=r,m=OOK_PWM,s=416,l=2150,r=16000"
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ import sys
 import time
 import urllib.request
 
-DEFAULT_URL = "http://workbench.local:8080"
+DEFAULT_URL = "http://testbench.local:8080"
 DEFAULT_FLEX = "n=rmt,m=OOK_PWM,s=416,l=2150,r=16000"
 GAIN_STEPS = [0.9, 16.6, 25.4, 33.8, 40.2, 49.6]
 
@@ -209,7 +209,7 @@ def classify(api: Api, freq_hz: int, gain: float, decode_s: int) -> list:
 # ── main ─────────────────────────────────────────────────────────────
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Guided SDR acquisition (workbench).")
+    ap = argparse.ArgumentParser(description="Guided SDR acquisition (testbench).")
     ap.add_argument("--url", default=DEFAULT_URL)
     ap.add_argument("--freq", type=float, default=433.92, help="MHz")
     ap.add_argument("--span", type=int, default=500_000, help="locate span, Hz")
@@ -237,11 +237,11 @@ def main() -> int:
     try:
         st = api.get("/api/sdr/status", timeout=5)
         if not st.get("available"):
-            print(c("1;31", "workbench reachable but SDR unavailable "
+            print(c("1;31", "testbench reachable but SDR unavailable "
                             f"(hardware: {st.get('hardware')})"))
             return 2
     except Exception as exc:                       # noqa: BLE001
-        print(c("1;31", f"cannot reach workbench: {exc}"))
+        print(c("1;31", f"cannot reach testbench: {exc}"))
         return 2
 
     try:

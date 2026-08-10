@@ -9,8 +9,6 @@
 
 *Spec to silicon, hands off.*
 
-# The repo undergoes heavy construction for the moment in preparation for the next video
-
 A horse is strong, fast, and willing — and useless for heavy loads until you
 harness it. The harness is not a part of the horse and not a part of the cart:
 it is the coupling that turns raw strength into pulled weight.
@@ -89,7 +87,7 @@ spec true for the product's whole life.
 | A **Raspberry Pi testbench** (Pi 3/4/5, or Zero 2 W + USB hub + Ethernet adapter) with an ESP32 board in a slot | The loop's hands and eyes — flash, reset, observe on real hardware | Build it: [Quick Start](#-quick-start--building-the-bench) below |
 | A **GitHub account**, `git` + `gh` authenticated | CI builds, releases, and the release-verify runner | [github.com](https://github.com) |
 | **Claude Code** with this repo's skills | The AI that pulls; the skills are the method | `npm i -g @anthropic-ai/claude-code`, then copy `.claude/skills/` from this repo into your project |
-| **Same LAN** | Your dev machine or devcontainer must reach the bench | `curl http://workbench.local:8080/api/devices` answers |
+| **Same LAN** | Your dev machine or devcontainer must reach the bench | `curl http://testbench.local:8080/api/devices` answers |
 | For your project: **ESP-IDF or PlatformIO** toolchain | The forward path — the `esp-idf-handling` / `esp-pio-handling` skills set this up | Handled during Phase 1 |
 
 Nothing else. The FSD, tests, firmware, CI and documentation are what the loop
@@ -107,7 +105,7 @@ and turns everything into HTTP:
        | eth0 (wired)
        v
   Raspberry Pi ---- wlan0 (WiFi test AP: 192.168.4.x)
-  workbench.local      hci0  (Bluetooth LE)
+  testbench.local      hci0  (Bluetooth LE)
        |             UDP :5555 (log receiver)
        | USB hub (internal on Pi 3/4/5, external on Zero)
        |
@@ -122,7 +120,7 @@ and turns everything into HTTP:
   always. That's **slot-based identity**: a slot is a physical hole in the
   hub, so scripts and `platformio.ini` never go stale when boards swap or the
   kernel renames `/dev/ttyACM0`.
-- **Serial over the network** at `rfc2217://workbench.local:4001` — esptool,
+- **Serial over the network** at `rfc2217://testbench.local:4001` — esptool,
   PlatformIO, ESP-IDF and anything on pyserial speak it natively.
 - **Flash three ways** — over the network, locally on the Pi, or over the air.
 - **Debugging out of the box** — OpenOCD starts itself for USB-JTAG chips and
@@ -144,10 +142,13 @@ and turns everything into HTTP:
   watching, so a boot banner is in the buffer before you think to ask for it,
   and `tcp_port + 1000` is a read-only fan-out of the same bytes for as many
   watchers as you like.
-- **It has its own DUT.** `test-firmware/` is an ESP32 image the bench builds,
-  versions and flashes itself — it joins the test AP, answers HTTP and hosts a
-  provisioning portal, so the bench's tests never depend on a project's
-  firmware.
+- **It has its own test partner.** `test-firmware/` is an ESP32 image the
+  bench builds, versions and flashes itself. It is not a device under test —
+  it is the counterpart the bench measures itself against: it joins the test
+  AP, hosts one of its own, answers HTTP, and replies on a serial console. The
+  bench has one radio and cannot be the access point its own station tests
+  join, so the partner is how half these requirements are provable at all —
+  and why the suite never depends on a project's firmware.
 
 Honest limits: **one *writing* serial client per board** — RFC2217 gives one
 session, though any number can read the fan-out — the SDR is **one dongle, one
@@ -173,11 +174,11 @@ OpenOCD, rtl-sdr/rtl_433, mosquitto), sets up the udev hotplug rules, and
 starts the portal as a systemd service. Plug in a board and check:
 
 ```bash
-curl http://workbench.local:8080/api/devices | jq
+curl http://testbench.local:8080/api/devices | jq
 ```
 
 Slots are auto-detected — no config file needed. Create
-`/etc/rfc2217/workbench.json` only to rename slots, pin ports, declare GPIO
+`/etc/rfc2217/testbench.json` only to rename slots, pin ports, declare GPIO
 pins, or register an ESP-Prog probe; `sudo rfc2217-learn-slots` prints one
 for you.
 
@@ -190,16 +191,16 @@ for you.
 **Watch a board boot** — no client library, just HTTP:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/serial/reset \
+curl -X POST http://testbench.local:8080/api/serial/reset \
   -H 'Content-Type: application/json' -d '{"slot":"SLOT1"}'
 ```
 
 **Point your existing tools at it.** PlatformIO needs one line
-(`upload_port = rfc2217://workbench.local:4001`); esptool takes the same URL,
+(`upload_port = rfc2217://testbench.local:4001`); esptool takes the same URL,
 and the binaries stay on your machine:
 
 ```bash
-esptool --port rfc2217://workbench.local:4001 --chip esp32c3 \
+esptool --port rfc2217://testbench.local:4001 --chip esp32c3 \
   write-flash 0x10000 firmware.bin
 ```
 
@@ -207,8 +208,8 @@ esptool --port rfc2217://workbench.local:4001 --chip esp32c3 \
 network to join, wait for it to appear, then talk to it:
 
 ```python
-from workbench_driver import WorkbenchDriver
-wt = WorkbenchDriver("http://workbench.local:8080")
+from testbench_driver import TestbenchDriver
+wt = TestbenchDriver("http://testbench.local:8080")
 
 wt.serial_reset("SLOT1")
 wt.serial_monitor("SLOT1", pattern="WiFi connected", timeout=30)
@@ -224,7 +225,7 @@ An MCP server exposes the whole API as **70 tools**, so Claude Desktop or
 Claude Code can operate the bench conversationally — "flash this to slot 1
 and tell me why it's crashing". Pure Python standard library, so there's
 nothing to `pip install`. For Claude Desktop, drag
-[`mcp/embedded-ai-harness-workbench.mcpb`](mcp/embedded-ai-harness-workbench.mcpb)
+[`mcp/embedded-ai-harness-testbench.mcpb`](mcp/embedded-ai-harness-testbench.mcpb)
 onto **Settings → Extensions** and enter your testbench URL.
 
 The AICLP skills (`/define`, `/harness`, `/commission`, `/build`) and the
@@ -239,7 +240,7 @@ instrument skills all live under `.claude/skills/`. Setup for both:
 | `Wrong boot mode (0x13)` when flashing | Bridge-chip board — RFC2217 can't drive its auto-reset | Flash with `POST /api/flash` instead |
 | Rapid connect/disconnect | Erased or corrupt flash, boot loop | Auto-recovers via GPIO; force with `POST /api/serial/recover` |
 | ESP32-C3 stuck in download mode | DTR asserted when the port opened | `POST /api/serial/reset` |
-| GDB won't connect | Classic ESP32 has no USB-JTAG | Wire an ESP-Prog and declare it in `workbench.json` |
+| GDB won't connect | Classic ESP32 has no USB-JTAG | Wire an ESP-Prog and declare it in `testbench.json` |
 | SDR decodes noise or all zeros | Transmitter too close, AGC overloading | Add distance, set a fixed `gain` |
 | Pi reboots at random | Out of memory (Pi Zero 2 W) | Apply the §2.2 hardening; check `free -h` |
 

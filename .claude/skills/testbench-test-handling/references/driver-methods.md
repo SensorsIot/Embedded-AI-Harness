@@ -1,4 +1,4 @@
-# WorkbenchDriver Methods Reference
+# TestbenchDriver Methods Reference
 
 ## Slot state & devices
 

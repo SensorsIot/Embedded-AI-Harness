@@ -16,7 +16,7 @@
   transfers are `multipart/form-data`.
 - Slot-addressed operations take `{"slot": "SLOT1"}` — the label, not an index.
 - A new endpoint is not finished until it appears in **FSD Appendix D** and, if it
-  is client-callable, in `mcp/workbench_mcp.py`'s `SPECS` table. The two udev
+  is client-callable, in `mcp/testbench_mcp.py`'s `SPECS` table. The two udev
   callbacks (`/api/hotplug`, `/api/wifi/lease_event`) are deliberately absent from
   MCP — they fire on the Pi, not from a client.
 
@@ -25,7 +25,7 @@
 ```bash
 ruff check .
 mypy --strict .
-pytest pytest/ --wt-url http://workbench.local:8080
+pytest pytest/ --wt-url http://testbench.local:8080
 ```
 
 **Current state, stated honestly:** `ruff check .` reports 36 findings and
@@ -42,7 +42,7 @@ There is no ruff or mypy configuration file; both run on defaults.
 - Never commit `tmp/`, `__pycache__/`, build output, or secrets.
 - The `.mcpb` bundle is generated — rebuild it (`npx @anthropic-ai/mcpb pack .`)
   rather than hand-editing, and commit the rebuilt artifact when
-  `mcp/workbench_mcp.py` changes.
+  `mcp/testbench_mcp.py` changes.
 
 ## Skills
 

@@ -102,7 +102,7 @@ if [ "$UPDATE_ONLY" = false ]; then
     # no reason to want a supplicant for it.
     echo "Telling NetworkManager to leave $WLAN_IF to the portal..."
     mkdir -p /etc/NetworkManager/conf.d
-    cat > /etc/NetworkManager/conf.d/99-workbench.conf <<NMCONF
+    cat > /etc/NetworkManager/conf.d/99-testbench.conf <<NMCONF
 # Installed by the testbench. The portal owns this radio: it runs
 # hostapd on it for the test AP and its own wpa_supplicant for station mode.
 [keyfile]
@@ -162,10 +162,39 @@ chmod +x /usr/local/bin/espota.py
 # ---------------------------------------------------------------------------
 # 6. Install config files (don't overwrite existing)
 # ---------------------------------------------------------------------------
-# No default workbench.json — the portal auto-detects Pi model and USB
+# No default testbench.json — the portal auto-detects Pi model and USB
 # hub topology on startup. Users who want custom labels/pins can create
-# /etc/rfc2217/workbench.json manually (see pi/config/examples/).
+# /etc/rfc2217/testbench.json manually (see pi/config/examples/).
 echo "Slot config: auto-detected at runtime from USB topology"
+
+# The config used to be workbench.json. It is operator-written — slot labels,
+# GPIO pins, an ESP-Prog declaration — so an upgrade that just stopped reading
+# it would come up healthy with somebody's wiring silently forgotten.
+if [ -f /etc/rfc2217/workbench.json ] && [ ! -f /etc/rfc2217/testbench.json ]; then
+    echo "Renaming /etc/rfc2217/workbench.json -> testbench.json"
+    mv /etc/rfc2217/workbench.json /etc/rfc2217/testbench.json
+fi
+
+# ---------------------------------------------------------------------------
+# 6b. Hostname
+# ---------------------------------------------------------------------------
+# The bench answers at testbench.local. Anything still pointing at
+# workbench.local must be updated — this is not aliased, deliberately: two
+# names for one machine is what the rename removed.
+CURRENT_HOST="$(hostname)"
+if [ "$CURRENT_HOST" != "testbench" ]; then
+    echo "Renaming host '$CURRENT_HOST' -> 'testbench' (mDNS: testbench.local)"
+    hostnamectl set-hostname testbench 2>/dev/null || \
+        echo "testbench" > /etc/hostname
+    # /etc/hosts must follow, or sudo stalls on every call resolving the old name
+    if grep -q "127.0.1.1" /etc/hosts; then
+        sed -i "s/^127\.0\.1\.1.*/127.0.1.1\ttestbench/" /etc/hosts
+    else
+        echo -e "127.0.1.1\ttestbench" >> /etc/hosts
+    fi
+    systemctl restart avahi-daemon 2>/dev/null || true
+    echo "  Host renamed. Anything using ${CURRENT_HOST}.local must now use testbench.local"
+fi
 
 if [ ! -f /etc/rfc2217/signalgen.json ]; then
     echo "Installing default signal generator config..."
@@ -182,7 +211,8 @@ else
 fi
 
 # rtl_433 flex-decoder database (auto-loaded from /etc/rtl_433/rtl_433.conf):
-# devices reverse-engineered on the testbench (e.g. Euromot Awning remote).
+# devices reverse-engineered on the testbench. Ships one worked example;
+# add your own as you decode them.
 echo "Installing rtl_433 device database..."
 mkdir -p /etc/rtl_433
 cp "$SCRIPT_DIR/config/rtl_433.conf" /etc/rtl_433/rtl_433.conf
@@ -228,4 +258,4 @@ echo "Portal running at: http://$(hostname -I | awk '{print $1}'):8080"
 echo ""
 echo "Next steps:"
 echo "  Slots auto-detect on boot. Plug in ESP32s and browse the portal."
-echo "  Custom config (optional): sudo nano /etc/rfc2217/workbench.json"
+echo "  Custom config (optional): sudo nano /etc/rfc2217/testbench.json"

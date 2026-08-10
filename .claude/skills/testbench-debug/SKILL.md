@@ -1,15 +1,15 @@
 ---
-name: workbench-debug
-description: Remote GDB debugging of ESP32 devices via the workbench. Covers USB JTAG (C3/S3), dual-USB (S3 two-port), and ESP-Prog (FT2232H) approaches. Use when setting up JTAG debugging, connecting GDB, configuring OpenOCD, or troubleshooting debug connections. Triggers on "GDB", "JTAG", "debug", "OpenOCD", "breakpoint", "ESP-Prog", "step through", "debug session".
+name: testbench-debug
+description: Remote GDB debugging of ESP32 devices via the testbench. Covers USB JTAG (C3/S3), dual-USB (S3 two-port), and ESP-Prog (FT2232H) approaches. Use when setting up JTAG debugging, connecting GDB, configuring OpenOCD, or troubleshooting debug connections. Triggers on "GDB", "JTAG", "debug", "OpenOCD", "breakpoint", "ESP-Prog", "step through", "debug session".
 ---
 
-# Workbench GDB Debugging
+# Testbench GDB Debugging
 
-Remote GDB debugging of ESP32 devices through the workbench Pi. OpenOCD runs on the Pi, GDB connects from the container over TCP.
+Remote GDB debugging of ESP32 devices through the testbench Pi. OpenOCD runs on the Pi, GDB connects from the container over TCP.
 
 **Architecture:**
 ```
-[Container]              [Pi (workbench)]           [ESP32]
+[Container]              [Pi (testbench)]           [ESP32]
   GDB ──── TCP :3333 ────── OpenOCD ──── USB JTAG ──────── CPU
                              (or)
                            OpenOCD ──── ESP-Prog ── JTAG pins
@@ -39,17 +39,17 @@ OpenOCD starts **automatically** when a device is plugged in or at boot. No API 
 
 **Check debug status:**
 ```bash
-curl $WORKBENCH_URL/api/devices
+curl $TESTBENCH_URL/api/devices
 # Look for: "debugging": true, "debug_chip": "esp32s3", "debug_gdb_port": 3335
 ```
 
 **Manual override (optional -- only needed to force-stop or force-start):**
 ```bash
 # Force stop (won't auto-restart until next hotplug)
-curl -X POST $WORKBENCH_URL/api/debug/stop -d '{}'
+curl -X POST $TESTBENCH_URL/api/debug/stop -d '{}'
 
 # Force start with specific chip
-curl -X POST $WORKBENCH_URL/api/debug/start \
+curl -X POST $TESTBENCH_URL/api/debug/start \
   -d '{"chip": "esp32c3"}'
 ```
 
@@ -57,7 +57,7 @@ curl -X POST $WORKBENCH_URL/api/debug/start \
 
 ## JTAG Reset (Preferred When Available)
 
-When a debug session is active, the workbench automatically uses **JTAG reset** instead of DTR/RTS serial reset. This is transparent — the same `/api/serial/reset` API is used.
+When a debug session is active, the testbench automatically uses **JTAG reset** instead of DTR/RTS serial reset. This is transparent — the same `/api/serial/reset` API is used.
 
 **Why JTAG reset is better:**
 - No USB re-enumeration (device node stays stable)
@@ -78,10 +78,10 @@ echo "halt" | nc "$BENCH" 4446
 echo "reset halt" | nc "$BENCH" 4446
 ```
 
-**Via workbench API (automatic):**
+**Via testbench API (automatic):**
 ```bash
 # Uses JTAG reset when debug session is active, DTR/RTS otherwise
-curl -X POST $WORKBENCH_URL/api/serial/reset \
+curl -X POST $TESTBENCH_URL/api/serial/reset \
   -H "Content-Type: application/json" -d '{"slot": "SLOT1"}'
 ```
 
@@ -315,7 +315,7 @@ interface, so while OpenOCD holds a slot:
 |---|---|
 | `POST /api/flash` | refused — stop debug first |
 | `POST /api/chip/info` | `409` — same reason |
-| `POST /api/serial/reset` | silently switches to a JTAG `reset run` and returns OpenOCD's text, not the boot log (see `workbench-logging`) |
+| `POST /api/serial/reset` | silently switches to a JTAG `reset run` and returns OpenOCD's text, not the boot log (see `testbench-logging`) |
 | `/api/devices` | still reports `state: "idle"` — the give-away is `debugging: true` |
 
 **OpenOCD starts on its own when a device is plugged in**, so a board is usually
@@ -342,7 +342,7 @@ So the check before flashing is not "is this slot debugging" but **"is any slot
 debugging"**:
 
 ```bash
-curl -s $WORKBENCH_URL/api/devices \
+curl -s $TESTBENCH_URL/api/devices \
   | python3 -c "import json,sys; print([s['label'] for s in json.load(sys.stdin)['slots'] if s['debugging']])"
 ```
 
@@ -353,7 +353,7 @@ cable — retrying at a lower baud will not help.
 
 Request and response shapes: [FSD Appendix D.3](../../../docs/Harness-FSD.md#d3-gdb-debug).
 
-**Note:** `POST /api/debug/start` and `POST /api/debug/stop` are optional overrides -- OpenOCD starts automatically when a device is plugged in. No API call is needed for normal use. All parameters are optional; the workbench auto-detects slot, chip, and probe.
+**Note:** `POST /api/debug/start` and `POST /api/debug/stop` are optional overrides -- OpenOCD starts automatically when a device is plugged in. No API call is needed for normal use. All parameters are optional; the testbench auto-detects slot, chip, and probe.
 
 ---
 

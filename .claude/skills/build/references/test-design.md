@@ -110,7 +110,7 @@ board's wiring. A protocol nobody has spoken to the real peer. A project
 simulator that has never delivered a complete message. A library integrated but
 never exercised on the target.
 
-**The testbench is not on this list.** A project depends on the workbench's
+**The testbench is not on this list.** A project depends on the testbench's
 quality the way it depends on the compiler's; a bench fault is fixed in the
 bench's own repo, and only once DUT evidence disproves the declaration
 (`../../commission/SKILL.md`).
@@ -404,7 +404,7 @@ references:
 
 ```yaml
 wifi_password_ref: env:WB_TEST_WIFI_PASSWORD
-mqtt_password_ref: secret:workbench/mqtt-test
+mqtt_password_ref: secret:testbench/mqtt-test
 ```
 
 ---

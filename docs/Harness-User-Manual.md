@@ -16,7 +16,7 @@ It is one of three documents, each answering a different question:
 When this manual shows a call, the FSD defines its exact contract. If the two
 disagree, this manual is stale — it describes the system as built.
 
-Throughout, the bench is reachable at `workbench.local` (substitute its IP if
+Throughout, the bench is reachable at `testbench.local` (substitute its IP if
 mDNS doesn't resolve on your network) and the API lives on port **8080**.
 
 ---
@@ -82,8 +82,8 @@ new phantom on a model not yet listed.
 Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In the imager
 settings:
 
-- **Hostname:** `workbench` — still the old spelling, and deliberately: it is
-  what makes `workbench.local` resolve, and every project pointing at this
+- **Hostname:** `testbench` — still the old spelling, and deliberately: it is
+  what makes `testbench.local` resolve, and every project pointing at this
   bench uses that name. The machine is a *testbench* everywhere it is
   described; renaming the host is a separate change that has to happen on the
   Pi and in those projects at the same moment.
@@ -99,7 +99,7 @@ These changes prevent the OOM crash cycle that kills Pi Zero 2 W boards (512 MB)
 can skip to [2.3](#23-install-the-testbench).
 
 ```bash
-ssh pi@workbench.local
+ssh pi@testbench.local
 
 # --- Reduce GPU memory (saves 48 MB on a headless Pi) ---
 echo "gpu_mem=16" | sudo tee -a /boot/firmware/config.txt
@@ -166,7 +166,7 @@ curl http://localhost:8080/api/devices   # should list all slots
 curl http://localhost:8080/api/info      # portal version and host info
 ```
 
-Then open `http://workbench.local:8080` in a browser for the web portal — a live
+Then open `http://testbench.local:8080` in a browser for the web portal — a live
 dashboard of every slot (state, detected chip, debug status, USB devices), WiFi
 state, activity log, test progress, and the operator-interaction modal.
 
@@ -182,7 +182,7 @@ Plug your boards in and snapshot the topology:
 sudo rfc2217-learn-slots
 ```
 
-Then edit `/etc/rfc2217/workbench.json`:
+Then edit `/etc/rfc2217/testbench.json`:
 
 ```json
 {
@@ -235,8 +235,8 @@ match the wiring documented in sections [11](#11-rf-signal-generator) and
 > **Deploying a code change to a running bench.** SSH is only for deploying code,
 > never for operating the bench — everything operational goes through the API.
 > ```bash
-> scp pi/portal.py pi@workbench.local:/tmp/portal.py
-> ssh pi@workbench.local 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
+> scp pi/portal.py pi@testbench.local:/tmp/portal.py
+> ssh pi@testbench.local 'sudo cp /tmp/portal.py /usr/local/bin/rfc2217-portal && sudo systemctl restart rfc2217-portal'
 > ```
 
 ---
@@ -249,7 +249,7 @@ match the wiring documented in sections [11](#11-rf-signal-generator) and
        | eth0 (wired)
        v
   Raspberry Pi ---- wlan0 (WiFi test AP: 192.168.4.x)
-  workbench.local      hci0  (Bluetooth LE)
+  testbench.local      hci0  (Bluetooth LE)
        |             UDP :5555 (log receiver)
        | USB hub (internal on Pi 3/4/5, external on Zero)
        |
@@ -306,7 +306,7 @@ at a time per device**, and slightly higher latency than local serial.
 ### 4.2 See what's connected
 
 ```bash
-curl http://workbench.local:8080/api/devices | jq
+curl http://testbench.local:8080/api/devices | jq
 ```
 
 ```json
@@ -314,7 +314,7 @@ curl http://workbench.local:8080/api/devices | jq
   "slots": [
     {
       "label": "SLOT1", "state": "idle", "running": true,
-      "url": "rfc2217://workbench.local:4001",
+      "url": "rfc2217://testbench.local:4001",
       "detected_chip": "esp32s3", "debugging": true, "debug_gdb_port": 3333,
       "devnodes": ["/dev/ttyACM0", "/dev/ttyACM1"]
     },
@@ -337,7 +337,7 @@ Your machine needs to reach the Pi on port 8080 and on the slot ports (4001+).
 ```python
 import serial
 
-ser = serial.serial_for_url("rfc2217://workbench.local:4001",
+ser = serial.serial_for_url("rfc2217://testbench.local:4001",
                             baudrate=115200, timeout=1)
 while True:
     line = ser.readline()
@@ -354,15 +354,15 @@ platform = espressif32
 board = esp32dev
 framework = arduino
 
-upload_port  = rfc2217://workbench.local:4001?ign_set_control
-monitor_port = rfc2217://workbench.local:4001?ign_set_control
+upload_port  = rfc2217://testbench.local:4001?ign_set_control
+monitor_port = rfc2217://testbench.local:4001?ign_set_control
 monitor_speed = 115200
 ```
 
 ### 4.6 ESP-IDF
 
 ```bash
-export ESPPORT='rfc2217://workbench.local:4001?ign_set_control'
+export ESPPORT='rfc2217://testbench.local:4001?ign_set_control'
 idf.py flash monitor
 ```
 
@@ -372,7 +372,7 @@ If a tool insists on a local device path:
 
 ```bash
 apt install -y socat
-socat pty,link=/dev/ttyESP32,raw,echo=0 tcp:workbench.local:4001 &
+socat pty,link=/dev/ttyESP32,raw,echo=0 tcp:testbench.local:4001 &
 cat /dev/ttyESP32
 ```
 
@@ -383,16 +383,16 @@ optionally returning as soon as a pattern appears:
 
 ```bash
 # Reset the board and capture its boot output
-curl -X POST http://workbench.local:8080/api/serial/reset \
+curl -X POST http://testbench.local:8080/api/serial/reset \
   -H 'Content-Type: application/json' -d '{"slot":"SLOT1"}'
 
 # Read up to 30 s, returning early on a match
-curl -X POST http://workbench.local:8080/api/serial/monitor \
+curl -X POST http://testbench.local:8080/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot":"SLOT1","pattern":"WiFi connected","timeout":30}'
 
 # Passive read of the slot's buffer (doesn't disturb anything)
-curl 'http://workbench.local:8080/api/serial/output?slot=SLOT1&lines=40'
+curl 'http://testbench.local:8080/api/serial/output?slot=SLOT1&lines=40'
 ```
 
 ### 4.9 `ign_set_control` — when you need it
@@ -418,12 +418,12 @@ There are three ways to flash, and which one you need depends on the board.
 Binaries stay on your machine — no SCP needed.
 
 ```bash
-esptool --port rfc2217://workbench.local:4001 --chip esp32c3 \
+esptool --port rfc2217://testbench.local:4001 --chip esp32c3 \
   --before default-reset --after no-reset \
   write-flash 0x0 bootloader.bin 0x8000 partition-table.bin 0x10000 firmware.bin
 
 # Reboot into the new firmware
-curl -X POST http://workbench.local:8080/api/serial/reset \
+curl -X POST http://testbench.local:8080/api/serial/reset \
   -H 'Content-Type: application/json' -d '{"slot":"SLOT1"}'
 ```
 
@@ -437,7 +437,7 @@ that can't be driven reliably through RFC2217 — you get `Wrong boot mode (0x13
 lifecycle for you. Pass each binary as a `bin@<offset>` file part:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/flash \
+curl -X POST http://testbench.local:8080/api/flash \
   -F slot=SLOT3 -F chip=esp32 -F baud=921600 \
   -F 'bin@0x1000=@bootloader.bin' \
   -F 'bin@0x8000=@partitions.bin' \
@@ -455,7 +455,7 @@ ArduinoOTA's reverse connection — the testbench relays the push. (A host alrea
 on the LAN can OTA the board directly and doesn't need this.)
 
 ```bash
-curl -X POST http://workbench.local:8080/api/ota \
+curl -X POST http://testbench.local:8080/api/ota \
   -F target=192.168.0.176 -F firmware=@.pio/build/<env>/firmware.bin
 ```
 
@@ -465,7 +465,7 @@ The testbench detects the USB re-enumeration and brings serial and debug back up
 automatically. If a slot is left in `download_mode`, release it:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/serial/release \
+curl -X POST http://testbench.local:8080/api/serial/release \
   -H 'Content-Type: application/json' -d '{"slot":"SLOT1"}'
 ```
 
@@ -479,7 +479,7 @@ connection.
 
 ```bash
 riscv32-esp-elf-gdb build/project.elf \
-  -ex "target extended-remote workbench.local:3333" \
+  -ex "target extended-remote testbench.local:3333" \
   -ex "monitor reset halt"
 ```
 
@@ -491,14 +491,14 @@ riscv32-esp-elf-gdb build/project.elf \
 
 Verified USB-JTAG TAP IDs: C3 `0x00005c25`, C6 `0x0000dc25`, H2 `0x00010c25`,
 S3 `0x120034e5`. A classic ESP32 has no USB JTAG and needs an ESP-Prog probe
-declared in `workbench.json` ([2.5](#25-optional-pin-usb-slots)).
+declared in `testbench.json` ([2.5](#25-optional-pin-usb-slots)).
 
 ```bash
-curl http://workbench.local:8080/api/debug/status    # per-slot debug state
-curl http://workbench.local:8080/api/debug/probes    # attached ESP-Prog probes
-curl http://workbench.local:8080/api/debug/group     # dual-USB slot groups by role
+curl http://testbench.local:8080/api/debug/status    # per-slot debug state
+curl http://testbench.local:8080/api/debug/probes    # attached ESP-Prog probes
+curl http://testbench.local:8080/api/debug/group     # dual-USB slot groups by role
 
-curl -X POST http://workbench.local:8080/api/debug/start \
+curl -X POST http://testbench.local:8080/api/debug/start \
   -H 'Content-Type: application/json' -d '{"slot":"SLOT1"}'
 ```
 
@@ -520,24 +520,24 @@ Switch via the web UI toggle or the API:
 
 ```bash
 # wlan0 joins your network instead (bench loses the WiFi instrument)
-curl -X POST http://workbench.local:8080/api/wifi/mode \
+curl -X POST http://testbench.local:8080/api/wifi/mode \
   -H 'Content-Type: application/json' \
   -d '{"mode":"serial-interface","ssid":"MyWiFi","pass":"password"}'
 
 # Back to instrument mode
-curl -X POST http://workbench.local:8080/api/wifi/mode \
+curl -X POST http://testbench.local:8080/api/wifi/mode \
   -H 'Content-Type: application/json' -d '{"mode":"wifi-testing"}'
 ```
 
 ### 7.2 SoftAP
 
 ```bash
-curl -X POST http://workbench.local:8080/api/wifi/ap_start \
+curl -X POST http://testbench.local:8080/api/wifi/ap_start \
   -H 'Content-Type: application/json' \
   -d '{"ssid":"TestNetwork","password":"password123","channel":6}'
 
-curl http://workbench.local:8080/api/wifi/ap_status
-curl -X POST http://workbench.local:8080/api/wifi/ap_stop
+curl http://testbench.local:8080/api/wifi/ap_status
+curl -X POST http://testbench.local:8080/api/wifi/ap_stop
 ```
 
 The AP runs at `192.168.4.1/24` with DHCP range `.2`–`.20`, DNS included. Pass
@@ -547,11 +547,11 @@ internet.
 ### 7.3 Station mode and captive-portal provisioning
 
 ```bash
-curl http://workbench.local:8080/api/wifi/scan
+curl http://testbench.local:8080/api/wifi/scan
 
-curl -X POST http://workbench.local:8080/api/wifi/sta_join \
+curl -X POST http://testbench.local:8080/api/wifi/sta_join \
   -H 'Content-Type: application/json' -d '{"ssid":"HomeWiFi","pass":"secret"}'
-curl -X POST http://workbench.local:8080/api/wifi/sta_leave
+curl -X POST http://testbench.local:8080/api/wifi/sta_leave
 ```
 
 `POST /api/enter-portal` is the composite operation for provisioning a
@@ -560,11 +560,11 @@ form, then hosts the target network itself so the DUT has something to join.
 
 ```bash
 # Trigger a DUT into portal mode (double-reset on its slot)
-curl -X POST http://workbench.local:8080/api/enter-portal \
+curl -X POST http://testbench.local:8080/api/enter-portal \
   -H 'Content-Type: application/json' -d '{"slot":"SLOT1","resets":2}'
 
 # Provision it
-curl -X POST http://workbench.local:8080/api/enter-portal \
+curl -X POST http://testbench.local:8080/api/enter-portal \
   -H 'Content-Type: application/json' \
   -d '{"portal_ssid":"ESP32-Setup","ssid":"TestNetwork","password":"password123",
        "save_path":"/wifisave","field_ssid":"s","field_password":"p",
@@ -577,7 +577,7 @@ Reach a device on the test network from your machine — the request goes out
 through the Pi's wlan0:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/wifi/http \
+curl -X POST http://testbench.local:8080/api/wifi/http \
   -H 'Content-Type: application/json' \
   -d '{"method":"GET","url":"http://192.168.4.15/status"}'
 ```
@@ -586,7 +586,7 @@ curl -X POST http://workbench.local:8080/api/wifi/http \
 
 ```bash
 # Long-poll for the next join/leave (seconds); 0 returns immediately
-curl 'http://workbench.local:8080/api/wifi/events?timeout=5'
+curl 'http://testbench.local:8080/api/wifi/events?timeout=5'
 ```
 
 ### 7.6 Networking notes
@@ -604,13 +604,13 @@ Drive Pi GPIO pins to simulate button presses or force boot mode (hold a pin LOW
 across a reset).
 
 ```bash
-curl -X POST http://workbench.local:8080/api/gpio/set \
+curl -X POST http://testbench.local:8080/api/gpio/set \
   -H 'Content-Type: application/json' -d '{"pin":18,"value":0}'   # hold LOW
 
-curl -X POST http://workbench.local:8080/api/gpio/set \
+curl -X POST http://testbench.local:8080/api/gpio/set \
   -H 'Content-Type: application/json' -d '{"pin":18,"value":"z"}' # release
 
-curl http://workbench.local:8080/api/gpio/status
+curl http://testbench.local:8080/api/gpio/status
 ```
 
 **Allowed pins (BCM):** 5, 6, 12, 13, 16–27.
@@ -630,18 +630,18 @@ The Pi's onboard Bluetooth scans for, connects to, and writes raw bytes to BLE
 peripherals — a BLE-to-HTTP bridge, one connection at a time.
 
 ```bash
-curl -X POST http://workbench.local:8080/api/ble/scan \
+curl -X POST http://testbench.local:8080/api/ble/scan \
   -H 'Content-Type: application/json' -d '{"timeout":5,"name_filter":"WB-Test"}'
 
-curl -X POST http://workbench.local:8080/api/ble/connect \
+curl -X POST http://testbench.local:8080/api/ble/connect \
   -H 'Content-Type: application/json' -d '{"address":"AA:BB:CC:DD:EE:FF"}'
 
-curl -X POST http://workbench.local:8080/api/ble/write \
+curl -X POST http://testbench.local:8080/api/ble/write \
   -H 'Content-Type: application/json' \
   -d '{"characteristic":"6e400002-b5a3-f393-e0a9-e50e24dcca9e","data":"48656c6c6f"}'
 
-curl -X POST http://workbench.local:8080/api/ble/disconnect
-curl http://workbench.local:8080/api/ble/status
+curl -X POST http://testbench.local:8080/api/ble/disconnect
+curl http://testbench.local:8080/api/ble/status
 ```
 
 `data` is hex. If scans find nothing, Bluetooth is probably powered off:
@@ -659,9 +659,9 @@ and the Pi's LAN address, so DUTs on the WiFi AP can run pub/sub integration
 tests without internet.
 
 ```bash
-curl -X POST http://workbench.local:8080/api/mqtt/start
-curl http://workbench.local:8080/api/mqtt/status
-curl -X POST http://workbench.local:8080/api/mqtt/stop
+curl -X POST http://testbench.local:8080/api/mqtt/start
+curl http://testbench.local:8080/api/mqtt/status
+curl -X POST http://testbench.local:8080/api/mqtt/stop
 ```
 
 ---
@@ -685,18 +685,18 @@ DATA=GPIO13 · GPCLK: GPIO5 or GPIO6.
 
 ```bash
 # Check which backend and attenuator are actually present first
-curl http://workbench.local:8080/api/siggen/status
+curl http://testbench.local:8080/api/siggen/status
 
-curl -X POST http://workbench.local:8080/api/siggen/start \
+curl -X POST http://testbench.local:8080/api/siggen/start \
   -H 'Content-Type: application/json' -d '{"freq_hz":3500000,"backend":"si5351"}'
 
-curl -X POST http://workbench.local:8080/api/siggen/freq \
+curl -X POST http://testbench.local:8080/api/siggen/freq \
   -H 'Content-Type: application/json' -d '{"freq_hz":3573000}'
 
-curl -X POST http://workbench.local:8080/api/siggen/atten \
+curl -X POST http://testbench.local:8080/api/siggen/atten \
   -H 'Content-Type: application/json' -d '{"db":20}'
 
-curl -X POST http://workbench.local:8080/api/siggen/stop
+curl -X POST http://testbench.local:8080/api/siggen/stop
 ```
 
 `GET /api/siggen/frequencies` lists the frequencies a backend can actually
@@ -714,7 +714,7 @@ signal generator.
 Always check the dongle is detected first:
 
 ```bash
-curl http://workbench.local:8080/api/sdr/status
+curl http://testbench.local:8080/api/sdr/status
 ```
 
 A dongle plugged in after the Pi booted is picked up automatically — no restart
@@ -725,7 +725,7 @@ needed. Status re-probes for it while the SDR is idle, so `device` flips to
 nothing plugged in but the dongle:
 
 ```bash
-pytest pytest/ -k wt1909 --wt-url http://workbench.local:8080
+pytest pytest/ -k wt1909 --wt-url http://testbench.local:8080
 ```
 
 It transmits on 86.784 MHz (whose 5th harmonic lands on 433.92 MHz) and requires
@@ -737,22 +737,22 @@ anything else about the SDR.
 
 ```bash
 # Decode window -> records + signal levels
-curl -X POST http://workbench.local:8080/api/sdr/capture \
+curl -X POST http://testbench.local:8080/api/sdr/capture \
   -H 'Content-Type: application/json' -d '{"freq_hz":433920000,"duration_s":10}'
 
 # Raw pulse timing + RSSI, independent of any decoder
-curl -X POST http://workbench.local:8080/api/sdr/analyze \
+curl -X POST http://testbench.local:8080/api/sdr/analyze \
   -H 'Content-Type: application/json' -d '{"freq_hz":433920000,"duration_s":12}'
 
 # Narrowband power sweep -> peak_db, peak_freq_hz, mean_db.
 # Pin `gain` whenever you will compare the number to anything; `notch_hz`
 # drops the dongle's DC spike at the tuner centre.
-curl -X POST http://workbench.local:8080/api/sdr/power \
+curl -X POST http://testbench.local:8080/api/sdr/power \
   -H 'Content-Type: application/json' \
   -d '{"freq_hz":433920000,"span_hz":500000,"gain":20,"notch_hz":40000}'
 
 # Phased guided receive: locate -> level -> decode -> classify
-curl -X POST http://workbench.local:8080/api/sdr/acquire \
+curl -X POST http://testbench.local:8080/api/sdr/acquire \
   -H 'Content-Type: application/json' -d '{"freq_hz":433920000}'
 ```
 
@@ -760,22 +760,22 @@ curl -X POST http://workbench.local:8080/api/sdr/acquire \
 buffer you fast-poll:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/sdr/live/start \
+curl -X POST http://testbench.local:8080/api/sdr/live/start \
   -H 'Content-Type: application/json' -d '{"freqs":[433920000],"mode":"decode"}'
 
-curl 'http://workbench.local:8080/api/sdr/live?since=0'
-curl http://workbench.local:8080/api/sdr/live/status
-curl -X POST http://workbench.local:8080/api/sdr/live/stop
+curl 'http://testbench.local:8080/api/sdr/live?since=0'
+curl http://testbench.local:8080/api/sdr/live/status
+curl -X POST http://testbench.local:8080/api/sdr/live/stop
 ```
 
 **AI Sherlock** — record a session of button presses, then reverse-engineer the
 timing, preamble, and per-key field from the log:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/sdr/log/start
+curl -X POST http://testbench.local:8080/api/sdr/log/start
 # ... press the remote's buttons ...
-curl -X POST http://workbench.local:8080/api/sdr/log/stop
-curl http://workbench.local:8080/api/sdr/log
+curl -X POST http://testbench.local:8080/api/sdr/log/stop
+curl http://testbench.local:8080/api/sdr/log
 ```
 
 Reverse-engineered remotes are named by flex decoders in
@@ -809,34 +809,34 @@ logs when the USB port is occupied — an S3 running as a USB HID keyboard, say.
 The buffer holds the last 2000 lines and is filterable by source IP and time.
 
 ```bash
-curl 'http://workbench.local:8080/api/udplog?source=192.168.4.15&limit=50'
-curl 'http://workbench.local:8080/api/udplog?since=1730000000'   # poll incrementally
-curl -X DELETE http://workbench.local:8080/api/udplog            # clear the buffer
+curl 'http://testbench.local:8080/api/udplog?source=192.168.4.15&limit=50'
+curl 'http://testbench.local:8080/api/udplog?since=1730000000'   # poll incrementally
+curl -X DELETE http://testbench.local:8080/api/udplog            # clear the buffer
 ```
 
 ### 13.2 OTA firmware repository
 
 Uploaded images are served at
-`http://workbench.local:8080/firmware/<project>/<file>.bin`, which works directly
+`http://testbench.local:8080/firmware/<project>/<file>.bin`, which works directly
 as an ESP-IDF `esp_https_ota` URL.
 
 ```bash
 # project and file are multipart fields; the stored name comes from the filename
-curl -X POST http://workbench.local:8080/api/firmware/upload \
+curl -X POST http://testbench.local:8080/api/firmware/upload \
   -F project=demo -F file=@build/demo.bin
 
-curl http://workbench.local:8080/api/firmware/list
-curl -X DELETE http://workbench.local:8080/api/firmware/delete \
+curl http://testbench.local:8080/api/firmware/list
+curl -X DELETE http://testbench.local:8080/api/firmware/delete \
   -H 'Content-Type: application/json' -d '{"project":"demo","filename":"demo.bin"}'
 ```
 
 A full round trip — upload, trigger, watch:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/firmware/upload -F project=demo -F file=@build/demo.bin
-curl -X POST http://workbench.local:8080/api/wifi/http -H 'Content-Type: application/json' \
+curl -X POST http://testbench.local:8080/api/firmware/upload -F project=demo -F file=@build/demo.bin
+curl -X POST http://testbench.local:8080/api/wifi/http -H 'Content-Type: application/json' \
   -d '{"method":"POST","url":"http://192.168.4.15/ota"}'
-curl 'http://workbench.local:8080/api/udplog?source=192.168.4.15'
+curl 'http://testbench.local:8080/api/udplog?source=192.168.4.15'
 ```
 
 ---
@@ -845,16 +845,16 @@ curl 'http://workbench.local:8080/api/udplog?source=192.168.4.15'
 
 ### 14.1 The pytest driver
 
-`WorkbenchDriver` wraps every API call. Install it and import:
+`TestbenchDriver` wraps every API call. Install it and import:
 
 ```bash
 pip install -e Embedded-AI-Harness/pytest
 ```
 
 ```python
-from workbench_driver import WorkbenchDriver
+from testbench_driver import TestbenchDriver
 
-wt = WorkbenchDriver("http://workbench.local:8080")
+wt = TestbenchDriver("http://testbench.local:8080")
 wt.open()
 
 # Serial
@@ -885,7 +885,7 @@ wt.ap_stop()
 wt.close()
 ```
 
-`WorkbenchDriver` is also a context manager (`with WorkbenchDriver(url) as wt:`).
+`TestbenchDriver` is also a context manager (`with TestbenchDriver(url) as wt:`).
 
 ### 14.2 Running the bundled suite
 
@@ -897,10 +897,10 @@ pip install pytest
 pytest host/
 
 # Tests that need no DUT
-pytest workbench_test.py --wt-url http://workbench.local:8080
+pytest testbench_test.py --wt-url http://testbench.local:8080
 
 # Everything, including tests that need a device connected
-pytest workbench_test.py --wt-url http://workbench.local:8080 --run-dut
+pytest testbench_test.py --wt-url http://testbench.local:8080 --run-dut
 ```
 
 `--wt-url` defaults to `$TESTBENCH_URL`, then `http://localhost:8080`. Tests
@@ -915,17 +915,17 @@ portal, USB-JTAG debug, auto-debug, serial architecture, and end-to-end flows.
 Push session state to the web portal so an operator can watch a run:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST http://testbench.local:8080/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"spec":"Firmware v2.1","phase":"Integration","total":10}'
 
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST http://testbench.local:8080/api/test/update \
   -H 'Content-Type: application/json' -d '{"current":"TC-003 flash and boot"}'
 
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST http://testbench.local:8080/api/test/update \
   -H 'Content-Type: application/json' -d '{"result":{"name":"TC-003","status":"pass"}}'
 
-curl -X POST http://workbench.local:8080/api/test/update \
+curl -X POST http://testbench.local:8080/api/test/update \
   -H 'Content-Type: application/json' -d '{"end":true}'
 ```
 
@@ -934,7 +934,7 @@ block on it. The call **stays open** until the operator clicks Done or Cancel on
 the Pi's display, or the timeout expires, and returns `{"confirmed": true|false}`:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/human-interaction \
+curl -X POST http://testbench.local:8080/api/human-interaction \
   -H 'Content-Type: application/json' \
   -d '{"message":"Press and hold the pairing button for 3 s","timeout":120}'
 ```
@@ -961,24 +961,24 @@ Claude Code loads skills at session start, so restart your session after copying
 | Skill | Covers |
 |-------|--------|
 | `esp-idf-handling` · `esp-pio-handling` | Build / flash / monitor lifecycle, local USB or testbench |
-| `workbench-logging` | Serial monitor with pattern matching, UDP logs, crash analysis |
-| `workbench-wifi` | AP/STA, scan, HTTP relay, captive-portal provisioning |
-| `workbench-ble` · `workbench-mqtt` | BLE scan/connect/write · broker lifecycle and pub/sub |
-| `workbench-debug` | GDB/JTAG: USB JTAG, dual-USB, ESP-Prog |
+| `testbench-logging` | Serial monitor with pattern matching, UDP logs, crash analysis |
+| `testbench-wifi` | AP/STA, scan, HTTP relay, captive-portal provisioning |
+| `testbench-ble` · `testbench-mqtt` | BLE scan/connect/write · broker lifecycle and pub/sub |
+| `testbench-debug` | GDB/JTAG: USB JTAG, dual-USB, ESP-Prog |
 | `signal-generator` · `sdr-receiver` | RF transmit · RF receive, decode, reverse-engineering |
-| `workbench-test-handling` | The test execution protocol, live progress, operator prompts, `WorkbenchDriver` |
-| `workbench-integration` | Add testbench support to an existing ESP32 project |
+| `testbench-test-handling` | The test execution protocol, live progress, operator prompts, `TestbenchDriver` |
+| `testbench-integration` | Add testbench support to an existing ESP32 project |
 | `define` | Phase 0 — the FSD: requirements, verification contracts, state models, the three planes |
 | `harness` | Phase 1 — one-time project setup: planes, plan, capabilities, CI, runner |
 | `commission` | Phase 2 — prove the testbench; burn down the debugging agenda |
 | `build` | Phase 3 — the loop driver: test design, the plan, audit, reconcile, change requests |
 
-Most `workbench-*` skills assume the bench is at `workbench.local`, or the IP in
+Most `testbench-*` skills assume the bench is at `testbench.local`, or the IP in
 `SERIAL_PI` — override that in your shell or devcontainer if your network differs.
 
 ### 15.2 MCP server
 
-`mcp/workbench_mcp.py` exposes the whole HTTP API as **70 MCP tools**, so an MCP
+`mcp/testbench_mcp.py` exposes the whole HTTP API as **70 MCP tools**, so an MCP
 client can drive the bench conversationally. It's a thin stdio proxy: each tool
 maps 1:1 to an endpoint from a single `SPECS` table. It is **pure Python standard
 library — no `pip install`** — so it runs anywhere Python 3 does.
@@ -987,10 +987,10 @@ The server runs on the machine running the MCP client (your laptop), **not** on
 the Pi. It just needs network reach to the bench, pointed by `TESTBENCH_URL`.
 
 **Claude Desktop, one click.** Download
-[`mcp/embedded-ai-harness-workbench.mcpb`](../mcp/embedded-ai-harness-workbench.mcpb),
+[`mcp/embedded-ai-harness-testbench.mcpb`](../mcp/embedded-ai-harness-testbench.mcpb),
 then in Claude Desktop go to **Settings → Extensions** and drag the file onto the
 window. When prompted, enter your testbench URL — e.g.
-`http://workbench.local:8080`, or `http://workbench.local:8080` if mDNS resolves.
+`http://testbench.local:8080`, or `http://testbench.local:8080` if mDNS resolves.
 You need Python 3 on the machine (macOS has it; on Windows install from
 python.org and tick **Add Python to PATH**).
 
@@ -1004,8 +1004,8 @@ URL — no reinstall. To update, install a newer `.mcpb` over the old one.
 
 ```bash
 claude mcp add testbench \
-  --env TESTBENCH_URL=http://workbench.local:8080 \
-  -- python3 /abs/path/to/Embedded-AI-Harness/mcp/workbench_mcp.py
+  --env TESTBENCH_URL=http://testbench.local:8080 \
+  -- python3 /abs/path/to/Embedded-AI-Harness/mcp/testbench_mcp.py
 
 claude mcp list      # look for: testbench … ✔ Connected
 ```
@@ -1021,8 +1021,8 @@ Windows `%APPDATA%\Claude\`, Linux `~/.config/Claude/`). Merge in:
   "mcpServers": {
     "testbench": {
       "command": "python3",
-      "args": ["/abs/path/to/Embedded-AI-Harness/mcp/workbench_mcp.py"],
-      "env": { "TESTBENCH_URL": "http://workbench.local:8080" }
+      "args": ["/abs/path/to/Embedded-AI-Harness/mcp/testbench_mcp.py"],
+      "env": { "TESTBENCH_URL": "http://testbench.local:8080" }
     }
   }
 }
@@ -1030,11 +1030,11 @@ Windows `%APPDATA%\Claude\`, Linux `~/.config/Claude/`). Merge in:
 
 Then **fully restart** Claude Desktop — quit, not just close the window.
 
-**Rebuilding the bundle** after changing `workbench_mcp.py`:
+**Rebuilding the bundle** after changing `testbench_mcp.py`:
 
 ```bash
 cd mcp
-npx @anthropic-ai/mcpb pack . embedded-ai-harness-workbench.mcpb
+npx @anthropic-ai/mcpb pack . embedded-ai-harness-testbench.mcpb
 npx @anthropic-ai/mcpb validate manifest.json
 ```
 
@@ -1083,10 +1083,10 @@ flash with `partitions-4mb.csv`; for larger flash see the `esp-idf-handling`
 skill. Upload it for the OTA step and flash it:
 
 ```bash
-curl -X POST http://workbench.local:8080/api/firmware/upload \
+curl -X POST http://testbench.local:8080/api/firmware/upload \
   -F project=test-firmware -F file=@build/wb-test-firmware.bin
 
-esptool --port 'rfc2217://workbench.local:4001?ign_set_control' \
+esptool --port 'rfc2217://testbench.local:4001?ign_set_control' \
         --chip esp32s3 --baud 460800 write_flash @flash_args
 ```
 
@@ -1097,7 +1097,7 @@ automatically.
 
 | Module | What it exercises |
 |--------|-------------------|
-| `udp_log.c` | UDP log forwarding to `workbench.local:5555` |
+| `udp_log.c` | UDP log forwarding to `testbench.local:5555` |
 | `wifi_prov.c` | SoftAP captive portal (`WB-Test-Setup`), STA mode with stored creds |
 | `ble_nus.c` | BLE advertisement as `WB-Test`, NUS service |
 | `ota_update.c` | HTTP OTA from the testbench firmware server |
@@ -1134,12 +1134,12 @@ the board to being a station without a second step.
 | `esp-idf-handling` (GPIO) | Toggle EN to reset the device (GPIO slots only) | Serial shows fresh boot output |
 | `esp-idf-handling` (OTA) | Upload binary, trigger OTA via HTTP `/ota` | Serial shows `"OTA succeeded"`, device reboots with new firmware |
 | `esp-pio-handling` | Build and upload the same firmware from PlatformIO | Upload completes over RFC2217; firmware boots |
-| `workbench-logging` | Serial monitor; check UDP logs | Serial shows boot output; `GET /api/udplog` returns heartbeat lines |
-| `workbench-wifi` | Run `enter-portal` with the device in AP mode | Serial shows `"STA got IP"`; device joins the testbench network |
-| `workbench-ble` | Scan for `WB-Test`, connect, discover services | Scan finds it; NUS UUID appears in characteristics |
-| `workbench-mqtt` | Start broker, verify DUT can reach `192.168.4.1:1883` | (Firmware doesn't use MQTT; test broker start/stop independently) |
-| `workbench-debug` | Start a debug session on a JTAG-capable slot | `/api/debug/status` reports running; GDB attaches on 3333 |
-| `workbench-test-handling` | Run the walkthrough below as a tracked session | Steps appear on the Pi display; all pass |
+| `testbench-logging` | Serial monitor; check UDP logs | Serial shows boot output; `GET /api/udplog` returns heartbeat lines |
+| `testbench-wifi` | Run `enter-portal` with the device in AP mode | Serial shows `"STA got IP"`; device joins the testbench network |
+| `testbench-ble` | Scan for `WB-Test`, connect, discover services | Scan finds it; NUS UUID appears in characteristics |
+| `testbench-mqtt` | Start broker, verify DUT can reach `192.168.4.1:1883` | (Firmware doesn't use MQTT; test broker start/stop independently) |
+| `testbench-debug` | Start a debug session on a JTAG-capable slot | `/api/debug/status` reports running; GDB attaches on 3333 |
+| `testbench-test-handling` | Run the walkthrough below as a tracked session | Steps appear on the Pi display; all pass |
 
 `signal-generator` and `sdr-receiver` aren't exercised by this firmware — they
 drive the bench's own RF hardware, not the DUT. They do verify each other,
@@ -1159,11 +1159,11 @@ and verify the portal notices and recovers.
 *GPIO slot* — enter download mode, erase, release:
 
 ```bash
-curl -s -X POST http://workbench.local:8080/api/serial/recover \
+curl -s -X POST http://testbench.local:8080/api/serial/recover \
      -H 'Content-Type: application/json' -d '{"slot":"<SLOT>"}'
 # poll GET /api/devices until state == "download_mode"
-esptool --port 'rfc2217://workbench.local:<PORT>?ign_set_control' --chip esp32s3 erase_flash
-curl -s -X POST http://workbench.local:8080/api/serial/release \
+esptool --port 'rfc2217://testbench.local:<PORT>?ign_set_control' --chip esp32s3 erase_flash
+curl -s -X POST http://testbench.local:8080/api/serial/release \
      -H 'Content-Type: application/json' -d '{"slot":"<SLOT>"}'
 ```
 
@@ -1171,7 +1171,7 @@ curl -s -X POST http://workbench.local:8080/api/serial/release \
 `--before=usb_reset`):
 
 ```bash
-ssh pi@workbench.local "python3 -m esptool --port <DEVNODE> \
+ssh pi@testbench.local "python3 -m esptool --port <DEVNODE> \
     --before=usb_reset --chip esp32s3 erase_flash"
 ```
 
@@ -1194,12 +1194,12 @@ are pruned within `FLAP_WINDOW_S` (30 s), so `"flapping": false`,
 recovery step after flapping), then reset and check the boot banner:
 
 ```bash
-curl -s -X POST http://workbench.local:8080/api/serial/reset \
+curl -s -X POST http://testbench.local:8080/api/serial/reset \
      -H 'Content-Type: application/json' -d '{"slot":"<SLOT>","lines":80}'
 ```
 
 Expect: `"=== Testbench Test Firmware v0.1.0 ==="`, `"NVS initialized"`,
-`"UDP logging -> workbench.local:5555"`,
+`"UDP logging -> testbench.local:5555"`,
 `"No WiFi credentials, starting AP provisioning"`,
 `"AP mode: SSID='WB-Test-Setup'"`, `"BLE NUS initialized"`,
 `"Init complete, running event-driven"`.
@@ -1209,7 +1209,7 @@ Expect: `"=== Testbench Test Firmware v0.1.0 ==="`, `"NVS initialized"`,
 show `"Credentials saved, rebooting"`, `"STA mode, connecting to '<ssid>'"`,
 `"STA got IP"`.
 
-**4. UDP logging.** `curl -s http://workbench.local:8080/api/udplog` should show
+**4. UDP logging.** `curl -s http://testbench.local:8080/api/udplog` should show
 heartbeat lines: `"heartbeat N | wifi=1 ble=0"`.
 
 **5. HTTP endpoints.** Through the relay, `GET http://<device-ip>/status` should
@@ -1245,7 +1245,7 @@ steps.
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Device not detected | Bad USB cable / unpowered hub | Use a data-capable cable; check `lsusb` on the Pi |
-| Connection refused on a slot port | Proxy not running or device unplugged | `curl http://workbench.local:8080/api/devices` |
+| Connection refused on a slot port | Proxy not running or device unplugged | `curl http://testbench.local:8080/api/devices` |
 | Connection refused on port 5000 | Wrong port | The portal is on **8080**, not 5000 |
 | Timeout during flash | Network latency, or proxy not released | `esptool --no-stub`; or use `POST /api/flash`, which manages the proxy |
 | `Wrong boot mode (0x13)` on a bridge board | RFC2217 can't drive the DTR/RTS auto-reset | Use `POST /api/flash` (local-Pi esptool) |
@@ -1254,10 +1254,10 @@ steps.
 | USB flapping (rapid connect/disconnect) | Erased or corrupt flash, boot loop | Portal auto-recovers via GPIO; `POST /api/serial/recover` to force |
 | Slot stuck in `download_mode` | Device left in the bootloader | Flash it, then `POST /api/serial/release` |
 | ESP32-C3 stuck in download mode | DTR asserted on open | `POST /api/serial/reset` |
-| GDB won't connect | OpenOCD not started (classic ESP32 has no USB JTAG) | Check `/api/devices` for `debugging:true`; declare an ESP-Prog in `workbench.json` |
-| WiFi ping fails | Portal not running | `curl http://workbench.local:8080/api/wifi/ping` |
+| GDB won't connect | OpenOCD not started (classic ESP32 has no USB JTAG) | Check `/api/devices` for `debugging:true`; declare an ESP-Prog in `testbench.json` |
+| WiFi ping fails | Portal not running | `curl http://testbench.local:8080/api/wifi/ping` |
 | wlan0 unavailable | Wrong WiFi mode | Switch to `wifi-testing` mode |
-| AP won't start | hostapd missing | Re-run `install.sh`; check `ssh pi@workbench.local which hostapd` |
+| AP won't start | hostapd missing | Re-run `install.sh`; check `ssh pi@testbench.local which hostapd` |
 | BLE scan finds nothing | Bluetooth powered off | `sudo rfkill unblock bluetooth && sudo hciconfig hci0 up && sudo bluetoothctl power on` |
 | SDR reads noise / all zeros | Near-field AGC overload, or a wedged dongle | Add distance and a fixed `gain`; `POST /api/sdr/reset` |
 | Pi crashes or reboots randomly | Out of memory | Apply the [2.2](#22-first-boot--system-hardening) hardening; check `free -h` |
@@ -1279,11 +1279,11 @@ sudo systemctl restart rfc2217-portal
 From your machine:
 
 ```bash
-ping workbench.local
-curl http://workbench.local:8080/api/devices
-curl http://workbench.local:8080/api/info
-curl http://workbench.local:8080/api/wifi/ping
-curl 'http://workbench.local:8080/api/log'      # portal activity log
+ping testbench.local
+curl http://testbench.local:8080/api/devices
+curl http://testbench.local:8080/api/info
+curl http://testbench.local:8080/api/wifi/ping
+curl 'http://testbench.local:8080/api/log'      # portal activity log
 ```
 
 ---
@@ -1297,7 +1297,7 @@ on a trusted network.
 For remote access, tunnel over SSH rather than exposing the ports:
 
 ```bash
-ssh -L 4001:localhost:4001 -L 8080:localhost:8080 pi@workbench.local
+ssh -L 4001:localhost:4001 -L 8080:localhost:8080 pi@testbench.local
 curl http://localhost:8080/api/devices
 ```
 
@@ -1307,8 +1307,8 @@ curl http://localhost:8080/api/devices
 
 ```bash
 # Discovery
-curl http://workbench.local:8080/api/devices | jq
-curl http://workbench.local:8080/api/info
+curl http://testbench.local:8080/api/devices | jq
+curl http://testbench.local:8080/api/info
 
 # Serial
 curl -X POST .../api/serial/reset   -d '{"slot":"SLOT1"}'
@@ -1335,14 +1335,14 @@ curl -X POST .../api/ble/scan -d '{"timeout":5,"name_filter":"WB-Test"}'
 
 ```python
 import serial
-ser = serial.serial_for_url("rfc2217://workbench.local:4001", baudrate=115200)
+ser = serial.serial_for_url("rfc2217://testbench.local:4001", baudrate=115200)
 ```
 
 ```bash
-esptool --port 'rfc2217://workbench.local:4001?ign_set_control' write_flash 0x0 fw.bin
+esptool --port 'rfc2217://testbench.local:4001?ign_set_control' write_flash 0x0 fw.bin
 ```
 
-**Web portal:** `http://workbench.local:8080`
+**Web portal:** `http://testbench.local:8080`
 
 **Full API and MCP tool reference:**
 [FSD Appendix D](Harness-FSD.md#appendix-d-http-api--mcp-reference)

@@ -27,7 +27,7 @@ different people:
 |---|---|
 | test not written | the backlog |
 | the feature is not implemented | development |
-| needs *capability* — unavailable | project-side: whoever builds that peer. Bench-side: a change request on the workbench repo — never the project |
+| needs *capability* — unavailable | project-side: whoever builds that peer. Bench-side: a change request on the testbench repo — never the project |
 | precondition unmet | fix that first; the result would mean nothing |
 
 **A failed precondition is `not done`, not `failed`.** Recording a failure claims
@@ -60,7 +60,7 @@ capabilities:
     available: unproven  # project-side peer; nobody has seen it work HERE
 ```
 
-**`available` has three values.** `yes` — for the workbench's declared
+**`available` has three values.** `yes` — for the testbench's declared
 capabilities, taken at face value: *no project tests the testbench; a project
 depends on its quality* (fixed in the bench's own repo only when DUT evidence
 disproves it). `no` — it cannot be done; state the consequence.

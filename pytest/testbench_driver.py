@@ -229,7 +229,7 @@ class TestbenchDriver:
     # ── MQTT broker (FR-029) ──────────────────────────────────────────
 
     def mqtt_start(self) -> dict:
-        """Start the workbench mosquitto test broker (open, all interfaces)."""
+        """Start the testbench mosquitto test broker (open, all interfaces)."""
         return self._api_post("/api/mqtt/start", {}, timeout=15)
 
     def mqtt_stop(self) -> None:
@@ -246,7 +246,7 @@ class TestbenchDriver:
                               save_path: str = "/wifisave",
                               field_ssid: str = "s",
                               field_password: str = "p") -> dict:
-        """Provision a DUT onto the workbench AP through its captive portal.
+        """Provision a DUT onto the testbench AP through its captive portal.
 
         The defaults are Arduino WiFiManager's (`POST /wifisave`, fields
         `s`/`p`), which is what most project DUTs run. They are defaults and
@@ -692,7 +692,7 @@ class TestbenchDriver:
                     probe: str = None) -> dict:
         """Start OpenOCD debug session.
 
-        All parameters are optional — the workbench auto-detects the
+        All parameters are optional — the testbench auto-detects the
         slot (first present device) and chip (via JTAG TAP ID probing).
 
         Args:
@@ -781,7 +781,7 @@ class TestbenchDriver:
 
     def firmware_upload(self, project: str, filepath: str) -> dict:
         """POST /api/firmware/upload — upload a binary file."""
-        boundary = "----WorkbenchUpload"
+        boundary = "----TestbenchUpload"
         filename = os.path.basename(filepath)
         with open(filepath, "rb") as f:
             file_data = f.read()
@@ -988,12 +988,3 @@ class TestbenchDriver:
         except urllib.error.URLError as e:
             raise CommandTimeout(f"POST /api/flash: {e}")
 
-
-# ── Compatibility ────────────────────────────────────────────────────
-#
-# The machine is a testbench; it was called a workbench for a year and
-# project repositories import it under that name. Renaming the class
-# without leaving these behind would break every one of them on their
-# next pull, for a spelling. They cost two lines.
-WorkbenchDriver = TestbenchDriver
-WorkbenchError = TestbenchError

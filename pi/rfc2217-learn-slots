@@ -4,7 +4,7 @@ rfc2217-learn-slots — Discover USB-port-to-slot mapping on any Raspberry Pi.
 
 Works on Pi Zero 2 W, Pi 3, Pi 4, Pi 5, or anything else.  Plug a device
 into each USB port you want to use as a slot, then run this tool.  It
-prints a ready-to-paste ``workbench.json`` with one slot per detected
+prints a ready-to-paste ``testbench.json`` with one slot per detected
 USB hub port, each with a unique TCP and GDB port.
 """
 
@@ -123,12 +123,12 @@ def main():
     }
 
     print("=" * 60)
-    print("Suggested /etc/rfc2217/workbench.json:")
+    print("Suggested /etc/rfc2217/testbench.json:")
     print("=" * 60)
     print(json.dumps(config, indent=2))
     print()
     print("To install:")
-    print("  sudo cp <paste-to-file>.json /etc/rfc2217/workbench.json")
+    print("  sudo cp <paste-to-file>.json /etc/rfc2217/testbench.json")
     print("  sudo systemctl restart rfc2217-portal")
 
 

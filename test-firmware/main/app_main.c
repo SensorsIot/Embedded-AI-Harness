@@ -26,7 +26,7 @@ static void heartbeat_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "=== Workbench Test Firmware v%s ===", FW_VERSION);
+    ESP_LOGI(TAG, "=== Testbench Test Firmware v%s ===", FW_VERSION);
 
     /* 1. NVS */
     nvs_store_init();

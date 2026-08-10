@@ -217,7 +217,7 @@ testing/
                                   it needs, what it last produced (/build owns)
 
 tests/{host,target,bench}/        executable tests (written by dev skills)
-test-results/<run-id>/            evidence (captured by workbench skills)
+test-results/<run-id>/            evidence (captured by testbench skills)
 ├── manifest.yaml                 commit, build, environment, hardware, timestamp
 ├── results.json
 ├── logs/

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""workbench-flash: flash a PlatformIO ESP32 build to a workbench slot via POST /api/flash.
+"""testbench-flash: flash a PlatformIO ESP32 build to a testbench slot via POST /api/flash.
 
 Use this when `pio run -t upload` over RFC2217 fails to enter the bootloader
 ("Wrong boot mode detected (0x13)") on a classic ESP32 behind a USB-serial bridge
@@ -9,7 +9,7 @@ where the reset works natively. Native-USB C3/S3/C6/H2 chips flash fine over RFC
 and do not need this.
 
 Usage:
-  workbench-flash.py --host <bench-ip>:8080 --slot SLOT3 [--env <pio_env>]
+  testbench-flash.py --host <bench-ip>:8080 --slot SLOT3 [--env <pio_env>]
                      [--chip esp32] [--baud 460800] [--project-dir .]
 """
 import argparse
@@ -34,7 +34,7 @@ def find_boot_app0():
     return None
 
 
-def multipart(fields, files, boundary="----workbenchflash"):
+def multipart(fields, files, boundary="----testbenchflash"):
     body = b""
     for name, val in fields.items():
         body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n"
@@ -48,8 +48,8 @@ def multipart(fields, files, boundary="----workbenchflash"):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Flash a PlatformIO ESP32 build via the workbench /api/flash endpoint.")
-    ap.add_argument("--host", required=True, help="workbench host:port, e.g. 192.0.2.10:8080")
+    ap = argparse.ArgumentParser(description="Flash a PlatformIO ESP32 build via the testbench /api/flash endpoint.")
+    ap.add_argument("--host", required=True, help="testbench host:port, e.g. 192.0.2.10:8080")
     ap.add_argument("--slot", required=True, help="slot label, e.g. SLOT3")
     ap.add_argument("--env", help="PlatformIO env (default: first dir under .pio/build)")
     ap.add_argument("--project-dir", default=".", help="PlatformIO project directory")

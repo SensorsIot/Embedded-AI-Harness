@@ -3,7 +3,7 @@ name: commission
 description: >
   Phase 2 of AI Closed-Loop Programming — Commissioning: prove the project's
   OWN never-seen-working parts (its board, its wiring, its peers/simulators),
-  so that a failing test means the code and not the setup. The workbench
+  so that a failing test means the code and not the setup. The testbench
   itself is never commissioned by a project — its quality is depended on, and
   fixed in its own repo only when DUT testing disproves it. Use this skill
   when the user mentions commissioning, bring-up, a new board or peer, wiring
@@ -21,16 +21,16 @@ If the debugging agenda is already burned down, say so and continue as
 
 ## The law: no project tests the testbench
 
-**A project depends on the workbench's quality; it never proves it.** The
+**A project depends on the testbench's quality; it never proves it.** The
 bench is infrastructure, like the compiler — nobody tests gcc before
-compiling. Its quality is the workbench repo's own responsibility: its FSD,
+compiling. Its quality is the testbench repo's own responsibility: its FSD,
 its suite, its acceptance run. A project consumes the bench's declared
 capabilities at face value, `available: yes` as declared.
 
 **If DUT testing disproves the bench, fix the bench — but only then.** When a
 red is exonerated of the product by evidence, the bench fault becomes a
-workbench change request, is fixed at its source, ideally lands as a test in
-the *workbench's own* suite, and every future project inherits the fix.
+testbench change request, is fixed at its source, ideally lands as a test in
+the *testbench's own* suite, and every future project inherits the fix.
 Attempting to verify the bench upfront — when nothing yet exists that could
 expose its errors — buys ceremony, not trust. Real work is the only
 instrument that finds real bench faults.
@@ -47,7 +47,7 @@ lists every **project-side** part that has never been observed doing its job
 - the project firmware's first contact with each path it uses
 
 Until each is seen working, a failing test measures the environment. The
-workbench's instruments are **not** on this list.
+testbench's instruments are **not** on this list.
 
 - Work the agenda top-down; each item names *what proves it*. Drive known
   patterns (`0x55` survives inversion detection), make the simulator emit one
@@ -65,9 +65,9 @@ workbench's instruments are **not** on this list.
 - **The operator's hands are for physical acts — plug, wire, power, swap.
   Observations belong to instruments.** Never design a step where a human
   reads a measurement by eye. If no instrument can make the observation, that
-  is a workbench change request.
+  is a testbench change request.
 
-## The worked shape — a typical ESP32 project on the workbench
+## The worked shape — a typical ESP32 project on the testbench
 
 1. **Discover the testbench**; record hostname, last-seen IP and portal
    version as dated observations. Tests still select by identity — the
@@ -149,7 +149,7 @@ is prose in a document nobody reads again.
 | **Peer records** | each project peer: what it is, its slot or address, the command it answered |
 | **Forward-path evidence** | the CI run id, the artifact, the flash offsets used (from `flash_args`), and the marker observed |
 | **Capability updates** | every project-side `unproven` resolved to `yes` or `no`; each `no` carries its consequence, each `yes` its observation |
-| **Agenda** | empty of project-side items; anything left is bench-side and belongs to the workbench repo, named with its issue |
+| **Agenda** | empty of project-side items; anything left is bench-side and belongs to the testbench repo, named with its issue |
 
 ### The gate
 

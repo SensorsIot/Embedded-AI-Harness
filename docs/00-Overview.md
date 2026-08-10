@@ -41,25 +41,6 @@ All three planes are present-state and single-home: state a fact once, link to
 it from anywhere else. Routing rule and edge cases:
 [`Method/standards/documentation.md`](Method/standards/documentation.md).
 
-## One machine, two spellings
-
-The machine is a **testbench**, and after the first mention each document
-calls it **the bench**. It was called a *workbench* for a year, and a handful
-of names still say so on purpose — every one of them is a contract with
-something outside this repository, and changing it here alone would break the
-thing at the other end:
-
-| Still `workbench` | Why it cannot move alone |
-|---|---|
-| `workbench.local` | the Pi's actual mDNS hostname; renaming needs the Pi **and** every project pointing at it, in the same moment |
-| `workbench-*` skills | invoked by name from other repositories |
-| `workbench_driver.py`, `workbench_test.py`, `workbench_mcp.py`, `pi/config/workbench.json` | imported, collected and read by path |
-| `WORKBENCH_URL`, `WorkbenchDriver`, `WorkbenchError` | still work — the code reads `TESTBENCH_URL` first and falls back, and the old class names are aliases |
-| `"service": "workbench"` in the discovery beacon | what `discover-workbench.py` matches on |
-
-A rename that breaks a caller to fix a spelling is not an improvement. These
-move when the Pi and the dependent repositories move together.
-
 One document sits under WHAT without being about the bench itself:
 [`test-partner.md`](test-partner.md) states what the **bench's own ESP32** must do,
 test by test. The bench cannot verify half its requirements alone — it has one

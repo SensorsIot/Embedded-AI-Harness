@@ -163,22 +163,22 @@ download completes.
 ### Required Equipment
 
 - ESP32 device under test
-- HTTP server hosting firmware files (workbench provides this)
+- HTTP server hosting firmware files (testbench provides this)
 - WiFi connectivity between device and server
 - Serial monitor for progress and error logs
 
-### Workbench OTA Commands
+### Testbench OTA Commands
 
 ```bash
-# Upload firmware to workbench
-curl -X POST $WORKBENCH_URL/api/firmware/upload \
+# Upload firmware to testbench
+curl -X POST $TESTBENCH_URL/api/firmware/upload \
   -F "project=my-project" -F "file=@build/firmware.bin"
 
 # Trigger OTA on device via HTTP relay
-curl -X POST $WORKBENCH_URL/api/wifi/http \
+curl -X POST $TESTBENCH_URL/api/wifi/http \
   -H 'Content-Type: application/json' \
   -d '{"method":"POST","url":"http://192.168.4.2/ota","headers":{"Content-Type":"application/json"},"body":"...", "timeout":60}'
 
 # Monitor progress via UDP logs
-curl "$WORKBENCH_URL/api/udplog?limit=50"
+curl "$TESTBENCH_URL/api/udplog?limit=50"
 ```

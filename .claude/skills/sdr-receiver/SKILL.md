@@ -1,11 +1,11 @@
 ---
 name: sdr-receiver
-description: Drive the Embedded AI Harness workbench's RTL-SDR receiver over `/api/sdr/*` — decode/analyze/power captures, the phased `acquire`, the interactive live rtl_433 console, "AI Sherlock" record→reverse-engineer, USB recovery, and the rtl_433 device database. Use this whenever the user wants to receive, sniff, decode, analyze, or reverse-engineer an RF signal (433/315/868 MHz remotes, sensors, TPMS), read RSSI/pulse timing, recover a wedged dongle, or add a device to rtl_433 — even if they only say "rtl_433", "rtl-sdr", "sniff a remote", "what frequency is this", "signal too strong", "no signal", "AI Sherlock", or "add this remote". This is the receive-side counterpart to the transmit-only `signal-generator` skill. Always GET `/api/sdr/status` first to confirm the dongle is detected.
+description: Drive the Embedded AI Harness testbench's RTL-SDR receiver over `/api/sdr/*` — decode/analyze/power captures, the phased `acquire`, the interactive live rtl_433 console, "AI Sherlock" record→reverse-engineer, USB recovery, and the rtl_433 device database. Use this whenever the user wants to receive, sniff, decode, analyze, or reverse-engineer an RF signal (433/315/868 MHz remotes, sensors, TPMS), read RSSI/pulse timing, recover a wedged dongle, or add a device to rtl_433 — even if they only say "rtl_433", "rtl-sdr", "sniff a remote", "what frequency is this", "signal too strong", "no signal", "AI Sherlock", or "add this remote". This is the receive-side counterpart to the transmit-only `signal-generator` skill. Always GET `/api/sdr/status` first to confirm the dongle is detected.
 ---
 
 # SDR Receiver (`/api/sdr/*`)
 
-The workbench Pi has one RTL2832U dongle behind the `rtl_433` toolchain. Every
+The testbench Pi has one RTL2832U dongle behind the `rtl_433` toolchain. Every
 receive operation goes through `/api/sdr/*`. It is the receive-side counterpart
 to the transmit-only `signal-generator` skill — never SSH in to run `rtl_433`
 yourself, drive the API.
@@ -131,19 +131,20 @@ Turn a reverse-engineered remote into a named `rtl_433` device with **one
 `/etc/rtl_433/rtl_433.conf`, which `rtl_433` auto-loads):
 
 ```
-decoder n=Euromot-Awning-auto,m=OOK_PWM,s=340,l=2068,r=13936,g=2000,t=691,match={18}7f480
+decoder n=Remote-auto,m=OOK_PWM,s=340,l=2068,r=13936,g=2000,t=691,match={18}7f480
 ```
 
 The flex decoder has **no per-value name mapping** — use one `match={<bits>}<hex>`
 decoder per button, distinctly named. Verify **offline** (no signal needed):
 
 ```
-rtl_433 -y '{18}7f480'   →   model : Euromot-Awning-auto
+rtl_433 -y '{18}7f480'   →   model : Remote-auto
 ```
 
-After that, plain `decode` mode reports the device by name. The reference build
-ships the **Euromot Awning** remote (up=`7f454` down=`7f45c` auto=`7f480`
-manual=`7f484`).
+After that, plain `decode` mode reports the device by name. The shipped file
+is **empty apart from a commented worked example** — the decoders that belong
+in it describe the operator's own hardware, and one household's remote is of
+no use on anybody else's bench.
 
 ---
 
@@ -167,7 +168,7 @@ usually red herrings; suspect the USB link.
 
 ---
 
-## Driver methods (`pytest/workbench_driver.py`)
+## Driver methods (`pytest/testbench_driver.py`)
 
 ```python
 wt.sdr_status()
@@ -221,5 +222,5 @@ AI Sherlock → analyze the log → append `decoder` line(s) to `pi/config/rtl_4
 
 - Functional spec: `docs/Harness-FSD.md` §FR-028 (SDR Receiver).
 - Controller: `pi/sdr_controller.py`. HTTP handlers: `pi/portal.py` (`_handle_sdr_*`, the SDR Console panel).
-- Driver: `pytest/workbench_driver.py` (`sdr_*`). CLI: `tools/sdr_acquire.py`.
+- Driver: `pytest/testbench_driver.py` (`sdr_*`). CLI: `tools/sdr_acquire.py`.
 - Device database: `pi/config/rtl_433.conf` → `/etc/rtl_433/rtl_433.conf`.

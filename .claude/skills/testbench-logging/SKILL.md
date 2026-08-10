@@ -1,26 +1,26 @@
 ---
-name: workbench-logging
-description: Use this skill whenever you need to read serial output or debug logs from ESP32 devices on the workbench. Covers serial monitor with pattern matching (wait for boot messages, WiFi connected, crash dumps), UDP debug log retrieval when USB is occupied (e.g. HID keyboard), boot capture, and crash analysis. Use for verifying firmware started correctly, checking WiFi connection status, or diagnosing boot loops. Triggers on "serial monitor", "log", "debug log", "UDP log", "boot output", "crash", "monitor", "pattern", "serial output".
+name: testbench-logging
+description: Use this skill whenever you need to read serial output or debug logs from ESP32 devices on the testbench. Covers serial monitor with pattern matching (wait for boot messages, WiFi connected, crash dumps), UDP debug log retrieval when USB is occupied (e.g. HID keyboard), boot capture, and crash analysis. Use for verifying firmware started correctly, checking WiFi connection status, or diagnosing boot loops. Triggers on "serial monitor", "log", "debug log", "UDP log", "boot output", "crash", "monitor", "pattern", "serial output".
 ---
 
 # ESP32 Debug Logging
 
-Base URL: `$WORKBENCH_URL` — see Step 0
+Base URL: `$TESTBENCH_URL` — see Step 0
 
 ## Step 0: Point at a bench
 
 There are several benches and their addresses move, so nothing here writes one
-down. `workbench.local` is not usable either — a container cannot resolve mDNS.
+down. `testbench.local` is not usable either — a container cannot resolve mDNS.
 Discover the bench and export its URL:
 
 ```bash
-export WORKBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py \
+export TESTBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-testbench.py \
                          --url --name <bench-hostname>)
-curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
+curl -s "$TESTBENCH_URL/api/info"        # confirm before anything else
 ```
 
 `--url` refuses to guess when more than one bench answers, so `--name` is
-required whenever a second bench is powered on. `WORKBENCH_URL` is the same
+required whenever a second bench is powered on. `TESTBENCH_URL` is the same
 variable `pytest --wt-url` falls back to.
 
 Two logging methods are available. Choose based on your situation:
@@ -50,12 +50,12 @@ Reads serial output via RFC2217 proxy. Optionally waits for a regex pattern.
 
 ```bash
 # Wait up to 10s for a pattern match
-curl -X POST $WORKBENCH_URL/api/serial/monitor \
+curl -X POST $TESTBENCH_URL/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot": "SLOT1", "pattern": "WiFi connected", "timeout": 10}'
 
 # Just capture output for 5s (no pattern)
-curl -X POST $WORKBENCH_URL/api/serial/monitor \
+curl -X POST $TESTBENCH_URL/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot": "SLOT1", "timeout": 5}'
 ```
@@ -79,7 +79,7 @@ default state of a board on a JTAG-capable slot, not something you opted into.
 Stop it before capturing boot output:
 
 ```bash
-curl -X POST $WORKBENCH_URL/api/debug/stop \
+curl -X POST $TESTBENCH_URL/api/debug/stop \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
 ```
 
@@ -120,32 +120,32 @@ with the raw captured-line count) rather than reporting `boots: 0`.
 
 ```bash
 # Reset via JTAG slot
-curl -X POST $WORKBENCH_URL/api/serial/reset \
+curl -X POST $TESTBENCH_URL/api/serial/reset \
   -H 'Content-Type: application/json' \
   -d '{"slot": "<JTAG-slot>"}'
 
 # Capture boot output from UART slot
-curl -X POST $WORKBENCH_URL/api/serial/monitor \
+curl -X POST $TESTBENCH_URL/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot": "<UART-slot>", "timeout": 10}'
 ```
 
 ## UDP Logs
 
-ESP32 firmware sends debug logs as UDP datagrams to the workbench on port 5555. The workbench buffers up to 2000 lines.
+ESP32 firmware sends debug logs as UDP datagrams to the testbench on port 5555. The testbench buffers up to 2000 lines.
 
 ```bash
 # Get recent UDP logs (default limit: 200)
-curl -s $WORKBENCH_URL/api/udplog | jq .
+curl -s $TESTBENCH_URL/api/udplog | jq .
 
 # Filter by source device IP
-curl -s "$WORKBENCH_URL/api/udplog?source=192.168.4.2" | jq .
+curl -s "$TESTBENCH_URL/api/udplog?source=192.168.4.2" | jq .
 
 # Get logs since a timestamp, limited to 50 lines
-curl -s "$WORKBENCH_URL/api/udplog?since=1700000000.0&limit=50" | jq .
+curl -s "$TESTBENCH_URL/api/udplog?since=1700000000.0&limit=50" | jq .
 
 # Clear the buffer before starting a test
-curl -X DELETE $WORKBENCH_URL/api/udplog
+curl -X DELETE $TESTBENCH_URL/api/udplog
 ```
 
 Response format: `{"ok": true, "lines": [{"ts": 1700000001.23, "source": "192.168.4.2", "line": "OTA progress: 45%"}, ...]}`
@@ -164,18 +164,18 @@ Response format: `{"ok": true, "lines": [{"ts": 1700000001.23, "source": "192.16
 
 ## How ESP32 Sends UDP Logs
 
-The workbench listens on UDP port **5555**. ESP32 firmware sends plain text lines:
+The testbench listens on UDP port **5555**. ESP32 firmware sends plain text lines:
 
 ```c
 /* inet_aton() parses dotted-quad only — it does NOT resolve names, and on
    failure it leaves the address at 0.0.0.0, so the logs vanish silently.
    Always check the return value. */
-struct sockaddr_in workbench = { .sin_family = AF_INET, .sin_port = htons(5555) };
-if (inet_aton(CONFIG_WORKBENCH_IP, &workbench.sin_addr) == 0) {   /* dotted-quad */
-    ESP_LOGE(TAG, "bad workbench address");
+struct sockaddr_in testbench = { .sin_family = AF_INET, .sin_port = htons(5555) };
+if (inet_aton(CONFIG_TESTBENCH_IP, &testbench.sin_addr) == 0) {   /* dotted-quad */
+    ESP_LOGE(TAG, "bad testbench address");
     return ESP_ERR_INVALID_ARG;
 }
-sendto(sock, msg, strlen(msg), 0, (struct sockaddr *)&workbench, sizeof(workbench));
+sendto(sock, msg, strlen(msg), 0, (struct sockaddr *)&testbench, sizeof(testbench));
 ```
 
 To use a **name** instead of an IP, resolve it first —
@@ -184,7 +184,7 @@ To use a **name** instead of an IP, resolve it first —
 ```c
 struct addrinfo hints = { .ai_family = AF_INET, .ai_socktype = SOCK_DGRAM };
 struct addrinfo *res;
-if (getaddrinfo("workbench", "5555", &hints, &res) == 0) {
+if (getaddrinfo("testbench", "5555", &hints, &res) == 0) {
     sendto(sock, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(res);
 }
@@ -196,11 +196,11 @@ avoids the dependency entirely, which is why the test firmware does that.
 
 ## Activity Log
 
-The activity log tracks workbench actions (resets, WiFi changes, firmware uploads) — not device output.
+The activity log tracks testbench actions (resets, WiFi changes, firmware uploads) — not device output.
 
 ```bash
-curl -s $WORKBENCH_URL/api/log | jq .
-curl -s "$WORKBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
+curl -s $TESTBENCH_URL/api/log | jq .
+curl -s "$TESTBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
 ```
 
 ## Common Workflows
@@ -226,7 +226,7 @@ curl -s "$WORKBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
 | Problem | Fix |
 |---------|-----|
 | Monitor timeout, no output | Baud rate is fixed at 115200; ensure device matches. For dual-USB boards: make sure you're monitoring the UART slot, not the JTAG slot |
-| No UDP logs appearing | Ensure firmware sends UDP to workbench IP:5555; check WiFi connectivity |
+| No UDP logs appearing | Ensure firmware sends UDP to testbench IP:5555; check WiFi connectivity |
 | Logs from wrong device | Use `source` query param to filter by IP |
 | Old/stale logs | Clear with `DELETE /api/udplog` before starting a test |
 | Need boot output | UDP logs don't capture boot — use serial monitor. For dual-USB boards, monitor the UART slot |

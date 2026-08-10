@@ -52,6 +52,6 @@ Recorded because an undocumented deviation gets copied by the next change.
 ## Configuration
 
 Runtime config lives in `/etc/rfc2217/` on the Pi, with defaults shipped in
-`pi/config/`: `workbench.json` (slots, GPIO, probes), `signalgen.json`,
+`pi/config/`: `testbench.json` (slots, GPIO, probes), `signalgen.json`,
 `sdr.json`, `rtl_433.conf`. Slots are auto-detected — config is an override, never
 a prerequisite. Anything a user must edit before first run is a design failure.

@@ -1,18 +1,18 @@
 ---
-name: workbench-integration
+name: testbench-integration
 description: >
-  Integrates an ESP32 project with the Universal ESP32 Workbench. Adds firmware
+  Integrates an ESP32 project with the Universal ESP32 Testbench. Adds firmware
   modules (UDP logging, WiFi provisioning, OTA, BLE command handling, strategic
-  log messages), updates build config, then writes the Workbench operations,
+  log messages), updates build config, then writes the Testbench operations,
   Testing, and Appendix chapters into the project's existing FSD.
-  Triggers on "integrate workbench", "add workbench", "workbench integration",
+  Triggers on "integrate testbench", "add testbench", "testbench integration",
   "set up project", "add testing", "add tester".
 ---
 
-# ESP32 Workbench Integration
+# ESP32 Testbench Integration
 
 This is a procedure. When triggered, read the project's existing FSD, integrate
-the firmware with the workbench infrastructure — each module **only when the
+the firmware with the testbench infrastructure — each module **only when the
 FSD requires it** (UDP logging always; OTA, BLE command handling, provisioning
 per scope; strategic log messages always), then write the operational, testing, and
 appendix chapters into the FSD.
@@ -21,8 +21,8 @@ appendix chapters into the FSD.
 Overview and Functional Requirements section. Use the `define` skill first
 to generate one from a rough description if needed.
 
-The workbench provides the **test infrastructure**. This skill adds both the
-**firmware integration** (modules the workbench needs to interact with the
+The testbench provides the **test infrastructure**. This skill adds both the
+**firmware integration** (modules the testbench needs to interact with the
 device) and the **FSD documentation** (operational guide, test plan,
 troubleshooting).
 
@@ -44,9 +44,9 @@ number**:
 # Part C — Foundation / Transport (L0)
 # Part D — Cross-cutting Concerns
 # Part E — Operations & Verification
-##   Operational Procedures      ← REPLACED by this skill (workbench operations)
-##   Verification & Validation   ← REPLACED by this skill (workbench test cases)
-## Appendices                    ← workbench logging strategy + constants appended
+##   Operational Procedures      ← REPLACED by this skill (testbench operations)
+##   Verification & Validation   ← REPLACED by this skill (testbench test cases)
+## Appendices                    ← testbench logging strategy + constants appended
 ```
 
 There is **no global Functional Requirements or Interface Specifications
@@ -77,11 +77,11 @@ All template code lives in `Embedded-AI-Harness/test-firmware/`. When adding mod
 | `sdkconfig.defaults` | `test-firmware/sdkconfig.defaults` | Reference for required options |
 | `app_main.c` | `test-firmware/main/app_main.c` | Reference for init order only |
 
-## Workbench Compatibility Contract
+## Testbench Compatibility Contract
 
-The workbench actively drives the device through BLE commands, HTTP relay, captive portal automation, and serial/UDP log parsing. The firmware must conform to two contracts:
+The testbench actively drives the device through BLE commands, HTTP relay, captive portal automation, and serial/UDP log parsing. The firmware must conform to two contracts:
 
-- **Contract 1: Required Log Messages** -- 17 exact format strings the workbench greps for (e.g. `"Init complete"`, `"STA got IP"`, `"OTA succeeded"`). Missing or reformatted strings break workbench detection.
+- **Contract 1: Required Log Messages** -- 17 exact format strings the testbench greps for (e.g. `"Init complete"`, `"STA got IP"`, `"OTA succeeded"`). Missing or reformatted strings break testbench detection.
 - **Contract 2: Process Flows** -- only the flows the FSD puts in scope: WiFi provisioning (SoftAP captive portal), OTA (HTTP `/ota` endpoint), BLE commands and BLE-triggered WiFi reset (NimBLE NUS) **only when the product uses BLE**, and the canonical boot sequence (always). A flow the spec never asked for is silent pack adoption.
 
 For the complete log pattern table, process flow sequences, and compatibility validation rules, read `references/compatibility-contract.md`.
@@ -119,7 +119,7 @@ OTA_TRIGGER       → ble / http / both
 Record project-specific values:
 - WiFi AP SSID for captive portal (e.g. `"KB-Setup"`)
 - BLE device name (e.g. `"iOS-KB"`)
-- OTA URL (e.g. `"$WORKBENCH_URL/firmware/<project>/<project>.bin"`)
+- OTA URL (e.g. `"$TESTBENCH_URL/firmware/<project>/<project>.bin"`)
 - NVS namespace
 - Any project-specific command opcodes
 
@@ -141,7 +141,7 @@ Also check:
 
 Follow this decision tree. For each missing module, copy from
 `test-firmware/main/` and customize. These templates implement the exact process
-flows required by the **Workbench Compatibility Contract** (Contract 2) — WiFi
+flows required by the **Testbench Compatibility Contract** (Contract 2) — WiFi
 captive portal, BLE NUS command protocol, OTA via HTTP endpoint, and the
 canonical boot sequence:
 
@@ -186,10 +186,10 @@ When copying files:
 
 ### Step 5: Enforce Contract 1 — Required Log Messages
 
-Check every required log pattern from the **Workbench Compatibility Contract**
+Check every required log pattern from the **Testbench Compatibility Contract**
 (Contract 1) table. For each missing pattern:
 - Add the exact log statement at the correct location
-- Use the exact format string — the workbench skills grep for these patterns
+- Use the exact format string — the testbench skills grep for these patterns
 - Do not paraphrase, reformat, or localize the strings
 - These are infrastructure, not debug aids — they must survive any "clean up
   logging" refactors
@@ -219,7 +219,7 @@ Ensure the canonical init order:
 1. NVS init (with erase-on-corrupt fallback)
 2. Boot count increment
 3. `esp_netif_init()` + `esp_event_loop_create_default()`
-4. `udp_log_init(CONFIG_WORKBENCH_IP, 5555)` — a dotted-quad, not a name: ESP-IDF 6 does not bundle mDNS, so the DUT cannot resolve `.local`
+4. `udp_log_init(CONFIG_TESTBENCH_IP, 5555)` — a dotted-quad, not a name: ESP-IDF 6 does not bundle mDNS, so the DUT cannot resolve `.local`
 5. Register IP event handler for HTTP server
 6. `wifi_prov_init()`
 7. `ble_nus_init(cmd_handler_on_rx)`
@@ -228,17 +228,17 @@ Ensure the canonical init order:
 
 The exact implementation can vary, but the order must be: NVS → netif → UDP → WiFi → BLE → cmd handler → heartbeat → "Init complete".
 
-### Step 8: Write "7. Operational Procedures" (Workbench Operations)
+### Step 8: Write "7. Operational Procedures" (Testbench Operations)
 
-Replace the **Operational Procedures** chapter (under Part E) with workbench-specific operational content covering: hardware setup, flashing, WiFi provisioning, BLE commands, OTA updates, HTTP endpoints, and log monitoring. This chapter becomes a standalone operations guide with no test cases.
+Replace the **Operational Procedures** chapter (under Part E) with testbench-specific operational content covering: hardware setup, flashing, WiFi provisioning, BLE commands, OTA updates, HTTP endpoints, and log monitoring. This chapter becomes a standalone operations guide with no test cases.
 
 ### Step 9: Write "8. Verification & Validation" (Testing)
 
-Replace the **Verification & Validation** chapter (under Part E) with workbench test cases. Write phase verification tables where every FSD feature appears in exactly one table, test procedures reference the Operational Procedures chapter (not duplicate), and every step has concrete success criteria.
+Replace the **Verification & Validation** chapter (under Part E) with testbench test cases. Write phase verification tables where every FSD feature appears in exactly one table, test procedures reference the Operational Procedures chapter (not duplicate), and every step has concrete success criteria.
 
 ### Step 10: Write "9. Troubleshooting Guide" and "10. Appendix"
 
-Replace with workbench-specific diagnostics (logging strategy, failure-to-fix mapping table).
+Replace with testbench-specific diagnostics (logging strategy, failure-to-fix mapping table).
 
 For detailed templates, markdown examples, and rules for Steps 8-10, read `references/fsd-writing-guide.md`.
 
@@ -295,7 +295,7 @@ After completing all steps, verify:
 **Build (Step 11):**
 - [ ] Project builds cleanly with `idf.py build`
 
-## Workbench Skills Reference
+## Testbench Skills Reference
 
 Every endpoint these skills drive is specified in
 [FSD Appendix D](../../../docs/Harness-FSD.md#appendix-d-http-api--mcp-reference).
@@ -303,10 +303,10 @@ Every endpoint these skills drive is specified in
 | Skill | Covers |
 |-------|--------|
 | `esp-idf-handling` | Build, flash (USB, `/api/flash`, OTA), GPIO download mode, crash-loop and flapping recovery |
-| `workbench-logging` | Serial monitor with pattern matching, UDP logs, boot and crash capture |
-| `workbench-wifi` | SoftAP, station join, captive-portal provisioning, HTTP relay, station events |
-| `workbench-ble` | Scan, connect, GATT write |
-| `workbench-mqtt` | Test broker lifecycle |
-| `workbench-debug` | OpenOCD and GDB over USB JTAG or ESP-Prog |
-| `workbench-test-handling` | Test-session progress and blocking operator prompts |
+| `testbench-logging` | Serial monitor with pattern matching, UDP logs, boot and crash capture |
+| `testbench-wifi` | SoftAP, station join, captive-portal provisioning, HTTP relay, station events |
+| `testbench-ble` | Scan, connect, GATT write |
+| `testbench-mqtt` | Test broker lifecycle |
+| `testbench-debug` | OpenOCD and GDB over USB JTAG or ESP-Prog |
+| `testbench-test-handling` | Test-session progress and blocking operator prompts |
 | `sdr-receiver` · `signal-generator` | RF receive and transmit |

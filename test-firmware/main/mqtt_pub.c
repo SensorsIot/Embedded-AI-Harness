@@ -100,7 +100,7 @@ esp_err_t mqtt_pub_start(const char *fallback_host)
     uint8_t mac[6] = {0};
     esp_wifi_get_mac(WIFI_IF_STA, mac);
     snprintf(s_topic, sizeof(s_topic),
-             "workbench/dut/%02x%02x%02x%02x%02x%02x/hello",
+             "testbench/dut/%02x%02x%02x%02x%02x%02x/hello",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     esp_mqtt_client_config_t cfg = {

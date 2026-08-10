@@ -1,6 +1,6 @@
 {
   "manifest_version": "0.2",
-  "name": "embedded-ai-harness-workbench",
+  "name": "embedded-ai-harness-testbench",
   "display_name": "Embedded AI Harness Testbench",
   "version": "1.1.0",
   "description": "Drive the Embedded AI Harness testbench (Raspberry Pi ESP32 test bench) from Claude: SDR, signal generator, flashing, OTA, serial, WiFi/provisioning, MQTT, BLE, GPIO, GDB debug.",
@@ -15,21 +15,21 @@
   "keywords": ["esp32", "embedded", "test-bench", "sdr", "rtl_433", "flashing", "ota", "raspberry-pi"],
   "server": {
     "type": "python",
-    "entry_point": "workbench_mcp.py",
+    "entry_point": "testbench_mcp.py",
     "mcp_config": {
       "command": "python3",
-      "args": ["${__dirname}/workbench_mcp.py"],
+      "args": ["${__dirname}/testbench_mcp.py"],
       "env": {
-        "WORKBENCH_URL": "${user_config.workbench_url}"
+        "TESTBENCH_URL": "${user_config.testbench_url}"
       }
     }
   },
   "user_config": {
-    "workbench_url": {
+    "testbench_url": {
       "type": "string",
       "title": "Testbench URL",
-      "description": "Base URL of your testbench, e.g. http://workbench.local:8080 (or http://workbench.local:8080). Find it in the testbench portal.",
-      "default": "http://workbench.local:8080",
+      "description": "Base URL of your testbench, e.g. http://testbench.local:8080 (or http://testbench.local:8080). Find it in the testbench portal.",
+      "default": "http://testbench.local:8080",
       "required": true
     }
   },

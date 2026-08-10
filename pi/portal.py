@@ -4,7 +4,7 @@ RFC2217 Portal v4 — Proxy Supervisor with Serial Services
 
 HTTP server that tracks USB serial device hotplug events and manages
 plain_rfc2217_server.py lifecycle.  On hotplug add → start proxy; on remove → stop it.
-Hardware config loaded from workbench.json (GPIO pins, debug probes).
+Hardware config loaded from testbench.json (GPIO pins, debug probes).
 """
 
 import http.server
@@ -36,7 +36,27 @@ except ImportError:
     ble_controller = None
 
 PORT = 8080
-CONFIG_FILE = os.environ.get("RFC2217_CONFIG", "/etc/rfc2217/workbench.json")
+def _config_path() -> str:
+    """Where the hardware config lives, tolerating the pre-rename name.
+
+    The file used to be `workbench.json`, and it is *operator-written* — slot
+    labels, GPIO pins, an ESP-Prog declaration. An upgrade that silently
+    stopped reading it would not fail loudly: the portal would auto-detect
+    slots instead and come up looking healthy with the operator's pin
+    assignments gone. Read the old name when the new one is absent, and say
+    so, rather than making a rename cost somebody their wiring.
+    """
+    env = os.environ.get("RFC2217_CONFIG")
+    if env:
+        return env
+    new, old = "/etc/rfc2217/testbench.json", "/etc/rfc2217/workbench.json"
+    if not os.path.exists(new) and os.path.exists(old):
+        print(f"[config] using {old}; rename it to {new}", flush=True)
+        return old
+    return new
+
+
+CONFIG_FILE = _config_path()
 PROXY_EXE = "/usr/local/bin/plain_rfc2217_server.py"
 
 # Auto-assignment port ranges
@@ -310,7 +330,7 @@ def _beacon_responder_thread():
             continue
         if text == "DISCOVER":
             response = json.dumps({
-                "service": "workbench",
+                "service": "testbench",
                 "hostname": hostname,
                 "ip": host_ip,
                 "port": PORT,
@@ -334,7 +354,7 @@ def start_beacon():
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Global config (loaded from workbench.json, optional)
+# Global config (loaded from testbench.json, optional)
 _global_config: dict = {}
 
 
@@ -460,13 +480,13 @@ def _autogenerate_config() -> dict:
 
 
 def load_config(path: str) -> dict[str, dict]:
-    """Load workbench.json hardware config. All fields default to None/empty.
+    """Load testbench.json hardware config. All fields default to None/empty.
 
     If the config file is missing, auto-detect the Pi's USB hub topology
     and generate a default config on the fly (no file written).  Users
-    who want custom labels/ports/GPIO pins can write workbench.json.
+    who want custom labels/ports/GPIO pins can write testbench.json.
 
-    workbench.json provides:
+    testbench.json provides:
       - gpio_boot: Pi BCM GPIO pin wired to DUT BOOT (None if not wired)
       - gpio_en: Pi BCM GPIO pin wired to DUT EN/RST (None if not wired)
       - debug_probes: ESP-Prog probe definitions (empty if none)
@@ -4003,7 +4023,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         reverse TCP connection — still update it, since the Pi is on the LAN.
 
         Form fields (multipart/form-data):
-          target — board IP or hostname (e.g. 192.168.0.176, awning.local), required
+          target — board IP or hostname (e.g. 192.168.4.42, device.local), required
           port   — ArduinoOTA port (default 3232)
           auth   — OTA password (optional)
         File:

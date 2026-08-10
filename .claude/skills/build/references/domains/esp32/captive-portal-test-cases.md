@@ -167,16 +167,16 @@ the rule it broke; the valid submission is accepted and persists across a reboot
 - WiFi router with configurable password
 - Serial monitor for device logs
 
-### Workbench Commands
+### Testbench Commands
 
 ```bash
 # Trigger the DUT into captive-portal mode (double-reset on its slot)
-curl -X POST $WORKBENCH_URL/api/enter-portal \
+curl -X POST $TESTBENCH_URL/api/enter-portal \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT1", "resets": 2}'
 
-# Provision the DUT through its portal: the workbench joins the DUT's AP,
+# Provision the DUT through its portal: the testbench joins the DUT's AP,
 # submits the WiFiManager form, then hosts the target network itself.
-curl -X POST $WORKBENCH_URL/api/enter-portal \
+curl -X POST $TESTBENCH_URL/api/enter-portal \
   -H 'Content-Type: application/json' \
   -d '{"portal_ssid": "ESP32-Setup", "ssid": "TestNetwork", "password": "testpass123",
        "save_path": "/wifisave", "field_ssid": "s", "field_password": "p",

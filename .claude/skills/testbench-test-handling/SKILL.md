@@ -1,11 +1,11 @@
 ---
-name: workbench-test-handling
-description: Use this skill when running or writing automated tests against the workbench — the three-phase execution protocol every test case follows, live progress on the Pi's web UI, blocking prompts for physical operator actions (button press, cable swap, power cycle), the WorkbenchDriver Python API, and activity log queries. Use it for authoring a pytest suite as well as for tracking a manual run. For driving one instrument, use that instrument's skill instead. Triggers on "test progress", "test session", "test spec", "test case", "test harness", "run the tests", "write a test", "WorkbenchDriver", "human interaction", "operator", "activity log", "test panel".
+name: testbench-test-handling
+description: Use this skill when running or writing automated tests against the testbench — the three-phase execution protocol every test case follows, live progress on the Pi's web UI, blocking prompts for physical operator actions (button press, cable swap, power cycle), the TestbenchDriver Python API, and activity log queries. Use it for authoring a pytest suite as well as for tracking a manual run. For driving one instrument, use that instrument's skill instead. Triggers on "test progress", "test session", "test spec", "test case", "test harness", "run the tests", "write a test", "TestbenchDriver", "human interaction", "operator", "activity log", "test panel".
 ---
 
 # ESP32 Test Automation
 
-Base URL: `$WORKBENCH_URL` — see Step 0
+Base URL: `$TESTBENCH_URL` — see Step 0
 
 **The portal and the MQTT broker are always-on infrastructure. A test never
 starts, stops or restarts them** — doing so breaks whatever else is using the
@@ -42,17 +42,17 @@ are in [`references/common-workflows.md`](references/common-workflows.md).
 ## Step 0: Point at a bench
 
 There are several benches and their addresses move, so nothing here writes one
-down. `workbench.local` is not usable either — a container cannot resolve mDNS.
+down. `testbench.local` is not usable either — a container cannot resolve mDNS.
 Discover the bench and export its URL:
 
 ```bash
-export WORKBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py \
+export TESTBENCH_URL=$(sudo python3 .claude/skills/esp-idf-handling/discover-testbench.py \
                          --url --name <bench-hostname>)
-curl -s "$WORKBENCH_URL/api/info"        # confirm before anything else
+curl -s "$TESTBENCH_URL/api/info"        # confirm before anything else
 ```
 
 `--url` refuses to guess when more than one bench answers, so `--name` is
-required whenever a second bench is powered on. `WORKBENCH_URL` is the same
+required whenever a second bench is powered on. `TESTBENCH_URL` is the same
 variable `pytest --wt-url` falls back to.
 
 ## Step 0.5: Reach the DUT through the API, never through raw RFC2217
@@ -152,7 +152,7 @@ there means the proxy was replaced, not that the device went quiet.
 
 ## Test Progress Tracking
 
-Test scripts can push live progress updates to the workbench web UI so operators can monitor test execution without a terminal.
+Test scripts can push live progress updates to the testbench web UI so operators can monitor test execution without a terminal.
 
 ### Endpoints
 
@@ -162,27 +162,27 @@ Request and response shapes: [FSD Appendix D.13](../../../docs/Harness-FSD.md#d1
 
 ```bash
 # 1. Start a test session
-curl -X POST $WORKBENCH_URL/api/test/update \
+curl -X POST $TESTBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"spec": "<test-spec> v1.0", "phase": "Phase 1", "total": 8}'
 
 # 2. Update current test step
-curl -X POST $WORKBENCH_URL/api/test/update \
+curl -X POST $TESTBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"current": {"id": "TC-001", "name": "WiFi Provisioning", "step": "Joining AP...", "manual": false}}'
 
 # 3. Record a result
-curl -X POST $WORKBENCH_URL/api/test/update \
+curl -X POST $TESTBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"result": {"id": "TC-001", "name": "WiFi Provisioning", "result": "PASS"}}'
 
 # 4. End the session
-curl -X POST $WORKBENCH_URL/api/test/update \
+curl -X POST $TESTBENCH_URL/api/test/update \
   -H 'Content-Type: application/json' \
   -d '{"end": true}'
 
 # Poll current progress
-curl $WORKBENCH_URL/api/test/progress
+curl $TESTBENCH_URL/api/test/progress
 ```
 
 ### Python Driver Methods
@@ -194,24 +194,24 @@ wt.test_result("TC-001", "WiFi Provisioning", "PASS")
 wt.test_end()
 ```
 
-## WorkbenchDriver
+## TestbenchDriver
 
 **Inside this repo's suite there is nothing to set up** — `pytest/conftest.py`
-provides a session-scoped `workbench` fixture. Take it as an argument:
+provides a session-scoped `testbench` fixture. Take it as an argument:
 
 ```python
-def test_boots_clean(workbench):
-    workbench.serial_reset("SLOT1")
+def test_boots_clean(testbench):
+    testbench.serial_reset("SLOT1")
 ```
 
-From a standalone script, put the workbench repo's `pytest/` on the path — the
+From a standalone script, put the testbench repo's `pytest/` on the path — the
 repo's own location, not a copy under `/tmp`:
 
 ```python
 import sys
-sys.path.insert(0, "<workbench-repo>/pytest")
-from workbench_driver import WorkbenchDriver
-wt = WorkbenchDriver("$WORKBENCH_URL")
+sys.path.insert(0, "<testbench-repo>/pytest")
+from testbench_driver import TestbenchDriver
+wt = TestbenchDriver("$TESTBENCH_URL")
 ```
 
 Then discover the slot rather than hard-coding one, because labels move with the
@@ -227,7 +227,7 @@ handling and the slot `state` field. For a one-off operation at the prompt, reac
 for the instrument skill and its `curl` instead — the driver is not worth an
 import path. The methods worth knowing are in
 [`references/driver-methods.md`](references/driver-methods.md); the full surface
-is `pytest/workbench_driver.py`.
+is `pytest/testbench_driver.py`.
 
 ## Human Interaction
 
@@ -245,18 +245,18 @@ leaves the modal on screen with nothing waiting for it.
 
 ```bash
 # Request operator action (blocks until Done/Cancel/timeout)
-curl -X POST $WORKBENCH_URL/api/human-interaction \
+curl -X POST $TESTBENCH_URL/api/human-interaction \
   -H 'Content-Type: application/json' \
   -d '{"message": "Connect USB cable to port 2 and click Done", "timeout": 120}'
 
 # Check if a request is pending
-curl $WORKBENCH_URL/api/human/status
+curl $TESTBENCH_URL/api/human/status
 
 # Operator confirms
-curl -X POST $WORKBENCH_URL/api/human/done
+curl -X POST $TESTBENCH_URL/api/human/done
 
 # Operator cancels
-curl -X POST $WORKBENCH_URL/api/human/cancel
+curl -X POST $TESTBENCH_URL/api/human/cancel
 ```
 
 ### Responses
@@ -278,7 +278,7 @@ wt.human_interaction("Press the reset button and click Done", timeout=60)
 
 ## Activity Log
 
-Timestamped log of all workbench operations — hotplug events, WiFi operations, enter-portal steps, human interactions.
+Timestamped log of all testbench operations — hotplug events, WiFi operations, enter-portal steps, human interactions.
 
 ### Endpoints
 
@@ -286,10 +286,10 @@ Request and response shapes: [FSD Appendix D.14](../../../docs/Harness-FSD.md#d1
 
 ```bash
 # Get all entries
-curl -s $WORKBENCH_URL/api/log | jq .
+curl -s $TESTBENCH_URL/api/log | jq .
 
 # Get entries since a timestamp
-curl -s "$WORKBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
+curl -s "$TESTBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
 ```
 
 ## Common Workflows
@@ -306,7 +306,7 @@ curl -s "$WORKBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
    - Operator performs action, clicks Done
    - Test script continues
 
-3. **Monitor workbench operations:**
+3. **Monitor testbench operations:**
    - `GET /api/log?since=<ts>` — poll for new activity entries
    - Useful for debugging enter-portal sequences and tracking what happened
 

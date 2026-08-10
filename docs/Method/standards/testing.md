@@ -20,7 +20,7 @@ frequency set, Morse keying). They run in under a second with nothing plugged in
 pytest pytest/host/          # no --wt-url, no hardware
 ```
 
-The other 67 tests in `pytest/workbench_test.py` still drive a live bench over
+The other 67 tests in `pytest/testbench_test.py` still drive a live bench over
 HTTP and collect nothing useful without `--wt-url` pointing at a real Pi.
 
 The largest remaining gap is `portal.py`: it imports `gpiod`, so it cannot be
@@ -82,8 +82,8 @@ bench-only suite as the natural order of things.
 Never SSH into the Pi to check something — every observation has an endpoint.
 
 ```bash
-pytest pytest/ --wt-url http://workbench.local:8080            # no DUT needed
-pytest pytest/ --wt-url http://workbench.local:8080 --run-dut  # full
+pytest pytest/ --wt-url http://testbench.local:8080            # no DUT needed
+pytest pytest/ --wt-url http://testbench.local:8080 --run-dut  # full
 ```
 
 ## Security testing

@@ -98,7 +98,7 @@ a board whose AP was not on the air had no way in and no way to tell *the AP is
 broken* from *the AP is fine and nobody can hear it*.
 
 **The suite no longer depends on any project's firmware.** Tests used to
-assert on a specific project's board — an `awning-net` SSID, an M-Bus
+assert on a specific project's board — that project's SSID, its M-Bus
 simulator answering `status` with `OK` — so a testbench test went red when
 that project shipped, which is the dependency backwards. Twelve of them were
 hidden behind a `--run-wifi-dut` flag rather than fixed. They now provision

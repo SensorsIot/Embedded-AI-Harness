@@ -1,7 +1,7 @@
 """Pytest fixtures for the testbench (HTTP-only, Pi backend).
 
 Usage:
-    pytest workbench_test.py --wt-url http://<pi-ip>:8080
+    pytest testbench_test.py --wt-url http://<pi-ip>:8080
 """
 
 import os
@@ -10,15 +10,13 @@ import uuid
 
 import pytest
 
-from workbench_driver import TestbenchDriver
+from testbench_driver import TestbenchDriver
 
 
 def pytest_addoption(parser):
     parser.addoption(
         "--wt-url",
-        default=(os.environ.get("TESTBENCH_URL")
-                 or os.environ.get("WORKBENCH_URL")   # what it was called
-                 or "http://localhost:8080"),
+        default=os.environ.get("TESTBENCH_URL", "http://localhost:8080"),
         help="Portal URL for the Embedded Testbench Pi",
     )
     parser.addoption(
@@ -59,16 +57,6 @@ def pytest_runtest_makereport(item, call):
     outcome = yield
     rep = outcome.get_result()
     setattr(item, f"rep_{rep.when}", rep)
-
-
-@pytest.fixture(scope="session")
-def workbench(testbench):
-    """The old name for `testbench`, so existing tests keep running.
-
-    Same object, not a second connection — a fixture that opened its own
-    driver would run a second bench reset partway through a session.
-    """
-    return testbench
 
 
 @pytest.fixture(scope="session")

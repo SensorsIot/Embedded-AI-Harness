@@ -213,11 +213,11 @@ and step 5 still succeeds.
 - MQTT client for subscribing/publishing (mosquitto_sub/pub or MQTT Explorer)
 - Serial monitor for device logs
 
-### Workbench Commands
+### Testbench Commands
 
 ```bash
-# Start MQTT broker on workbench
-curl -X POST $WORKBENCH_URL/api/mqtt/start
+# Start MQTT broker on testbench
+curl -X POST $TESTBENCH_URL/api/mqtt/start
 
 # Subscribe to device topics
 mosquitto_sub -h "$BENCH" -t "device/#" -v
@@ -226,5 +226,5 @@ mosquitto_sub -h "$BENCH" -t "device/#" -v
 mosquitto_pub -h "$BENCH" -t "device/cmd" -m '{"action":"status"}'
 
 # Stop MQTT broker
-curl -X POST $WORKBENCH_URL/api/mqtt/stop
+curl -X POST $TESTBENCH_URL/api/mqtt/stop
 ```

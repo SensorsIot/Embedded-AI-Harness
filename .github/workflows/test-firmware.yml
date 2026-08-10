@@ -3,8 +3,8 @@
 # Thirteen bench tests need a device that joins the bench AP, answers HTTP and
 # echoes on serial. Until this workflow existed, the suite borrowed whatever
 # firmware a project happened to have flashed — and when that project reflashed
-# its board, workbench tests went red for reasons that had nothing to do with
-# the workbench. A bench that depends on a project's firmware has the
+# its board, testbench tests went red for reasons that had nothing to do with
+# the testbench. A bench that depends on a project's firmware has the
 # dependency backwards.
 #
 # So the bench owns this image, builds it here, and flashes it itself. The

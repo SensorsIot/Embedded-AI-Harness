@@ -1,13 +1,13 @@
 ---
 name: signal-generator
-description: Drive the Embedded AI Harness workbench's RF signal generator over `/api/siggen/*` — continuous carrier, Morse/CW beacon, retune, PE4302 attenuation, and frequency listing. Use this skill whenever the user wants to emit, key, retune, or attenuate an RF signal from the workbench, even if they only say "CW beacon", "carrier", "Morse", "Si5351", "GPCLK", "PE4302 attenuator", "DF test", "direction finder", or "80m beacon" — those are all this one API. Always check `/api/siggen/status` first to see which backend (Si5351 vs GPCLK fallback) and attenuator are physically present before choosing a backend.
+description: Drive the Embedded AI Harness testbench's RF signal generator over `/api/siggen/*` — continuous carrier, Morse/CW beacon, retune, PE4302 attenuation, and frequency listing. Use this skill whenever the user wants to emit, key, retune, or attenuate an RF signal from the testbench, even if they only say "CW beacon", "carrier", "Morse", "Si5351", "GPCLK", "PE4302 attenuator", "DF test", "direction finder", or "80m beacon" — those are all this one API. Always check `/api/siggen/status` first to see which backend (Si5351 vs GPCLK fallback) and attenuator are physically present before choosing a backend.
 ---
 
 # Signal Generator (`/api/siggen/*`)
 
-The workbench Pi has one signal-generator service. Two RF sources sit behind it (Si5351 on I²C, BCM2835 GPCLK on GPIO 5/6) and an optional PE4302 step attenuator can sit in the RF path. The endpoint is the same regardless of which backend is active — `/api/siggen/*` is the only entry point you should reach for.
+The testbench Pi has one signal-generator service. Two RF sources sit behind it (Si5351 on I²C, BCM2835 GPCLK on GPIO 5/6) and an optional PE4302 step attenuator can sit in the RF path. The endpoint is the same regardless of which backend is active — `/api/siggen/*` is the only entry point you should reach for.
 
-This skill replaces the legacy `cw-beacon` skill, which only knew about GPCLK and led to wrong frequencies on workbenches that have an Si5351.
+This skill replaces the legacy `cw-beacon` skill, which only knew about GPCLK and led to wrong frequencies on testbenches that have an Si5351.
 
 ---
 
@@ -103,13 +103,13 @@ Defaults: `low=3_500_000`, `high=4_000_000`, `backend=auto`. GPCLK returns discr
 
 ---
 
-## Driver methods (`pytest/workbench_driver.py`)
+## Driver methods (`pytest/testbench_driver.py`)
 
 The Python driver mirrors the API one-for-one. Prefer these over raw curl when writing test scripts:
 
 ```python
-from workbench_driver import WorkbenchDriver
-wt = WorkbenchDriver("$WORKBENCH_URL")
+from testbench_driver import TestbenchDriver
+wt = TestbenchDriver("$TESTBENCH_URL")
 
 status = wt.siggen_status()                              # always first
 print(status["hardware"])
@@ -165,7 +165,7 @@ wt.siggen_stop()
 
 ### Don't sleep blindly between siggen calls
 
-The siggen service responds when the change is in effect. If a downstream measurement needs settling time (PLL relock on Si5351, attenuator strobe), poll the DUT for the expected reading rather than `time.sleep(...)` — blind delays are a workbench-wide anti-pattern.
+The siggen service responds when the change is in effect. If a downstream measurement needs settling time (PLL relock on Si5351, attenuator strobe), poll the DUT for the expected reading rather than `time.sleep(...)` — blind delays are a testbench-wide anti-pattern.
 
 ---
 
@@ -184,4 +184,4 @@ The siggen service responds when the change is in effect. If a downstream measur
 - Functional spec: `docs/Harness-FSD.md` §FR-027 (Signal Generator).
 - Backend logic: `pi/signal_generator.py` (orchestrator), `pi/si5351.py`, `pi/gpclk.py`, `pi/pe4302.py`, `pi/morse.py`.
 - HTTP handlers: `pi/portal.py` (`_handle_siggen_*`).
-- Driver: `pytest/workbench_driver.py` (`siggen_*` methods).
+- Driver: `pytest/testbench_driver.py` (`siggen_*` methods).

@@ -8,9 +8,9 @@ demands rather than by whatever seemed useful at the time.
 
 **Why it exists at all.** A testbench test that asserts on a *project's*
 firmware goes red when that project ships. It happened twice: the captive
-portal test drove an `awning-net` board that later left the bench, and the
+portal test drove one project's board that later left the bench, and the
 serial-write test asserted that an M-Bus simulator answered `status` with
-`OK` until the gplug project reflashed it. The bench must be able to answer
+`OK` until that project reflashed the board. The bench must be able to answer
 its own questions.
 
 ## Coverage

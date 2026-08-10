@@ -70,7 +70,7 @@ and reporting station events — all controlled over the same HTTP API.
        ▼                                               ▼
 ┌─────────────────────────┐              ┌─────────────────────────────────┐
 │  Testbench              │              │  VM Host (192.168.0.160)        │
-│  workbench.local        │              │                                 │
+│  testbench.local        │              │                                 │
 │                         │              │  ┌─────────────────────┐        │
 │  ┌───────────┐          │              │  │ Container A         │        │
 │  │ SLOT1     │──────────┼─ :4001 ──────┼──│ rfc2217://:4001     │        │
@@ -114,7 +114,7 @@ and reporting station events — all controlled over the same HTTP API.
 
 | Component | Details |
 |-----------|---------|
-| Raspberry Pi Zero W | workbench.local, onboard wlan0 radio |
+| Raspberry Pi Zero W | testbench.local, onboard wlan0 radio |
 | USB Hub | 4-port hub connected to single USB port |
 | USB Ethernet adapter | eth0 — wired LAN for management and serial traffic |
 | Devices | ESP32, Arduino, or any USB serial device |
@@ -151,10 +151,10 @@ Mode is switched via `POST /api/wifi/mode` or the web UI toggle.
 | wifi-lease-notify.sh | /usr/local/bin/wifi-lease-notify.sh | Posts dnsmasq DHCP lease events to portal API |
 | rfc2217-learn-slots | /usr/local/bin/rfc2217-learn-slots | Slot configuration helper |
 | 99-rfc2217-hotplug.rules | /etc/udev/rules.d/ | udev rules for hotplug |
-| workbench.json | /etc/rfc2217/workbench.json | Hardware config (GPIO pins, debug probes) — optional |
-| workbench_driver.py | pytest/ | HTTP test driver for the WiFi instrument |
+| testbench.json | /etc/rfc2217/testbench.json | Hardware config (GPIO pins, debug probes) — optional |
+| testbench_driver.py | pytest/ | HTTP test driver for the WiFi instrument |
 | conftest.py | pytest/ | Pytest fixtures and CLI options |
-| workbench_test.py | pytest/ | Testbench self-tests |
+| testbench_test.py | pytest/ | Testbench self-tests |
 | signal_generator.py | /usr/local/bin/signal_generator.py | Unified RF source — Si5351 + PE4302 attenuator, GPCLK fallback, Morse keyer |
 | si5351.py | /usr/local/bin/si5351.py | Si5351A I²C clock-generator driver |
 | pe4302.py | /usr/local/bin/pe4302.py | PE4302 3-wire serial step-attenuator driver |
@@ -240,9 +240,9 @@ that disables the WiFi test service entirely (see §1.4).
 
 | Entity | Description |
 |--------|-------------|
-| **Slot** | A fixed position (`SLOT1`, `SLOT2`, ..., `SLOTn`) pre-created at boot. The slot count `n` is determined at startup by auto-detection of the Pi's USB hub topology (one slot per usable hub port, see FR-002), or by explicit configuration in `workbench.json` if present. Each slot is mapped to a physical USB hub port by prefix match and is always visible in the UI. A slot can track multiple devnodes when a dual-USB board (e.g., ESP32-S3 with sub-hub) is connected. |
+| **Slot** | A fixed position (`SLOT1`, `SLOT2`, ..., `SLOTn`) pre-created at boot. The slot count `n` is determined at startup by auto-detection of the Pi's USB hub topology (one slot per usable hub port, see FR-002), or by explicit configuration in `testbench.json` if present. Each slot is mapped to a physical USB hub port by prefix match and is always visible in the UI. A slot can track multiple devnodes when a dual-USB board (e.g., ESP32-S3 with sub-hub) is connected. |
 | **slot_key** | Stable identifier for physical port topology (derived from udev `ID_PATH`). Multiple slot_keys can map to the same slot via prefix matching (e.g., `0:1.1:1.0` and `0:1.1.4:1.0` both match SLOT1's prefix `0:1.1`). |
-| **usb_prefix** | Substring of `ID_PATH` that identifies a physical hub port (configured in `workbench.json`). Longer prefixes match first, so a sub-hub port like `0:1.1.4` can be distinguished from its parent `0:1.1`. |
+| **usb_prefix** | Substring of `ID_PATH` that identifies a physical hub port (configured in `testbench.json`). Longer prefixes match first, so a sub-hub port like `0:1.1.4` can be distinguished from its parent `0:1.1`. |
 | **devnode** | Current tty device path (e.g., `/dev/ttyACM0`) — may change on reconnect |
 | **proxy** | RFC2217 server process for a serial device: `plain_rfc2217_server.py` for all devices (direct DTR/RTS passthrough) |
 | **seq** (sequence) | Global monotonically increasing counter, incremented on every hotplug event |
@@ -291,7 +291,7 @@ the proxy is stopped on `remove` and restarted on `add` (with the 2s
 ttyACM boot delay).  No manual intervention is required.
 
 **Fixed slot pre-creation:** On startup the portal produces a slot list,
-either by loading `workbench.json` (if present) or by auto-detecting the
+either by loading `testbench.json` (if present) or by auto-detecting the
 Pi's USB hub topology (see "Auto-detection" below). The result is `n`
 slots labelled `SLOT1..SLOTn`, each with a `usb_prefix` that maps to a
 physical USB hub port. `n` is hardware-dependent, not hard-coded — a Pi
@@ -329,13 +329,13 @@ are reported in the `usb_devices` field of `/api/devices`.
 
 ### FR-002 — Slot Configuration
 
-**Note (v9):** Slots are configured in `workbench.json` with USB path prefixes
+**Note (v9):** Slots are configured in `testbench.json` with USB path prefixes
 that map physical hub ports to fixed labels. The portal pre-creates all
 configured slots at boot. Devices are matched to slots by prefix — no manual
 slot assignment needed at runtime. Dual-USB boards (sub-hub) are handled
 transparently via prefix matching.
 
-Configuration file: `/etc/rfc2217/workbench.json`
+Configuration file: `/etc/rfc2217/testbench.json`
 
 ```json
 {
@@ -356,7 +356,7 @@ The `usb_prefix` is a substring of the udev `ID_PATH`. Discover it by
 plugging a device into each physical port and running:
 `udevadm info -q property -n /dev/ttyACMx | grep ID_PATH`
 
-**Auto-detection (no config):** If `/etc/rfc2217/workbench.json` is absent,
+**Auto-detection (no config):** If `/etc/rfc2217/testbench.json` is absent,
 the portal auto-generates the slot list at startup by walking
 `/sys/bus/usb/devices/`, enumerating every downstream hub, and emitting one
 slot per port (`SLOT1..SLOTn` with default TCP/GDB/OpenOCD ports). Ports
@@ -411,7 +411,7 @@ jack count, and add any unoccupied prefix(es) to the table.
       "devnode": "/dev/ttyACM0",
       "devnodes": ["/dev/ttyACM0", "/dev/ttyACM1"],
       "pid": 1234,
-      "url": "rfc2217://workbench.local:4001",
+      "url": "rfc2217://testbench.local:4001",
       "seq": 5,
       "last_action": "add",
       "last_event_ts": "2026-02-05T12:34:56+00:00",
@@ -428,8 +428,8 @@ jack count, and add any unoccupied prefix(es) to the table.
       ]
     }
   ],
-  "host_ip": "workbench.local",
-  "hostname": "workbench.local"
+  "host_ip": "testbench.local",
+  "hostname": "testbench.local"
 }
 ```
 
@@ -611,12 +611,12 @@ holds the serial port.  esptool connects through the proxy as a client.
 **Example:**
 
 ```bash
-esptool --port rfc2217://workbench.local:4001 --chip esp32c3 \
+esptool --port rfc2217://testbench.local:4001 --chip esp32c3 \
   --before default-reset --after no-reset \
   write-flash --flash-mode dio --flash-size 4MB \
   0x0000 bootloader.bin 0x8000 partition-table.bin 0x10000 firmware.bin
 
-curl -X POST http://workbench.local:8080/api/serial/reset \
+curl -X POST http://testbench.local:8080/api/serial/reset \
   -H "Content-Type: application/json" -d '{"slot":"SLOT1"}'
 ```
 
@@ -659,7 +659,7 @@ Standard ESP32 (Arduino) layout: `0x1000` bootloader, `0x8000` partitions,
 **Example:**
 
 ```bash
-curl -X POST http://workbench.local:8080/api/flash \
+curl -X POST http://testbench.local:8080/api/flash \
   -F slot=SLOT3 -F chip=esp32 -F baud=921600 \
   -F 'bin@0x1000=@.pio/build/<env>/bootloader.bin' \
   -F 'bin@0x8000=@.pio/build/<env>/partitions.bin' \
@@ -706,7 +706,7 @@ the board: the ESP32 only switches partitions on a verified success.
 | Part | Kind | Meaning |
 |------|------|---------|
 | `firmware` | file | The `.bin` image (part name `firmware`, required) |
-| `target` | field | Board IP or hostname, e.g. `192.168.0.176` / `awning.local` (required) |
+| `target` | field | Board IP or hostname, e.g. `192.168.4.42` / `device.local` (required) |
 | `port` | field | ArduinoOTA port, default `3232` |
 | `auth` | field | OTA password, if the board sets one (optional) |
 
@@ -716,7 +716,7 @@ the board: the ESP32 only switches partitions on a verified success.
 **Example:**
 
 ```bash
-curl -X POST http://workbench.local:8080/api/ota \
+curl -X POST http://testbench.local:8080/api/ota \
   -F target=192.168.0.176 \
   -F firmware=@.pio/build/<env>/firmware.bin
 ```
@@ -749,7 +749,7 @@ always carries the raw text.
 **Example:**
 
 ```bash
-curl -X POST http://workbench.local:8080/api/chip/info \
+curl -X POST http://testbench.local:8080/api/chip/info \
   -H 'Content-Type: application/json' -d '{"slot": "SLOT3"}'
 ```
 
@@ -759,7 +759,7 @@ When connecting to an ESP32-C3 via RFC2217, the client must prevent DTR
 assertion during connection negotiation:
 
 ```python
-ser = serial.serial_for_url('rfc2217://workbench.local:4001', do_not_open=True)
+ser = serial.serial_for_url('rfc2217://testbench.local:4001', do_not_open=True)
 ser.baudrate = 115200
 ser.timeout = 2
 ser.dtr = False   # CRITICAL: prevents download mode
@@ -951,7 +951,7 @@ remove event from interfering with recovery state.
 #### 7.3 Recovery — GPIO Path
 
 For slots with `gpio_boot` and optionally `gpio_en` configured in
-`workbench.json`, the portal performs automatic GPIO-based recovery:
+`testbench.json`, the portal performs automatic GPIO-based recovery:
 
 1. Wait `FLAP_COOLDOWN_S` (10s) for hardware to settle
 2. Hold BOOT/GPIO0 LOW via `gpio_boot` pin (forces download mode)
@@ -964,7 +964,7 @@ The device is now stable in the bootloader.  Flash firmware directly on
 the Pi (the RFC2217 proxy is not running in this state):
 
 ```bash
-ssh pi@workbench.local "python3 -m esptool --chip esp32s3 --port /dev/ttyACM1 \
+ssh pi@testbench.local "python3 -m esptool --chip esp32s3 --port /dev/ttyACM1 \
   write_flash 0x0 bootloader.bin 0x8000 partition-table.bin \
   0xf000 ota_data_initial.bin 0x20000 app.bin"
 ```
@@ -1420,16 +1420,16 @@ reboots and connects to it. The DUT ends up on the testbench's WiFi network.
 
 The portal form contract is parameterized so different DUT firmwares are
 supported. The defaults target the WiFi-Tester DUT (`POST /connect` with
-`ssid`/`password`); a WiFiManager DUT (e.g. the awning controller) uses
+`ssid`/`password`); a WiFiManager DUT uses
 `save_path="/wifisave"`, `field_ssid="s"`, `field_password="p"`, and passes
 its extra portal fields (MQTT host/port/user/pass) via `extra`.
 
 **Request body:**
 ```json
-{"portal_ssid": "Awning-Setup", "ssid": "awning-net", "password": "awningpass",
+{"portal_ssid": "Device-Setup", "ssid": "test-net", "password": "testpass123",
  "save_path": "/wifisave", "field_ssid": "s", "field_password": "p",
  "method": "POST", "internet": true,
- "extra": {"host": "workbench.local", "port": "1883"}}
+ "extra": {"host": "testbench.local", "port": "1883"}}
 ```
 
 | Parameter | Required | Default | Description |
@@ -1814,7 +1814,7 @@ wt.udplog_clear()
 **Implementation notes:**
 - Thread-safe: deque operations are atomic; timestamp+source stored per entry
 - Non-blocking: UDP recv in a loop with 1s timeout for clean shutdown
-- ESP32 remote_log.c sends to the configured host:port (default workbench.local:5555)
+- ESP32 remote_log.c sends to the configured host:port (default testbench.local:5555)
 
 ### FR-021 — OTA Firmware Repository
 
@@ -1852,7 +1852,7 @@ internet access or external hosting during development and testing.
 Serves the raw binary file with `Content-Type: application/octet-stream`.
 This is the URL the ESP32 OTA client points to, e.g.:
 ```
-http://workbench.local:8080/firmware/ios-keyboard/ios-keyboard.bin
+http://testbench.local:8080/firmware/ios-keyboard/ios-keyboard.bin
 ```
 
 Path traversal is rejected (no `..` allowed in project or filename).
@@ -1889,7 +1889,7 @@ Path traversal is rejected (no `..` allowed in project or filename).
 files = wt.firmware_list()
 wt.firmware_upload("ios-keyboard", "/path/to/ios-keyboard.bin")
 wt.firmware_delete("ios-keyboard", "ios-keyboard.bin")
-# ESP32 OTA URL: http://workbench.local:8080/firmware/ios-keyboard/ios-keyboard.bin
+# ESP32 OTA URL: http://testbench.local:8080/firmware/ios-keyboard/ios-keyboard.bin
 ```
 
 **End-to-end OTA workflow:**
@@ -1912,7 +1912,7 @@ client on the LAN.
    POST /api/wifi/http  {"method":"POST", "url":"http://192.168.4.15/ota"}
    ```
    The ESP32 must expose a `POST /ota` endpoint that calls `esp_ota_ops`
-   to download from `http://workbench.local:8080/firmware/<project>/<file>.bin`.
+   to download from `http://testbench.local:8080/firmware/<project>/<file>.bin`.
 4. **Monitor progress** via UDP logs:
    ```
    GET /api/udplog?source=192.168.4.15
@@ -2223,7 +2223,7 @@ claims both FTDI channels and channel A must be explicitly unbound.
 | OPENOCD_TELNET_BASE | 4444 | `OPENOCD_TELNET_BASE` | First OpenOCD telnet port |
 | OPENOCD_EXE | `/usr/local/bin/openocd-esp32` | `OPENOCD_EXE` | Path to esp-openocd binary |
 
-**Slot configuration** (`workbench.json` extension):
+**Slot configuration** (`testbench.json` extension):
 ```json
 {
   "slots": [
@@ -2284,7 +2284,7 @@ blocked — the chip's CPU is under OpenOCD control.
   "gdb_port": 3333,
   "telnet_port": 4444,
   "chip": "esp32c3",
-  "gdb_target": "target extended-remote workbench.local:3333"
+  "gdb_target": "target extended-remote testbench.local:3333"
 }
 ```
 
@@ -2365,7 +2365,7 @@ during debug sessions for native USB-Serial/JTAG devices.
 # Start debug session
 info = wt.debug_start("SLOT1", chip="esp32c3")
 print(f"GDB port: {info['gdb_port']}")
-# → Connect GDB: target extended-remote workbench.local:3333
+# → Connect GDB: target extended-remote testbench.local:3333
 
 # Check status
 status = wt.debug_status()
@@ -2383,7 +2383,7 @@ wt.debug_stop("SLOT1")
   "request": "launch",
   "program": "${workspaceFolder}/build/project.elf",
   "miDebuggerPath": "riscv32-esp-elf-gdb",
-  "miDebuggerServerAddress": "workbench.local:3333",
+  "miDebuggerServerAddress": "testbench.local:3333",
   "setupCommands": [
     {"text": "set remote hardware-breakpoint-limit 2"},
     {"text": "monitor reset halt"}
@@ -2394,7 +2394,7 @@ wt.debug_stop("SLOT1")
 **Command-line GDB:**
 ```bash
 riscv32-esp-elf-gdb build/project.elf \
-  -ex "target extended-remote workbench.local:3333" \
+  -ex "target extended-remote testbench.local:3333" \
   -ex "monitor reset halt"
 ```
 
@@ -2403,7 +2403,7 @@ riscv32-esp-elf-gdb build/project.elf \
 debug_tool = esp-builtin
 debug_server =
   # empty — use remote server instead
-debug_port = workbench.local:3333
+debug_port = testbench.local:3333
 ```
 
 #### 24.13 Auto-Start on Hotplug
@@ -2732,7 +2732,7 @@ slot.  The portal tracks which slot's DUT is connected to the probe.
   "chip": "esp32",
   "gdb_port": 3333,
   "telnet_port": 4444,
-  "gdb_target": "target extended-remote workbench.local:3333"
+  "gdb_target": "target extended-remote testbench.local:3333"
 }
 ```
 
@@ -3113,7 +3113,7 @@ the console's **AI Sherlock** toggle (analyze+AGC, record → stop & analyze).
 becomes one `decoder n=<name>,m=OOK_PWM,s=…,l=…,r=…,match={<bits>}<hex>` line, so
 `rtl_433` recognises the device **by name** in every decode with no `-X` needed.
 Verify a new entry offline with `rtl_433 -y '{<bits>}<hex>'`. The reference
-build ships the **Euromot Awning** remote (433.92 MHz OOK-PWM, 18-bit, device id
+build ships one **worked example** decoder (433.92 MHz OOK-PWM, 18-bit, device id
 `0x7F4`; buttons up=`7f454` down=`7f45c` auto=`7f480` manual=`7f484`).
 
 **Dongle recovery.** Heavy use can wedge the RTL-SDR into a state where it still
@@ -3189,7 +3189,7 @@ How clients other than raw HTTP reach the API.
 
 ### 9.1 MCP Interface
 
-An MCP (Model Context Protocol) server (`mcp/workbench_mcp.py`) exposes the HTTP
+An MCP (Model Context Protocol) server (`mcp/testbench_mcp.py`) exposes the HTTP
 API as MCP tools, so an MCP client (Claude Desktop, Claude Code, …) can drive the
 bench directly. It is a thin **stdio proxy** — 70 tools, one per endpoint, held
 in a single `SPECS` table that mirrors the API: `GET` args become query params,
@@ -3204,7 +3204,7 @@ Python standard library (stdio JSON-RPC + `urllib`), so it needs **no dependency
 install** — only Python 3. It ships two ways, both covered in the
 [User Manual §15.2](Harness-User-Manual.md#152-mcp-server):
 
-- **`mcp/embedded-ai-harness-workbench.mcpb`** — a Claude Desktop extension (built
+- **`mcp/embedded-ai-harness-testbench.mcpb`** — a Claude Desktop extension (built
   from `mcp/manifest.json` + the server via `npx @anthropic-ai/mcpb pack`).
   Installed by drag-and-drop; the `testbench_url` user-config field prompts for
   `TESTBENCH_URL` at install.
@@ -3215,7 +3215,7 @@ install** — only Python 3. It ships two ways, both covered in the
 
 ```bash
 claude mcp add testbench --env TESTBENCH_URL=http://<host>:8080 \
-  -- python3 /abs/path/to/mcp/workbench_mcp.py
+  -- python3 /abs/path/to/mcp/testbench_mcp.py
 claude mcp list      # → testbench … ✔ Connected
 ```
 
@@ -3439,9 +3439,9 @@ Step 2: Try USB DTR/RTS reset (fallback)
 
 ### 7.2 WiFi Testbench Tests
 
-Tests are implemented in `pytest/workbench_test.py` and run via:
+Tests are implemented in `pytest/testbench_test.py` and run via:
 ```
-pytest workbench_test.py --wt-url http://<pi-ip>:8080
+pytest testbench_test.py --wt-url http://<pi-ip>:8080
 ```
 
 Add `--run-dut` to include tests that require a WiFi device under test.
@@ -3612,15 +3612,15 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | 7.0 | 2026-02-25 | Claude | Three new services: UDP log receiver (FR-020) for ESP32 remote debug logs on port 5555; OTA firmware repository (FR-021) for serving .bin files to ESP32 OTA clients; BLE proxy (FR-022) for scan/connect/write to BLE peripherals via HTTP API using bleak. New deliverable: `ble_controller.py`. WT-1000–1207 test cases |
 | 7.1 | 2026-03-15 | Claude | Hostname renamed Serial1 → workbench; all references updated to workbench.local. UDP discovery beacon added to portal.py (port 5888) — containers can discover the bench automatically. Skills consolidated from 14 → 9: merged flash skills into `esp-idf-handling` (auto-detects local vs bench), PIO skills into `esp-pio-handling`, FSD + WiFi tests into `fsd-writer` with 9 test spec libraries (WiFi, captive portal, MQTT, BLE, OTA, USB HID, NVS, watchdog, logging). Removed `esp32-` prefix from bench service skills. `fsd-writer` renamed from `esp32-fsd-writer` to be project-agnostic |
 | 8.1 | 2026-03-28 | Claude | Auto-debug: OpenOCD starts automatically on hotplug/boot with chip auto-detection (C3/S3/C6/H2 via USB JTAG, classic ESP32 via ESP-Prog fallback). Debug status in /api/devices. Hotplug suppression during active debug. Zero-config: just plug in any ESP32. WT-1700–1709 test cases. TASK-160–166 |
-| 8.3 | 2026-03-28 | Claude | Auto-discovery: fully plug-and-play slot management. No slots.json needed — devices auto-assigned labels (AUTO-1, AUTO-2), TCP ports (4001+), GDB ports (3333+). Renamed slots.json to workbench.json (hardware config only). Remove hotplug events processed during debugging (unplug detection fix). End-to-end verified: plug→flash→debug with zero configuration |
+| 8.3 | 2026-03-28 | Claude | Auto-discovery: fully plug-and-play slot management. No slots.json needed — devices auto-assigned labels (AUTO-1, AUTO-2), TCP ports (4001+), GDB ports (3333+). Renamed slots.json to testbench.json (hardware config only). Remove hotplug events processed during debugging (unplug detection fix). End-to-end verified: plug→flash→debug with zero configuration |
 | 8.2 | 2026-03-28 | Claude | JTAG-based reset and recovery: `/api/serial/reset` auto-selects JTAG reset when debug session is active (no USB re-enumeration, no flapping risk). Flapping recovery via JTAG halt when available. Skills updated with JTAG reset documentation |
 | 8.0 | 2026-03-27 | Claude | Remote GDB debugging — three variants: FR-024 USB JTAG (C3/S3 single-port, OpenOCD via built-in USB-Serial/JTAG), FR-025 Dual-USB (S3 two-port, serial+JTAG+app USB simultaneously), FR-026 ESP-Prog (external FT2232H probe for all ESP32 variants including classic). New `Debugging` slot state, `debug_controller.py` module, 5 API endpoints, slot groups for dual-USB, probe allocation for ESP-Prog. WT-1400–1605 test cases (18 tests). TASK-130–155 |
 | 7.2 | 2026-03-27 | Claude | CW beacon (FR-023): Morse-keyed RF carrier via BCM2835 GPCLK hardware on GPIO 5/6 for direction finder testing; PLLD 500 MHz integer divider for jitter-free 80m band output; PARIS-standard Morse timing 1–60 WPM; cw_beacon.py module; 4 API endpoints; driver methods cw_start/stop/status/frequencies; WT-1300–1304 test cases |
 | 9.0 | 2026-04-27 | Claude | Signal generator cleanup: retired the legacy `/api/cw/*` API and `cw_beacon.py` shim. FR-023 (CW beacon, GPCLK-only) merged into FR-027 (Signal Generator). FR-027 now covers Morse keying, the `freq`, `status`, and `frequencies` endpoints, and the full PE4302 attenuator path. Driver `cw_*` methods removed; tests WT-1300–1304 retargeted at `siggen_*`. Skill `cw-beacon` replaced by `signal-generator`. |
 | 9.1 | 2026-04-28 | Codex | Si5351 output level handling documented: backend programs the lowest 2 mA CLK drive-current setting and leaves precise RF level control to the PE4302 attenuator. |
 | 9.2 | 2026-07-05 | Claude | SDR receiver (FR-028): RTL-SDR + `rtl_433` receive-side service, counterpart to the transmit-only signal generator. `decode` mode returns decoded records (remotes/sensors/TPMS); `analyze` mode returns raw pulse timing for recapturing OOK remotes. Single-instance, bounded captures. New `sdr_controller.py`; 4 API endpoints `/api/sdr/{status,capture,analyze,stop}`; driver methods `sdr_*`; WT-1900–1905 test cases. |
-| 9.3 | 2026-07-05 | Claude | Captive-portal provisioning + LAN bridge, verified against the LoRa32 awning (WiFiManager DUT). `enter-portal` parameterized for arbitrary portal forms (WiFiManager `/wifisave`, `s`/`p` + `extra` MQTT fields) with an `internet` option; AP mode gains NAT bridging to `eth0` (`ap_start internet=true`, FR-011) so a provisioned DUT reaches the LAN/internet; MQTT broker wired to the API (FR-029, `/api/mqtt/*`, `mqtt_controller.py`). SDR (FR-028) gains a `flex` `-X` custom-decoder param and `-M level` rssi/snr signal-vs-noise reporting. Test cases WT-1906–1908 (SDR flex/RSSI, RF path), WT-2000–2002 (broker), WT-2100–2102 (captive-portal provisioning). |
-| 9.4 | 2026-07-05 | Claude | SDR (FR-028) gains: fixed-gain (`-g`) + `peak_freq_hz`/`notch_hz` on power; phased `acquire` (locate→level→decode→classify) with `tools/sdr_acquire.py` CLI and live activity-log prompts; the interactive **live console** (persistent `rtl_433`, ring-buffer fast-poll `/api/sdr/live*`, RSSI meter, presets, `-A` in every mode so the signal meter is decode-independent); **AI Sherlock** session log (`/api/sdr/log*`) for AI reverse-engineering of unknown remotes; USB self-heal + `/api/sdr/reset`; and an `rtl_433` device database (`pi/config/rtl_433.conf`) shipping the Euromot Awning remote. New skill `sdr-receiver`. |
+| 9.3 | 2026-07-05 | Claude | Captive-portal provisioning + LAN bridge, verified against a WiFiManager DUT. `enter-portal` parameterized for arbitrary portal forms (WiFiManager `/wifisave`, `s`/`p` + `extra` MQTT fields) with an `internet` option; AP mode gains NAT bridging to `eth0` (`ap_start internet=true`, FR-011) so a provisioned DUT reaches the LAN/internet; MQTT broker wired to the API (FR-029, `/api/mqtt/*`, `mqtt_controller.py`). SDR (FR-028) gains a `flex` `-X` custom-decoder param and `-M level` rssi/snr signal-vs-noise reporting. Test cases WT-1906–1908 (SDR flex/RSSI, RF path), WT-2000–2002 (broker), WT-2100–2102 (captive-portal provisioning). |
+| 9.4 | 2026-07-05 | Claude | SDR (FR-028) gains: fixed-gain (`-g`) + `peak_freq_hz`/`notch_hz` on power; phased `acquire` (locate→level→decode→classify) with `tools/sdr_acquire.py` CLI and live activity-log prompts; the interactive **live console** (persistent `rtl_433`, ring-buffer fast-poll `/api/sdr/live*`, RSSI meter, presets, `-A` in every mode so the signal meter is decode-independent); **AI Sherlock** session log (`/api/sdr/log*`) for AI reverse-engineering of unknown remotes; USB self-heal + `/api/sdr/reset`; and an `rtl_433` device database (`pi/config/rtl_433.conf`) shipping one worked-example decoder. New skill `sdr-receiver`. |
 | 9.5 | 2026-08-03 | Claude | MCP surface completed to 70 tools — added `firmware_upload/delete`, `udplog_get/clear`, `debug_group`, `test_update`, `wifi_events`, `human_interaction/done/cancel`; `DELETE` added as a transport method. Only the two udev callbacks (`/api/hotplug`, `/api/wifi/lease_event`) remain unexposed. |
 | 10.0 | 2026-08-03 | Claude | Documentation consolidated to two documents: this FSD (WHAT) and the User Manual (HOW). The separate user manual, WiFi HTTP manual, skill-testing guide, and the `pi/` and `mcp/` READMEs merged into `Harness-User-Manual.md`; root `README.md` reduced to a landing page. FSD sections regrouped by subsystem — FR-017–FR-021 out of "WiFi Service" into §5, BLE + MQTT into §6, the three GDB specs into §7, signal generator + SDR into §8, and the MCP interface promoted out of FR-006 into §9. FR numbers and clause text unchanged. |
 
@@ -3833,13 +3833,13 @@ Detected device:
   DEVPATH:  /devices/platform/scb/fd500000.pcie/.../ttyACM0
   BY-PATH:  /dev/serial/by-path/platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3:1.0
 
-Add this to /etc/rfc2217/workbench.json:
+Add this to /etc/rfc2217/testbench.json:
   {"label": "SLOT?", "slot_key": "platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.3:1.0", "tcp_port": 400?}
 ```
 
 ### B.2 Initial Setup Procedure
 
-1. Start with empty `workbench.json`
+1. Start with empty `testbench.json`
 2. Plug device into first hub connector
 3. Run `rfc2217-learn-slots`, note the `ID_PATH`
 4. Add to config as SLOT1 with `tcp_port: 4001`
@@ -4019,7 +4019,7 @@ RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 
 ### D.15 MCP Interface
 
-`mcp/workbench_mcp.py` exposes this entire API as **70 MCP tools** (one per
+`mcp/testbench_mcp.py` exposes this entire API as **70 MCP tools** (one per
 endpoint, from a single `SPECS` table) for MCP clients such as Claude Desktop and
 Claude Code. It is a thin **stdio proxy** that runs on the client machine and
 reaches the bench via `TESTBENCH_URL`: `GET` args become query params, `POST`/`DELETE`
@@ -4056,5 +4056,42 @@ Verified with Claude Code
 - Fixed `test_result` reporting (was silently failing due to parameter name mismatch)
 
 **Renames:**
-- `test_instrument.py` → `workbench_test.py`
+- `test_instrument.py` → `testbench_test.py`
 - `WIFI_TESTER_URL` → `TESTBENCH_URL` environment variable
+
+---
+
+### 2026-08-10 — one name for the machine, one name for its counterpart
+
+The bench was a *workbench* in 302 places and a *testbench* in 21, and its own
+ESP32 was called a *DUT* — a device under test, which it is not: the bench is
+what is under test, and that board is the counterpart it measures itself
+against. Both names are now single-valued throughout the repository, the
+skills, the Pi and the MCP bundle.
+
+**Renames:**
+- everything `workbench` → `testbench`, including the Pi's hostname
+  (`testbench.local`), the eight `testbench-*` skills, `testbench_test.py`,
+  `testbench_driver.py`, `testbench_mcp.py`, `/etc/rfc2217/testbench.json`,
+  `TESTBENCH_URL`, `TestbenchDriver`, `TestbenchError`, and the discovery
+  beacon's `service` field
+- the bench's own ESP32 `bench DUT` → **test partner**: `docs/test-partner.md`,
+  `TEST_PARTNER_PORTAL`, `TEST_PARTNER_HTTP_PORT`, the `test_partner` fixture,
+  `WT_TEST_PARTNER_IMAGE`, and the `test-partner-<target>` CI artefact
+
+**Kept deliberately:** `--run-dut` and `requires_dut` select on *hardware
+attached*, which is still what they mean, and `provision_dut` provisions any
+project's device rather than this one.
+
+**Migrations, because two of these are operator state rather than spelling:**
+`install.sh` renames `/etc/rfc2217/workbench.json` if it finds one, and the
+portal reads the old path when the new one is absent and says so — the file
+holds hand-written slot labels, GPIO pins and probe declarations, so an
+upgrade that silently stopped reading it would come up looking healthy with
+somebody's wiring forgotten. `install.sh` also sets the hostname and fixes
+`/etc/hosts` to match, since a stale `127.0.1.1` stalls every `sudo`.
+
+**Generalisation.** Project-specific content is gone: the reverse-engineered
+remote that shipped in `pi/config/rtl_433.conf` is now a commented worked
+example, and the portal-form and OTA-target examples name `device.local` and
+`Device-Setup` rather than one project's board.

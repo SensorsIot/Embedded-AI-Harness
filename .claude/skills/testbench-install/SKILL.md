@@ -1,9 +1,9 @@
 ---
-name: workbench-install
-description: Use this skill whenever the workbench Pi itself needs to be built, installed, updated, or have code deployed to it — a fresh SD card, a first `install.sh` run, pushing a changed controller module to a running bench, or diagnosing why a change had no effect. This is about the machine, not the instruments: the other workbench-* skills drive a bench that already works. Triggers on "install the workbench", "set up the Pi", "deploy", "push this to the bench", "my change didn't take effect", "rebuild the SD card", "update the portal", "install.sh", "systemctl restart rfc2217-portal".
+name: testbench-install
+description: Use this skill whenever the testbench Pi itself needs to be built, installed, updated, or have code deployed to it — a fresh SD card, a first `install.sh` run, pushing a changed controller module to a running bench, or diagnosing why a change had no effect. This is about the machine, not the instruments: the other testbench-* skills drive a bench that already works. Triggers on "install the testbench", "set up the Pi", "deploy", "push this to the bench", "my change didn't take effect", "rebuild the SD card", "update the portal", "install.sh", "systemctl restart rfc2217-portal".
 ---
 
-# Setting up and deploying the workbench
+# Setting up and deploying the testbench
 
 The one fact that explains most confusion: **the service runs from
 `/usr/local/bin/`, not from the git checkout.** Editing files in the repo on the
@@ -61,14 +61,14 @@ breaks every new bench and no existing one.
 Verify over HTTP — never by reading files over SSH:
 
 ```bash
-curl -s $WORKBENCH_URL/api/info      # portal version, host info
-curl -s $WORKBENCH_URL/api/devices   # every slot
+curl -s $TESTBENCH_URL/api/info      # portal version, host info
+curl -s $TESTBENCH_URL/api/devices   # every slot
 ```
 
 If the bench has moved or you do not know its address:
 
 ```bash
-sudo python3 .claude/skills/esp-idf-handling/discover-workbench.py --hosts
+sudo python3 .claude/skills/esp-idf-handling/discover-testbench.py --hosts
 ```
 
 Then prove the subsystems actually loaded, because an import that fails on a
@@ -76,7 +76,7 @@ newer Python takes only its own endpoint down and leaves the portal answering:
 
 ```bash
 for ep in sdr/status siggen/status mqtt/status wifi/mode debug/probes gpio/status; do
-  curl -s "$WORKBENCH_URL/api/$ep"; echo
+  curl -s "$TESTBENCH_URL/api/$ep"; echo
 done
 ```
 
@@ -119,11 +119,11 @@ Python has already loaded the old one.
 Then prove it took, rather than assuming:
 
 ```bash
-curl -s $WORKBENCH_URL/api/info
+curl -s $TESTBENCH_URL/api/info
 ```
 
 **SSH is for deploying code and nothing else.** Never drive the bench over SSH:
-every operation has an HTTP endpoint and `pytest/workbench_driver.py` wraps them
+every operation has an HTTP endpoint and `pytest/testbench_driver.py` wraps them
 all. Reaching for SSH to *do* something means the API is missing a capability —
 add the endpoint instead. This is a project rule, not a preference; see
 [`docs/Method/AI-Workflow.md`](../../../docs/Method/AI-Workflow.md#deploying-a-change-to-the-bench).
@@ -137,11 +137,11 @@ already has one. Copy it explicitly, or delete the file on the Pi first. The one
 exception is `/etc/rtl_433/rtl_433.conf`, which is copied unconditionally — a
 hand-edited flex decoder there is lost on every install.
 
-**There is no default `workbench.json`.** Slots auto-detect from USB topology at
-boot. Only create `/etc/rfc2217/workbench.json` to override labels or pins.
+**There is no default `testbench.json`.** Slots auto-detect from USB topology at
+boot. Only create `/etc/rfc2217/testbench.json` to override labels or pins.
 
 **Auto-detection over-reports on a Pi 3B+.** It finds five ports where only four
-are wired; `0:1.4` is the phantom. Pin the real four in `workbench.json` rather
+are wired; `0:1.4` is the phantom. Pin the real four in `testbench.json` rather
 than trusting the count.
 
 **Do not usbreset several ESP32s at once on a Pi 3B+.** Concurrent resets have
@@ -160,8 +160,8 @@ misbehaves on a new host.
 Re-run the tests against the live bench, and say what actually ran:
 
 ```bash
-pytest pytest/ --wt-url $WORKBENCH_URL            # no DUT needed
-pytest pytest/ --wt-url $WORKBENCH_URL --run-dut  # full
+pytest pytest/ --wt-url $TESTBENCH_URL            # no DUT needed
+pytest pytest/ --wt-url $TESTBENCH_URL --run-dut  # full
 pytest pytest/host/                                            # no hardware at all
 ```
 

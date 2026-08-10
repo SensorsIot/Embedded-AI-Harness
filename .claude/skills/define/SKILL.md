@@ -35,7 +35,7 @@ code or a test merely exists; turn a recommendation into an approved
 requirement silently; invent a normative threshold, tolerance, security
 assumption, or failure behaviour.
 
-| Activity | This skill | `/build` (Method) | Dev skills | Workbench skills |
+| Activity | This skill | `/build` (Method) | Dev skills | Testbench skills |
 |---|:--:|:--:|:--:|:--:|
 | Define scope, requirements, states, interfaces | Yes | No | No | No |
 | Write verification contracts | Yes | Consumes | No | No |
@@ -259,7 +259,7 @@ docs/UserDocumentation/   OPERATE — one user manual with chapters, from day on
 
 testing/test-plan.yaml    every test, what it needs, what it produced (/build owns)
 tests/{host,target,bench}/   executable tests (written by dev skills)
-test-results/<run-id>/       evidence (captured by workbench skills)
+test-results/<run-id>/       evidence (captured by testbench skills)
 ```
 
 **Create all three plane directories on the first commit, including the empty

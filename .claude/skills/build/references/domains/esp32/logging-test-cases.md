@@ -63,9 +63,9 @@ Standard test cases for ESP32 logging and debug output functionality (serial, UD
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 1 | Configure UDP log target (workbench IP:5555) | Setting saved |
+| 1 | Configure UDP log target (testbench IP:5555) | Setting saved |
 | 2 | Boot device | WiFi connects |
-| 3 | Check workbench UDP log endpoint | Boot messages received |
+| 3 | Check testbench UDP log endpoint | Boot messages received |
 | 4 | Trigger state change (e.g., MQTT connect) | Event logged via UDP |
 | 5 | Compare UDP log with serial log | Content matches |
 
@@ -186,23 +186,23 @@ Standard test cases for ESP32 logging and debug output functionality (serial, UD
 
 - ESP32 device under test
 - Serial monitor (idf.py monitor or pio device monitor)
-- UDP log receiver (workbench provides this on port 5555)
+- UDP log receiver (testbench provides this on port 5555)
 - Network connectivity for UDP testing
 
-### Workbench Commands
+### Testbench Commands
 
 ```bash
 # View UDP logs from device
-curl "$WORKBENCH_URL/api/udplog?limit=50"
+curl "$TESTBENCH_URL/api/udplog?limit=50"
 
 # View UDP logs filtered by source
-curl "$WORKBENCH_URL/api/udplog?source=192.168.4.2&limit=20"
+curl "$TESTBENCH_URL/api/udplog?source=192.168.4.2&limit=20"
 
 # Clear UDP log buffer
-curl -X DELETE $WORKBENCH_URL/api/udplog
+curl -X DELETE $TESTBENCH_URL/api/udplog
 
-# Serial monitor via workbench
-curl -X POST $WORKBENCH_URL/api/serial/monitor \
+# Serial monitor via testbench
+curl -X POST $TESTBENCH_URL/api/serial/monitor \
   -H 'Content-Type: application/json' \
   -d '{"slot": "slot-1", "pattern": "ERROR\\|WARN", "timeout": 30}'
 ```

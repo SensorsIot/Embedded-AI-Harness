@@ -17,7 +17,7 @@ import pytest
 from conftest import (TEST_PARTNER_HTTP_PORT, TEST_PARTNER_PORTAL,
                       _ap_stop_quietly, _find_console_slot,
                       _wait_for_any_station, ensure_test_partner_firmware)
-from workbench_driver import CommandError, CommandTimeout, WorkbenchError
+from testbench_driver import CommandError, CommandTimeout, TestbenchError
 
 # Path to pre-built debug-test firmware binaries
 DEBUG_TEST_DIR = os.path.join(
@@ -497,7 +497,7 @@ class TestWiFiScan:
         """
         testbench.ap_start("WT-SCAN-603", "password123")
         try:
-            with pytest.raises((CommandError, WorkbenchError)) as exc:
+            with pytest.raises((CommandError, TestbenchError)) as exc:
                 testbench.scan()
             assert "cannot scan while the AP is running" in str(exc.value), \
                 exc.value
@@ -581,7 +581,7 @@ def _sdr_available(testbench) -> bool:
     """True when a dongle + rtl_433 are present (RF tests need them)."""
     try:
         return bool(testbench.sdr_status().get("available"))
-    except WorkbenchError:
+    except TestbenchError:
         return False
 
 
@@ -1497,7 +1497,7 @@ class TestEndToEnd:
     run.  If flash fails, all subsequent tests are skipped.
 
     Usage:
-        pytest workbench_test.py -k TestEndToEnd --run-dut --wt-url http://workbench.local:8080
+        pytest testbench_test.py -k TestEndToEnd --run-dut --wt-url http://testbench.local:8080
     """
 
     _test_session_started = False
