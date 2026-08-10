@@ -902,7 +902,7 @@ class TestCaptivePortal:
                     TEST_PARTNER_PORTAL, ssid, password,
                     save_path="/connect", field_ssid="ssid",
                     field_password="password", internet=True,
-                    extra={"broker": self.BROKER_FROM_PARTNER})
+                    extra={"broker": cls.BROKER_FROM_PARTNER})
             except Exception as exc:
                 j["notes"].append(f"submitting the form failed: {exc}")
 
@@ -911,7 +911,7 @@ class TestCaptivePortal:
 
         # ── Step 5: and publishes to the broker it was given ─────────
         if j["station"]:
-            j["mqtt_message"] = self._await_publication(testbench, timeout=90)
+            j["mqtt_message"] = cls._await_publication(testbench, timeout=90)
 
         yield j
         _ap_stop_quietly(testbench)
