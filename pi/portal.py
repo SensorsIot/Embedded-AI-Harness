@@ -650,8 +650,16 @@ def get_host_ip() -> str:
 
 
 def _refresh_host_ip():
-    """Re-resolve host IP; update global and running slot URLs if it changed."""
-    global host_ip
+    """Re-resolve host IP and hostname; update slot URLs if the IP changed."""
+    global host_ip, hostname
+    # The hostname is read once at startup and the UI heading is drawn from
+    # it, so a rename left every open portal page naming the machine by what
+    # it used to be called until somebody restarted the service. The IP was
+    # already refreshed here for the same reason.
+    new_name = get_hostname()
+    if new_name != hostname:
+        print(f"[portal] hostname changed: {hostname} -> {new_name}", flush=True)
+        hostname = new_name
     new_ip = get_host_ip()
     if new_ip != host_ip:
         old = host_ip
@@ -4566,7 +4574,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_json({"ok": True, **_sdr.stop()})
 
     def _serve_ui(self):
-        html = _UI_HTML
+        # Substituted here rather than left to the fetch: the name is then
+        # right in the tab title before any JavaScript runs, and stays right
+        # on a bench whose /api/devices is wedged — which is exactly when
+        # somebody has two tabs open and needs to know which board they are
+        # looking at.
+        html = _UI_HTML.replace("__BENCH_NAME__", hostname)
         body = html.encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
@@ -4582,7 +4595,7 @@ _UI_HTML = """\
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RFC2217 testbench</title>
+    <title>__BENCH_NAME__</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html { height: 100%; }
@@ -4821,7 +4834,7 @@ _UI_HTML = """\
     </style>
 </head>
 <body>
-    <h1 id="title">RFC2217 testbench</h1>
+    <h1 id="title">__BENCH_NAME__</h1>
     <div class="subtitle" id="subtitle"></div>
     <div class="main-content">
     <div class="slots" id="slots"></div>
@@ -4967,9 +4980,13 @@ async function fetchDevices() {
         const data = await resp.json();
         hostName = data.hostname || '';
         hostIp = data.host_ip || '';
+        // The heading names *this* bench. The guard below was already asking
+        // "do we know the hostname?" and then ignoring the answer, so every
+        // bench called itself the same thing — and with more than one on a
+        // desk, two identical tabs is exactly when you flash the wrong board.
         if (hostName) {
-            document.getElementById('title').textContent = 'testbench';
-            document.title = 'testbench';
+            document.getElementById('title').textContent = hostName;
+            document.title = hostName + ' — ' + (hostIp || 'testbench');
         }
         // Show GPIO config in subtitle (Pi-level, not per-slot)
         const gpioSlot = data.slots.find(s => s.has_gpio);
