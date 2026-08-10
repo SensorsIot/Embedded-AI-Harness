@@ -69,7 +69,7 @@ static void publish_task(void *arg)
     while (1) {
         if (s_connected) {
             snprintf(payload, sizeof(payload),
-                     "{\"seq\":%" PRIu32 ",\"src\":\"bench-dut\"}", seq++);
+                     "{\"seq\":%" PRIu32 ",\"src\":\"test-partner\"}", seq++);
             esp_mqtt_client_publish(s_client, s_topic, payload, 0, 1, 0);
         }
         vTaskDelay(pdMS_TO_TICKS(PUBLISH_PERIOD_MS));

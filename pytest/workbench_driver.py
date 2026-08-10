@@ -250,7 +250,7 @@ class WorkbenchDriver:
 
         The defaults are Arduino WiFiManager's (`POST /wifisave`, fields
         `s`/`p`), which is what most project DUTs run. They are defaults and
-        not constants because the bench's own DUT is not a WiFiManager
+        not constants because the bench's own test partner is not a WiFiManager
         device — it takes `POST /connect` with `ssid`/`password`, and a
         method that could only speak to one convention would have left the
         bench unable to provision its own board.

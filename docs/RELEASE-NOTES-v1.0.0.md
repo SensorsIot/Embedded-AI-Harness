@@ -24,10 +24,10 @@ OpenOCD and GDB per slot, a WiFi test AP with station events, BLE, an MQTT
 broker, HTTP relay, GPIO, SDR and signal generation, firmware hosting, live
 test progress and blocking operator prompts.
 
-**Its own DUT.** `test-firmware/` is an ESP32 image the bench builds, versions
+**Its own test partner.** `test-firmware/` is an ESP32 image the bench builds, versions
 and flashes itself — captive-portal provisioning, an HTTP server, UDP logging
 to whichever bench handed out its DHCP lease. Attached to this release as
-`bench-dut-esp32c3.tar.gz` and `bench-dut-esp32s3.tar.gz`, each with the
+`test-partner-esp32c3.tar.gz` and `test-partner-esp32s3.tar.gz`, each with the
 `flash_args` that names the authoritative offsets.
 
 ## Why it is trustworthy now
@@ -59,8 +59,8 @@ fixed, and each left a test behind.
   hexdump — while a station 20 cm away heard seven neighbouring APs and not
   one frame from this one. Nothing reported an error anywhere: `iw` said
   `type AP` on the right channel, `ap_status` said active, and the only
-  symptom reached anyone as the DUT's own `NO_AP_FOUND`, which accuses the
-  DUT. Every test needing a station on the bench AP had been failing on
+  symptom reached anyone as the partner's own `NO_AP_FOUND`, which accuses
+  the partner. Every test needing a station on the bench AP had been failing on
   this.
 
   The cause was wpa_supplicant holding the radio. The installer disabled its
@@ -78,22 +78,22 @@ fixed, and each left a test behind.
   single-client, and an `esptool` killed mid-flash left the connection in
   `CLOSE-WAIT` — the proxy alive, `running: true`, every later client
   refused. The bench reset skipped it *because the proxy was alive*.
-- **The DUT's logger starved the core it logged from.** Anything logged
+- **The partner's logger starved the core it logged from.** Anything logged
   below the log hook came back through it, queued another line and woke the
   task that had just logged — so the task never blocked, IDLE never ran and
-  the watchdog fired. An unresponsive DUT is indistinguishable from an
+  the watchdog fired. An unresponsive board is indistinguishable from an
   unreachable one, and the HTTP relay tests timed out against a board that
   was associated and had an address. The same function also passed one
   `va_list` to two consumers, which is undefined behaviour.
 
-**The DUT can now answer.** `FR-030` says a byte written to a slot reaches the
+**The partner can now answer.** `FR-030` says a byte written to a slot reaches the
 device, and the bench owned nothing that would say anything back — so the test
 borrowed a project's M-Bus simulator and went red when that project reflashed
-the board. The bench DUT now carries a line-oriented console on its USB serial
-port: `ping` answers `OK pong`, `scan` reports what the DUT's own radio can
+the board. The test partner now carries a line-oriented console on its USB serial
+port: `ping` answers `OK pong`, `scan` reports what the partner's own radio can
 hear, `info` names the image actually running, and `wifi <ssid> <pass>`
 provisions it without needing a radio at all. That last one matters more than
-it looks: credentials used to arrive only through the DUT's captive portal, so
+it looks: credentials used to arrive only through the partner's captive portal, so
 a board whose AP was not on the air had no way in and no way to tell *the AP is
 broken* from *the AP is fine and nobody can hear it*.
 
@@ -102,7 +102,7 @@ assert on a specific project's board — an `awning-net` SSID, an M-Bus
 simulator answering `status` with `OK` — so a workbench test went red when
 that project shipped, which is the dependency backwards. Twelve of them were
 hidden behind a `--run-wifi-dut` flag rather than fixed. They now provision
-the bench's own DUT, and the flag is gone: a fixture that can tell *absent*
+the bench's own test partner, and the flag is gone: a fixture that can tell *absent*
 from *broken* beats an opt-out that cannot.
 
 **And it no longer depends on anyone's house network.** Five tests read an
@@ -114,8 +114,8 @@ one that cannot work: aim them at something on the house LAN and the bench's
 `eth0` carries the request, so the radio link under test does nothing and
 the test passes on the strength of the failure it exists to catch.
 
-They now aim at the DUT. The bench has one radio and so cannot be the access
-point its own station tests join, but the board already under test can be:
+They now aim at the test partner. The bench has one radio and so cannot be the access
+point its own station tests join, but the partner already in the bench can be:
 `testap` puts it on the air as a WPA2 AP of a known name, which makes the
 right-passphrase and wrong-passphrase paths answerable, and `192.168.4.0/24`
 is somewhere `eth0` has no route to. The whole suite now runs on a bench

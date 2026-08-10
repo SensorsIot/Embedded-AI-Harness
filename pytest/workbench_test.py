@@ -14,9 +14,9 @@ import uuid
 
 import pytest
 
-from conftest import (BENCH_DUT_HTTP_PORT, BENCH_DUT_PORTAL,
+from conftest import (TEST_PARTNER_HTTP_PORT, TEST_PARTNER_PORTAL,
                       _ap_stop_quietly, _find_console_slot,
-                      _wait_for_any_station, ensure_bench_dut_firmware)
+                      _wait_for_any_station, ensure_test_partner_firmware)
 from workbench_driver import CommandError, CommandTimeout, WorkbenchError
 
 # Path to pre-built debug-test firmware binaries
@@ -132,44 +132,44 @@ class TestSoftAPManagement:
 
 @pytest.mark.requires_dut
 class TestStationEvents:
-    """WT-3xx: Station connect/disconnect events (requires DUT)."""
+    """WT-3xx: Station connect/disconnect events (requires partner)."""
 
-    def test_wt300_station_connect_event(self, workbench, bench_dut):
+    def test_wt300_station_connect_event(self, workbench, test_partner):
         """WT-300: the joined station carries a MAC and an AP-subnet IP."""
-        assert ":" in bench_dut["mac"]
-        assert bench_dut["ip"].startswith("192.168.4."), bench_dut
+        assert ":" in test_partner["mac"]
+        assert test_partner["ip"].startswith("192.168.4."), test_partner
 
-    def test_wt301_station_disconnect_event(self, workbench, bench_dut):
+    def test_wt301_station_disconnect_event(self, workbench, test_partner):
         """WT-301: STA_DISCONNECT names the station that left.
 
-        The DUT is asked to leave rather than waited on: a test that waits
+        The partner is asked to leave rather than waited on: a test that waits
         for a disconnect it never causes passes only when something else
         goes wrong.
         """
         workbench.drain_events()
-        # POST, because that is how the DUT registers the route. This used to
+        # POST, because that is how the partner registers the route. This used to
         # send a GET, which the device answered with 404 and then carried on
         # happily connected — so the test waited sixty seconds for a
         # disconnect it had not caused, exactly as the paragraph above warns.
         # Asserting on the reply is the part that stops it recurring.
-        r = workbench.wifi_http(f"{bench_dut['url']}/wifi-reset",
+        r = workbench.wifi_http(f"{test_partner['url']}/wifi-reset",
                                 method="POST", timeout=6)
-        assert r["status"] == 200, f"the DUT refused the reset: {r}"
+        assert r["status"] == 200, f"the partner refused the reset: {r}"
         evt = workbench.wait_for_event("STA_DISCONNECT", timeout=60)
-        assert evt["mac"] == bench_dut["mac"], evt
+        assert evt["mac"] == test_partner["mac"], evt
 
-    def test_wt302_station_in_ap_status(self, workbench, bench_dut):
+    def test_wt302_station_in_ap_status(self, workbench, test_partner):
         """WT-302: the connected station appears in AP_STATUS."""
         macs = [s["mac"] for s in workbench.ap_status()["stations"]]
-        assert bench_dut["mac"] in macs, macs
+        assert test_partner["mac"] in macs, macs
 
-    def test_wt303_ip_matches_event(self, workbench, bench_dut):
+    def test_wt303_ip_matches_event(self, workbench, test_partner):
         """WT-303: the IP reported at join matches the one in AP_STATUS."""
         for s in workbench.ap_status()["stations"]:
-            if s["mac"] == bench_dut["mac"]:
-                assert s["ip"] == bench_dut["ip"]
+            if s["mac"] == test_partner["mac"]:
+                assert s["ip"] == test_partner["ip"]
                 return
-        pytest.fail(f"{bench_dut['mac']} not in AP_STATUS")
+        pytest.fail(f"{test_partner['mac']} not in AP_STATUS")
 
 
 # =====================================================================
@@ -177,23 +177,23 @@ class TestStationEvents:
 # =====================================================================
 
 
-STA_TEST_AP_SSID = "WT-DUT-AP"
-STA_TEST_AP_PASS = "benchstation"   # ≥ 8 chars, or the DUT refuses WPA2
+STA_TEST_AP_SSID = "WT-PARTNER-AP"
+STA_TEST_AP_PASS = "benchstation"   # ≥ 8 chars, or the partner refuses WPA2
 
 
 @pytest.mark.requires_dut
 class TestSTAMode:
-    """WT-4xx: the bench as a station, against an AP the DUT hosts.
+    """WT-4xx: the bench as a station, against an AP the partner hosts.
 
     These used to read `WIFI_TEST_STA_SSID` from the environment and skip
     on any bench nobody had hand-configured — which is to say they proved
     nothing on a fresh bench, and the STA path is half of what this bench
     is for. WT-506 had the same defect and was fixed by aiming it at the
-    DUT's provisioning portal, but that does not carry here: two of these
+    partner's provisioning portal, but that does not carry here: two of these
     four are about WPA2, and the portal is open by design.
 
     The bench has one radio, so it cannot be the access point its own
-    station tests join. The DUT can. `testap` puts the board already under
+    station tests join. The partner can. `testap` puts the board already under
     test into an AP of a known name with a known passphrase, which makes
     the correct-passphrase and wrong-passphrase paths answerable without a
     house network, a second board, or a line in anyone's environment.
@@ -202,19 +202,19 @@ class TestSTAMode:
     @pytest.fixture(scope="class")
     @classmethod
     def dut_ap(cls, workbench):
-        """Put the DUT on the air as a WPA2 AP, and take the bench off it."""
+        """Put the partner on the air as a WPA2 AP, and take the bench off it."""
         slot = _find_console_slot(workbench)
         if not slot:
             pytest.skip(
-                "precondition unmet: no slot answers the bench DUT console, "
-                "so no DUT can host the AP these tests join"
+                "precondition unmet: no slot answers the test partner console, "
+                "so no partner can host the AP these tests join"
             )
 
         _ap_stop_quietly(workbench)      # the radio is about to be a station
         workbench.serial_write(
             slot, text=f"testap {STA_TEST_AP_SSID} {STA_TEST_AP_PASS}")
 
-        # The DUT acknowledges, then reboots. Wait for it to say it is
+        # The partner acknowledges, then reboots. Wait for it to say it is
         # hosting the network we asked for — not merely that it is an AP,
         # which it also is when it has fallen back to the portal.
         on_air = False
@@ -233,7 +233,7 @@ class TestSTAMode:
 
         if not on_air:
             pytest.skip(
-                f"precondition unmet: the DUT never reported hosting "
+                f"precondition unmet: the partner never reported hosting "
                 f"'{STA_TEST_AP_SSID}' after `testap`"
             )
 
@@ -307,12 +307,12 @@ class TestSTAMode:
 
 @pytest.mark.requires_dut
 class TestHTTPRelay:
-    """WT-5xx: HTTP relay tests (requires DUT with HTTP server)."""
+    """WT-5xx: HTTP relay tests (requires partner with HTTP server)."""
 
     @pytest.fixture
-    def dut_url(self, bench_dut):
-        """The bench DUT's own HTTP server (port 8080, /status)."""
-        return bench_dut["url"]
+    def dut_url(self, test_partner):
+        """The test partner's own HTTP server (port 8080, /status)."""
+        return test_partner["url"]
 
     def test_wt500_get_request(self, workbench, dut_url):
         """WT-500: GET through the relay returns 200 and a body."""
@@ -321,7 +321,7 @@ class TestHTTPRelay:
         assert len(resp.content) > 0
 
     def test_wt501_post_with_body(self, workbench, dut_url):
-        """WT-501: a POST body reaches the DUT and an answer comes back.
+        """WT-501: a POST body reaches the partner and an answer comes back.
 
         404 counts: the relay's job is to carry the request and return what
         the device said, not to make the device implement the path.
@@ -354,7 +354,7 @@ class TestHTTPRelay:
         """WT-505: a multi-line JSON body survives the relay intact."""
         resp = workbench.http_get(f"{dut_url}/status")
         assert resp.status_code == 200
-        assert json.loads(resp.text), "relayed body is not the JSON the DUT sent"
+        assert json.loads(resp.text), "relayed body is not the JSON the partner sent"
 
     def test_wt506_http_via_sta_mode(self, workbench):
         """WT-506: the relay carries a request over the station link.
@@ -363,7 +363,7 @@ class TestHTTPRelay:
         network. This is the other direction: the bench stops being an
         access point, becomes a station, and the relay works from there.
 
-        The far end is the DUT's own portal AP. That matters more than
+        The far end is the partner's own portal AP. That matters more than
         convenience — the target has to be somewhere only the station link
         can reach. This test used to want an external network and a URL on
         it, configured by hand, and skipped without them; the obvious fix
@@ -371,37 +371,37 @@ class TestHTTPRelay:
         is the one thing that cannot work. The bench's eth0 is already on
         that LAN, so `ip route get` sends the request out of eth0 and the
         station link does nothing — the test would pass on the strength of
-        the failure it exists to catch. The DUT's AP is 192.168.4.0/24 and
+        the failure it exists to catch. The partner's AP is 192.168.4.0/24 and
         eth0 has no route there.
 
         So: no configuration, no external network, and a real HTTP server
         answering a real request over the link under test.
         """
-        # The DUT has to be in front of its own portal. It is provisioned
+        # The partner has to be in front of its own portal. It is provisioned
         # onto the bench AP by the time this runs, so ask it to forget.
         slot = _find_console_slot(workbench)
         if not slot:
             pytest.skip(
-                "precondition unmet: no slot answers the bench DUT console, "
-                "so no DUT can host the AP this test joins"
+                "precondition unmet: no slot answers the test partner console, "
+                "so no partner can host the AP this test joins"
             )
         _ap_stop_quietly(workbench)          # the radio is about to be a station
         workbench.serial_write(slot, text="forget")
         time.sleep(20)
 
-        joined = workbench.sta_join(BENCH_DUT_PORTAL, "")
+        joined = workbench.sta_join(TEST_PARTNER_PORTAL, "")
         try:
             assert joined.get("ip", "").startswith("192.168.4."), (
-                f"joined '{BENCH_DUT_PORTAL}' and got {joined}"
+                f"joined '{TEST_PARTNER_PORTAL}' and got {joined}"
             )
             r = workbench.http_get(
-                f"http://192.168.4.1:{BENCH_DUT_HTTP_PORT}/status", timeout=10)
+                f"http://192.168.4.1:{TEST_PARTNER_HTTP_PORT}/status", timeout=10)
             assert r.status_code == 200, (
-                f"the bench is a station on the DUT's AP and the relay got "
+                f"the bench is a station on the partner's AP and the relay got "
                 f"{r.status_code} from its HTTP server"
             )
             body = json.loads(r.text)
-            assert body.get("project"), f"relayed body is not the DUT's: {body}"
+            assert body.get("project"), f"relayed body is not the partner's: {body}"
         finally:
             try:
                 workbench.sta_leave()
@@ -592,7 +592,7 @@ def _sdr_available(workbench) -> bool:
 
 
 class TestRfLoopback:
-    """WT-1909: the bench transmits to its own dongle — no DUT, no operator.
+    """WT-1909: the bench transmits to its own dongle — no partner, no operator.
 
     The signal generator tops out at 160 MHz, so it cannot reach 433.92 MHz
     directly. It emits a square wave, though, whose odd harmonics are strong:
@@ -777,7 +777,7 @@ class TestMqttBroker:
 
 
 # =====================================================================
-# WT-21xx  Captive-Portal Provisioning (WiFiManager DUT onto NAT AP)
+# WT-21xx  Captive-Portal Provisioning (WiFiManager partner onto NAT AP)
 # =====================================================================
 
 
@@ -785,7 +785,7 @@ class TestMqttBroker:
 class TestCaptivePortal:
     """WT-21xx: the provisioning journey, one step per test.
 
-    This was a single test that asserted the DUT had an address on the
+    This was a single test that asserted the partner had an address on the
     bench AP and called that "provisioned through its portal". It was not:
     the fixture it depended on provisions over the serial console first and
     only falls back to the portal, so the portal usually never ran. A test
@@ -793,10 +793,10 @@ class TestCaptivePortal:
 
     The journey is now four gates, each with its own observable:
 
-      WT-2101  the DUT raises a captive portal
+      WT-2101  the partner raises a captive portal
       WT-2102  the bench joins it and submits SSID, password and broker
-      WT-2103  the DUT reboots, the bench raises that AP, the DUT joins
-      WT-2104  the DUT reaches the broker and publishes
+      WT-2103  the partner reboots, the bench raises that AP, the partner joins
+      WT-2104  the partner reaches the broker and publishes
 
     Run once as a class fixture, because it is one sequence and re-running
     it per test would prove nothing extra and cost four reboots. The
@@ -805,12 +805,12 @@ class TestCaptivePortal:
     saw rather than erroring on setup.
     """
 
-    BROKER_FROM_DUT = "mqtt://192.168.4.1"   # the bench, from the AP side
+    BROKER_FROM_PARTNER = "mqtt://192.168.4.1"   # the bench, from the AP side
     TOPIC = "workbench/dut/+/hello"
 
     @pytest.fixture(scope="class")
     def journey(self, workbench):
-        j = {"portal_ssid": BENCH_DUT_PORTAL, "portal_on_air": False,
+        j = {"portal_ssid": TEST_PARTNER_PORTAL, "portal_on_air": False,
              "form": "", "submitted": None, "station": None,
              "mqtt_message": None, "notes": []}
 
@@ -820,7 +820,7 @@ class TestCaptivePortal:
 
         workbench.mqtt_start()
 
-        # ── Step 1: put the DUT back in front of its own portal ──────
+        # ── Step 1: put the partner back in front of its own portal ──────
         # It is provisioned from earlier tests, so it has to be asked to
         # forget. Erasing over the wire is the one route that does not
         # depend on the radio we are about to test.
@@ -839,7 +839,7 @@ class TestCaptivePortal:
                 nets = workbench.scan().get("networks", [])
             except Exception:
                 nets = []
-            hit = [n for n in nets if n["ssid"] == BENCH_DUT_PORTAL]
+            hit = [n for n in nets if n["ssid"] == TEST_PARTNER_PORTAL]
             if hit:
                 j["portal_on_air"] = True
                 j["portal_rssi"] = hit[0].get("rssi")
@@ -847,10 +847,10 @@ class TestCaptivePortal:
             j["heard"] = [(n.get("rssi"), n["ssid"]) for n in nets[:4]]
             time.sleep(5)
 
-        # Ask the DUT what it thinks it is doing. Not hearing a portal and
+        # Ask the partner what it thinks it is doing. Not hearing a portal and
         # the portal not existing are different findings, and only one of
-        # them is the DUT's fault: a bench that reports "the DUT never
-        # raised its portal" when the DUT is sitting there hosting it has
+        # them is the partner's fault: a bench that reports "the partner never
+        # raised its portal" when the partner is sitting there hosting it has
         # blamed the wrong side, which is the failure this suite keeps
         # meeting.
         j["dut_says_ap_mode"] = None
@@ -879,7 +879,7 @@ class TestCaptivePortal:
         # ── Step 2: join the portal and read the form it serves ──────
         if j["portal_on_air"]:
             try:
-                workbench.sta_join(BENCH_DUT_PORTAL, "")
+                workbench.sta_join(TEST_PARTNER_PORTAL, "")
                 r = workbench.wifi_http("http://192.168.4.1/", timeout=8)
                 body = r.get("body", "")
                 try:
@@ -898,14 +898,14 @@ class TestCaptivePortal:
             # ── Step 3: submit the credentials through that form ─────
             try:
                 j["submitted"] = workbench.provision_wifimanager(
-                    BENCH_DUT_PORTAL, ssid, password,
+                    TEST_PARTNER_PORTAL, ssid, password,
                     save_path="/connect", field_ssid="ssid",
                     field_password="password", internet=True,
-                    extra={"broker": self.BROKER_FROM_DUT})
+                    extra={"broker": self.BROKER_FROM_PARTNER})
             except Exception as exc:
                 j["notes"].append(f"submitting the form failed: {exc}")
 
-            # ── Step 4: the DUT reboots and joins the AP it was given ──
+            # ── Step 4: the partner reboots and joins the AP it was given ──
             j["station"] = _wait_for_any_station(workbench, timeout=150)
 
         # ── Step 5: and publishes to the broker it was given ─────────
@@ -917,10 +917,10 @@ class TestCaptivePortal:
 
     @staticmethod
     def _await_publication(workbench, timeout):
-        """Subscribe to the bench broker and wait for the DUT to publish.
+        """Subscribe to the bench broker and wait for the partner to publish.
 
         Subscribed from here rather than through an endpoint the bench does
-        not have — the broker listens on every interface, so the DUT
+        not have — the broker listens on every interface, so the partner
         publishing to 192.168.4.1 and this client listening on the bench's
         LAN address are the same broker.
         """
@@ -957,19 +957,19 @@ class TestCaptivePortal:
         return got[0] if got else None
 
     def test_wt2101_dut_raises_a_captive_portal(self, journey):
-        """WT-2101: the DUT puts its provisioning portal on the air and
+        """WT-2101: the partner puts its provisioning portal on the air and
         serves the form."""
         if not journey["portal_on_air"]:
             if journey.get("dut_says_ap_mode"):
                 pytest.fail(
-                    f"the DUT reports it is hosting '{journey['portal_ssid']}' "
+                    f"the partner reports it is hosting '{journey['portal_ssid']}' "
                     f"and the bench cannot hear it. The bench's radio is "
                     f"working — it heard {journey.get('heard')} in the same "
-                    f"scan — so this is the DUT's transmitter, not its "
+                    f"scan — so this is the partner's transmitter, not its "
                     f"firmware and not the portal."
                 )
             pytest.fail(
-                f"no '{journey['portal_ssid']}' on the air and the DUT does "
+                f"no '{journey['portal_ssid']}' on the air and the partner does "
                 f"not report AP mode (ap_mode={journey.get('dut_says_ap_mode')})"
                 f". {'; '.join(journey['notes'])}"
             )
@@ -990,26 +990,26 @@ class TestCaptivePortal:
             journey["submitted"]
 
     def test_wt2103_dut_reboots_and_joins_that_ap(self, journey):
-        """WT-2103: the DUT reboots, the bench raises an AP with exactly the
-        credentials just entered, and the DUT joins it. Success 1."""
+        """WT-2103: the partner reboots, the bench raises an AP with exactly the
+        credentials just entered, and the partner joins it. Success 1."""
         station = journey["station"]
         assert station, (
-            f"the DUT never joined '{journey['ssid']}' after being given it "
+            f"the partner never joined '{journey['ssid']}' after being given it "
             f"through its own portal. {'; '.join(journey['notes'])}"
         )
         assert station["ip"].startswith("192.168.4."), station
 
     def test_wt2104_dut_publishes_to_the_broker(self, journey):
-        """WT-2104: the DUT reaches the MQTT broker it was given and
+        """WT-2104: the partner reaches the MQTT broker it was given and
         publishes. Success 2 — the journey end to end."""
-        assert journey["station"], "no DUT on the AP; WT-2103 covers that"
+        assert journey["station"], "no partner on the AP; WT-2103 covers that"
         msg = journey["mqtt_message"]
         assert msg, (
-            "the DUT joined the AP but nothing arrived on "
+            "the partner joined the AP but nothing arrived on "
             f"{self.TOPIC} within 90 s — provisioned, addressed, and not "
             "doing the thing it was provisioned for"
         )
-        assert "bench-dut" in msg["payload"], msg
+        assert "test-partner" in msg["payload"], msg
 
 
 # =====================================================================
@@ -1071,7 +1071,7 @@ class TestUSBJTAGDebug:
     def test_wt1404_debug_reject_unsupported(self, workbench):
         """WT-1404: Unsupported chip returns error.
 
-        Needs a DUT despite only checking a rejection: with no slot given the
+        Needs a partner despite only checking a rejection: with no slot given the
         portal auto-selects the first present device, and on an empty bench it
         answers "no device found" before it ever looks at the chip.
         """
@@ -1177,9 +1177,9 @@ class TestAutoDebug:
 
 
 def _find_present_device(workbench):
-    """Find the first present DUT (not a debug probe) and return its slot info.
+    """Find the first present partner (not a debug probe) and return its slot info.
 
-    Any present device that isn't a probe or HID-warning slot is a DUT.
+    Any present device that isn't a probe or HID-warning slot is a partner.
     This covers both native USB chips (VID 303a, ttyACM) and classic ESP32
     boards with third-party USB-UART bridges (CP2102, CH340, ttyUSB).
     """
@@ -1506,11 +1506,11 @@ class TestEndToEnd:
     @pytest.fixture(autouse=True, scope="class")
     def _end_test_session(self, workbench):
         """Send test_end when all tests in this class are done, and give the
-        bench its own DUT back.
+        the bench its test partner back.
 
-        This class deliberately flashes a throwaway image over the bench DUT
+        This class deliberately flashes a throwaway image over the test partner
         — that is how it proves flashing works — and used to leave it there.
-        Every later test that needs the DUT to *answer* then found a board
+        Every later test that needs the partner to *answer* then found a board
         printing `LOOP: n` and reported absent hardware, and so did the next
         run, and the one after that. A suite that destroys its own
         instrument has to rebuild it before it hands the bench on.
@@ -1521,7 +1521,7 @@ class TestEndToEnd:
         except Exception:
             pass
         TestEndToEnd._test_session_started = False
-        restored = ensure_bench_dut_firmware(workbench)
+        restored = ensure_test_partner_firmware(workbench)
         if restored:
             print(f"\n{restored}")
 
@@ -1820,12 +1820,12 @@ class TestSerialArchitecture:
 
     @requires_dut
     def test_wt2202_all_present_devices_detected(self, workbench):
-        """WT-2202: Every present DUT slot has a detected chip."""
+        """WT-2202: Every present partner slot has a detected chip."""
         devices = workbench.get_devices()
         duts = [d for d in devices
                 if d.get("present") and not d.get("is_probe")
                 and _jtag_capable(d)]
-        assert len(duts) > 0, "No JTAG-capable DUT devices present"
+        assert len(duts) > 0, "No JTAG-capable partner devices present"
         for d in duts:
             chip = d.get("detected_chip") or d.get("debug_chip")
             assert chip, (
@@ -1918,7 +1918,7 @@ class TestSerialArchitecture:
                 if d.get("present") and not d.get("is_probe")
                 and _jtag_capable(d)]
         if not duts:
-            pytest.skip("precondition unmet: no JTAG-capable DUT present")
+            pytest.skip("precondition unmet: no JTAG-capable partner present")
         # "Independently" is the requirement, and it is about each slot
         # detecting from its own board rather than about there being two.
         # Demanding two skipped this on every one-board bench.
@@ -2100,7 +2100,7 @@ class TestSlotAccessManager:
         finally:
             if started_here:
                 # OpenOCD halts the part on attach; leaving it held would
-                # silence the DUT for every test after this one.
+                # silence the partner for every test after this one.
                 try:
                     workbench.debug_stop(label)
                 except Exception:
@@ -2249,7 +2249,7 @@ class TestApiSurface:
         dut = next((d for d in workbench.get_devices()
                     if d.get("present") and d.get("detected_chip")), None)
         if not dut:
-            pytest.skip("precondition unmet: no chip-detected DUT present")
+            pytest.skip("precondition unmet: no chip-detected partner present")
         r = workbench._api_post_raw("/api/chip/info", {"slot": dut["label"]},
                                     timeout=90)
         if not r.get("ok"):

@@ -1,4 +1,4 @@
-# The bench DUT: what it is for, test by test
+# The test partner: what it must do, test by test
 
 The bench owns one ESP32 of its own — `test-firmware/`, built by CI, flashed
 by the bench. Which slot holds it is not written down anywhere on purpose —
@@ -15,9 +15,9 @@ its own questions.
 
 ## Coverage
 
-`✓` needs the DUT · `–` bench-only, no DUT involved · `SDR` needs a dongle
+`✓` needs the partner · `–` bench-only, no partner involved · `SDR` needs a dongle
 
-| # | Class | Tests | DUT? | What the DUT must do |
+| # | Class | Tests | Partner? | What the partner must do |
 |---|---|---:|:---:|---|
 | 1 | TestBasicProtocol | 2 | – | portal answers, `ok` present |
 | 2 | TestSoftAPManagement | 9 | – | the Pi's own AP lifecycle |
@@ -40,12 +40,12 @@ its own questions.
 | 19 | TestApiSurface | 8 | ✓ (most) | be flashable and readable |
 | 20 | TestFlashEndpoint | 4 | ✓ | accept a flash at declared offsets |
 
-**Totals:** 103 tests. Roughly 60 need a DUT present; **21 need it to *do*
+**Totals:** 103 tests. Roughly 60 need the partner present; **21 need it to *do*
 something** (rows 3, 4, 5, 10, 13, 14, 18).
 
 ## The S3's role and task, test by test
 
-The bench and the DUT are a **pair**, and the pairing runs in both
+The bench and the partner are a **pair**, and the pairing runs in both
 directions. Half these tests put the bench on one side of a radio link and
 the S3 on the other; which of the two is the access point changes per test,
 and getting that backwards makes the whole table unreadable.
@@ -82,17 +82,17 @@ of that name, WPA2 when the passphrase is at least eight characters and
 **refused outright** when it is shorter: an open AP under a name the caller
 believes is protected would let a WPA2 test pass having proved nothing. The
 request is cleared by the next `wifi` command, so provisioning over serial —
-which every fixture already does to recover a DUT — puts the board back to
+which every fixture already does to recover the partner — puts the board back to
 being a station with no second command anyone could forget to send.
 
 | Test | The S3's task |
 |---|---|
-| `WT-401` join_wpa2_network | beacon `WT-DUT-AP` with WPA2-PSK, accept the association, hand out a `192.168.4.x` lease |
+| `WT-401` join_wpa2_network | beacon `WT-PARTNER-AP` with WPA2-PSK, accept the association, hand out a `192.168.4.x` lease |
 | `WT-402` join_wrong_password | **refuse** an association offering the wrong passphrase, while still beaconing — a join that fails because nothing is on the air is WT-403 |
 | `WT-404` leave_sta | hold the association long enough for the bench to leave it deliberately |
 | `WT-405` softap_stops_during_sta | be there to be joined, so the bench's own AP can be observed going down as it becomes a station |
 
-`WT-403` needs the opposite — an SSID nobody beacons — and so needs no DUT.
+`WT-403` needs the opposite — an SSID nobody beacons — and so needs no partner.
 
 These four read an SSID and passphrase out of the environment until August
 2026 and skipped without them, which meant the station path went unproven on
@@ -111,7 +111,7 @@ radio.
 | `WT-505` large_response | return a JSON body that survives the relay and still parses |
 
 `WT-503`/`WT-504` need the opposite: an address where nothing answers. They
-need no DUT at all.
+need no partner at all.
 
 ### Portal host — the S3 is the AP, the bench fills in its form (4)
 
@@ -125,7 +125,7 @@ The provisioning journey, one gate per test. This is where the bench is the
 | `WT-2103` reboots and joins — **success 1** | come back in station mode and join the network it was handed |
 | `WT-2104` publishes — **success 2** | reach the MQTT broker it was given and publish |
 
-It was one test asserting the DUT had an address on the bench AP, which it
+It was one test asserting the partner had an address on the bench AP, which it
 called "provisioned through its portal". It was not: the fixture behind it
 provisions over the serial console first and falls back to the portal only
 if that fails, so the portal usually never ran — a test named after a
@@ -174,7 +174,7 @@ and the silicon provide; 16 need the radio in one direction or the other;
 | HTTP server on `:8080` (`/status`, `/ota`, `/wifi-reset`) | row 5 | built |
 | Heartbeat on serial, every 10 s | rows 14, 15 | built |
 | **Serial console** — `ping`, `status`, `scan`, `info`, `mark`, `wifi`, `testap`, `forget`, `reboot` | row 18, and provisioning without the radio | built |
-| **`scan`** — the DUT's own view of the air | telling a deaf receiver from a silent AP | built |
+| **`scan`** — the partner's own view of the air | telling a deaf receiver from a silent AP | built |
 | **`testap`** — a WPA2 AP of a given name, on request | row 4: the bench cannot be the AP its own station tests join | built |
 | Built-in USB-JTAG (a property of the part, not the firmware) | rows 11, 12, 13 | inherent |
 | **MQTT client** — publishes to the broker the portal was given | WT-2104 | built |
@@ -196,10 +196,10 @@ different kinds of false skip:
 
 | Was skipped because | Now |
 |---|---|
-| `WIFI_TEST_STA_SSID` / `WIFI_TEST_HTTP_URL` unset (5 tests) | the DUT hosts the network, so there is nothing to configure |
+| `WIFI_TEST_STA_SSID` / `WIFI_TEST_HTTP_URL` unset (5 tests) | the partner hosts the network, so there is nothing to configure |
 | WT-602 asked something one radio cannot answer | asks the answerable form: an SSID off the air is gone from the next scan |
 | a second ESP32-C3 was assumed | the tests follow whichever part is present |
-| the suite destroyed its own DUT and never restored it | reflashed at session start and after the flash tests |
+| the suite destroyed its own partner and never restored it | reflashed at session start and after the flash tests |
 
 Two earlier skips remain latent rather than fixed: `TestPerSlotDebugIsolation`
 genuinely needs two built-in-JTAG boards, and passes only while a second one
@@ -207,11 +207,11 @@ is in the bench. That skip is honest when it happens.
 
 **Repeatability had to be fixed before any of this meant anything.** One run
 passed 74/74 and the next collapsed to 51 passes and 15 failures, on the
-same bench, cables and commit. WT-1800 flashes a throwaway image over the bench DUT
+same bench, cables and commit. WT-1800 flashes a throwaway image over the partner
 to prove flashing works, and nothing put the real one back; the board sat
 printing `LOOP: n` and every later test that needed it to *answer* reported
 absent hardware. A defined bench (FR-036) is only half a defined starting
-state. The suite now restores its own DUT at session start and after the flash
+state. The suite now restores the partner at session start and after the flash
 tests.
 
 ## Two gaps this list makes visible
@@ -223,12 +223,12 @@ untestable. A second native-USB part — any of C3/S3/C6/H2, ideally a
 different type — is the cheapest coverage on this page.
 
 **BLE has no tests.** The firmware advertises and the bench can scan, but no
-test asserts on it. That is a gap in the suite, not in the DUT.
+test asserts on it. That is a gap in the suite, not in the partner.
 
 ## Why serial console before anything else
 
 Everything above depends on provisioning, and provisioning depended on the
-radio: credentials arrived only through the DUT's own captive portal. When
+radio: credentials arrived only through the partner's own captive portal. When
 an S3 stopped transmitting there was no way in at all — and, worse, no way
 to tell *the AP is broken* from *the AP is fine and the Pi cannot hear it*.
 The console is a wire. It answers that question directly and it provisions

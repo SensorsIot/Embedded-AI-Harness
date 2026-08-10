@@ -1,4 +1,4 @@
-# Builds the bench's own DUT firmware.
+# Builds the bench's own test partner firmware.
 #
 # Thirteen bench tests need a device that joins the bench AP, answers HTTP and
 # echoes on serial. Until this workflow existed, the suite borrowed whatever
@@ -10,7 +10,7 @@
 # So the bench owns this image, builds it here, and flashes it itself. The
 # artifact is the contract: same bytes every run, for every target the bench
 # might have in a free slot.
-name: bench DUT firmware
+name: test partner firmware
 
 on:
   push:
@@ -64,6 +64,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bench-dut-${{ matrix.target }}
+          name: test-partner-${{ matrix.target }}
           path: fw-${{ matrix.target }}/
           if-no-files-found: error
