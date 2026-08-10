@@ -228,6 +228,69 @@ def _slot_key_to_usb_device(slot_key: str) -> str | None:
     return f"{bus_num}-{port_path}"
 
 
+def _usb_device_from_devnode(devnode: str) -> str | None:
+    """'/dev/ttyACM2' → '1-1.3', by asking the kernel where the node lives.
+
+    DEVPATH ends '.../usb1/1-1/1-1.3/1-1.3:1.0/tty/ttyACM2'; the USB *device*
+    is the last path element without an interface suffix.
+    """
+    if not devnode:
+        return None
+    try:
+        out = subprocess.check_output(
+            ["udevadm", "info", "-q", "path", "-n", devnode],
+            text=True, timeout=5).strip()
+    except Exception:
+        return None
+    for part in reversed(out.split("/")):
+        # '1-1.3' yes; '1-1.3:1.0' is an interface; 'usb1', 'tty' neither
+        if re.fullmatch(r"\d+-[\d.]+", part):
+            return part
+    return None
+
+
+def _devnode_from_usb_device(usb_device: str, timeout: float = 15.0) -> str | None:
+    """'1-1.3' → '/dev/ttyACM0', waiting for the kernel to recreate the node.
+
+    A rebind is a re-enumeration, and the kernel hands out the next free
+    ttyACM number rather than the one the device had before: SLOT2 left as
+    ttyACM2 and came back as ttyACM0. Waiting on the recorded path therefore
+    reported "no devnode after rebind" for a device that was present and
+    healthy under a different name — the recovery check inventing its own
+    failure. Ask sysfs which tty belongs to this USB device instead.
+    """
+    import glob
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for path in glob.glob(f"/sys/bus/usb/devices/{usb_device}:*/tty/*"):
+            name = os.path.basename(path)
+            node = f"/dev/{name}"
+            if os.path.exists(node):
+                return node
+        time.sleep(0.5)
+    return None
+
+
+def _usb_device_for_slot(slot: dict) -> str | None:
+    """The USB device to unbind/rebind for *slot*, however the slot was made.
+
+    `slot_key` is a udev ID_PATH only for slots pinned in the config file. On
+    an auto-detected bench — which the manual calls the normal case, "slots
+    are auto-detected, no config file needed" — the key is a synthetic
+    `_fixed_SLOT2` with no USB path in it at all, so parsing it returned None
+    and every recovery aborted at its first guard with "cannot determine USB
+    device from slot_key". The whole flap-recovery feature was therefore
+    inoperative on the default configuration, while the endpoint went on
+    answering `ok: true`.
+
+    The devnode knows the answer, so ask it when the key cannot say.
+    """
+    usb_device = _slot_key_to_usb_device(slot.get("slot_key") or "")
+    if usb_device:
+        return usb_device
+    return _usb_device_from_devnode(slot.get("devnode") or "")
+
+
 def _usb_unbind(usb_device: str) -> bool:
     """Unbind a USB device from its driver to stop enumeration storms."""
     path = "/sys/bus/usb/drivers/usb/unbind"
@@ -2170,7 +2233,7 @@ def _start_flap_recovery(slot: dict):
             stop_proxy(slot)
 
     # Unbind USB at kernel level — event storm stops immediately
-    usb_device = _slot_key_to_usb_device(slot["slot_key"])
+    usb_device = _usb_device_for_slot(slot)
     if usb_device:
         _usb_unbind(usb_device)
         log_activity(f"{label}: USB unbound — flap storm stopped", "ok")
@@ -2192,6 +2255,38 @@ def _start_flap_recovery(slot: dict):
             daemon=True, name=f"recover-nogpio-{label}",
         )
     t.start()
+
+
+def _download_mode_reached(devnode: str, timeout_s: float = 25.0) -> tuple:
+    """Is the device actually in download mode? Returns (ok, detail).
+
+    Asks the only question that matters to the caller: can a flasher talk to
+    it. `--before no-reset` is deliberate — resetting here would be the check
+    creating the condition it is supposed to observe, and a board that only
+    reaches download mode because esptool toggled DTR/RTS is a board whose
+    GPIO recovery did nothing.
+
+    A failure is not proof the wiring is absent — a dead board looks the same
+    from here — so the detail says what was seen and lets the caller judge.
+    """
+    if not devnode or not os.path.exists(devnode):
+        return False, f"no devnode ({devnode or 'unknown'}) after rebind"
+    try:
+        proc = subprocess.run(
+            ESPTOOL + ["--port", devnode, "--before", "no-reset",
+                       "--after", "no-reset", "--connect-attempts", "1",
+                       "chip-id"],
+            capture_output=True, text=True, timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "esptool timed out talking to the device"
+    except Exception as exc:
+        return False, f"could not run esptool: {exc}"
+
+    out = ((proc.stdout or "") + (proc.stderr or "")).strip()
+    if proc.returncode == 0:
+        return True, out[-300:]
+    return False, out[-300:] or f"esptool exited {proc.returncode}"
 
 
 def _recover_with_gpio(slot: dict, usb_device: str):
@@ -2237,13 +2332,48 @@ def _recover_with_gpio(slot: dict, usb_device: str):
 
     slot["_recovering"] = False
     slot["flapping"] = False
-    slot["_recover_retries"] = 0
-    slot["state"] = STATE_DOWNLOAD_MODE
-    slot["last_error"] = None
-    log_activity(
-        f"{label}: device in download mode — flash firmware, then POST /api/serial/release",
-        "ok",
-    )
+
+    # Ask the device, do not assume. Driving BOOT low and pulsing EN is an
+    # act, not an outcome: `has_gpio` means pins are *configured* — the portal
+    # fills in defaults 18/17 — and no amount of configuration tells the bench
+    # whether wires exist. On a board with nothing connected this drove two
+    # pins into thin air, declared download_mode, and left a caller to
+    # discover the truth from esptool failing on a port that reads healthy.
+    # Re-resolve rather than trust the recorded path: a rebind re-enumerates
+    # and the kernel picks the next free ttyACM number, so the slot's devnode
+    # is stale by definition here.
+    devnode = _devnode_from_usb_device(usb_device) or slot.get("devnode") or ""
+    if devnode and devnode != slot.get("devnode"):
+        log_activity(f"{label}: devnode moved to {devnode} after rebind", "info")
+        slot["devnode"] = devnode
+    ok, detail = _download_mode_reached(devnode)
+    if ok:
+        slot["_recover_retries"] = 0
+        slot["state"] = STATE_DOWNLOAD_MODE
+        slot["last_error"] = None
+        log_activity(
+            f"{label}: download mode confirmed — flash firmware, then "
+            f"POST /api/serial/release", "ok")
+    else:
+        # Put the pins back. Holding BOOT low is only useful to a caller who
+        # is about to flash, and there is no such caller when the device
+        # never reached download mode — leaving it asserted stops the board
+        # booting at all, turning a failed rescue into a worse state than the
+        # one it was called for.
+        try:
+            _release_slot_gpio(slot)
+        except Exception as exc:
+            log_activity(f"{label}: could not release GPIO after failed "
+                         f"recovery: {exc}", "error")
+        slot["state"] = STATE_FLAPPING
+        slot["last_error"] = (
+            f"GPIO recovery did not reach download mode: {detail}. "
+            f"Either BOOT (GPIO{gpio_boot}) and EN"
+            f"{f' (GPIO{gpio_en})' if gpio_en is not None else ''} are not "
+            f"wired to this board, or it is unresponsive. Re-flash over USB "
+            f"or check the wiring."
+        )
+        log_activity(f"{label}: {slot['last_error']}", "error")
 
 
 def _recover_without_gpio(slot: dict, usb_device: str):
@@ -2293,8 +2423,11 @@ def _release_slot_gpio(slot: dict) -> dict:
     if gpio_boot is None:
         return {"ok": False, "error": f"{label}: no gpio_boot configured"}
 
-    if slot["state"] != STATE_DOWNLOAD_MODE:
-        return {"ok": False, "error": f"{label}: not in download_mode (state={slot['state']})"}
+    # Deliberately not gated on state. Putting BOOT back to high-Z is
+    # cleanup, and refusing it because the slot is not in download_mode
+    # strands exactly the board that needs it most: a recovery that held BOOT
+    # low and then failed leaves the pin asserted, and this was the only call
+    # that lifts it. A release from an unexpected state is at worst a no-op.
 
     # Release BOOT pin → high-Z (input with pull-up)
     try:
@@ -3371,12 +3504,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not slot:
             self._send_json({"ok": False, "error": f"slot '{slot_label}' not found"})
             return
+        # Pre-flight: recovery unbinds and rebinds a USB device, so if we
+        # cannot name that device there is nothing to attempt. Refusing here
+        # is the difference between "we tried and it did not work" and "we
+        # never tried" — the endpoint used to report the second as the first.
+        if not _usb_device_for_slot(slot):
+            self._send_json({
+                "ok": False,
+                "error": (f"cannot determine the USB device for {slot_label} "
+                          f"(slot_key={slot.get('slot_key')!r}, "
+                          f"devnode={slot.get('devnode')!r}) — nothing to "
+                          f"unbind, so recovery cannot start"),
+            })
+            return
+
         # Reset retry counter for fresh attempt
         slot["_recover_retries"] = 0
         slot["flapping"] = True
         log_activity(f"serial.recover({slot_label}) — manual recovery triggered", "step")
         _start_flap_recovery(slot)
-        self._send_json({"ok": True, "message": f"recovery started for {slot_label}"})
+        # `ok` here means the attempt was launched, not that it worked — the
+        # cycle takes a cooldown plus a probe and cannot be answered inside
+        # this request. Say so, and name where the answer appears, so a
+        # caller does not read this as "the device is now flashable".
+        self._send_json({
+            "ok": True,
+            "started": True,
+            "message": (f"recovery started for {slot_label} — this reports "
+                        f"the attempt, not the outcome"),
+            "outcome_at": "GET /api/devices",
+            "outcome_field": ("state becomes 'download_mode' on success, or "
+                              "'flapping' with last_error explaining why not"),
+        })
 
     def _handle_serial_release(self):
         """POST /api/serial/release {"slot": "SLOT1"} — release GPIO after flashing."""

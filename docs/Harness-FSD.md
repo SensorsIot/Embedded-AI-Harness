@@ -4095,3 +4095,26 @@ somebody's wiring forgotten. `install.sh` also sets the hostname and fixes
 remote that shipped in `pi/config/rtl_433.conf` is now a commented worked
 example, and the portal-form and OTA-target examples name `device.local` and
 `Device-Setup` rather than one project's board.
+
+---
+
+### 2026-08-10 — flap recovery, which had never run on a default bench
+
+`/api/serial/recover` reported `ok: true` and did nothing on any bench whose
+slots are auto-detected — which the manual calls the normal case. The USB
+device to unbind was parsed out of `slot_key`, and that key is a udev
+`ID_PATH` only for slots pinned in a config file; auto-detected slots carry a
+synthetic `_fixed_SLOT2`, so the parse returned `None` and recovery aborted at
+its first guard.
+
+- the USB device is now resolved from the slot's devnode when the key cannot
+  name it (`_usb_device_for_slot`)
+- the endpoint refuses up front when neither can name it, instead of
+  reporting a start it did not perform
+- GPIO recovery **probes** the device with esptool (`--before no-reset`, so
+  the check cannot create the condition it observes) instead of asserting
+  `download_mode`; the devnode is re-resolved from sysfs first, because a
+  rebind re-enumerates and the kernel hands out a different `ttyACM` number
+- a failed attempt releases BOOT instead of leaving the board unable to boot
+- `/api/serial/release` is no longer gated on `download_mode`: lifting a pin
+  is cleanup, and refusing it stranded the board that most needed it
