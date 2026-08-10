@@ -1,4 +1,4 @@
-"""Pytest fixtures for the Embedded Workbench (HTTP-only, Pi backend).
+"""Pytest fixtures for the testbench (HTTP-only, Pi backend).
 
 Usage:
     pytest workbench_test.py --wt-url http://<pi-ip>:8080
@@ -10,14 +10,16 @@ import uuid
 
 import pytest
 
-from workbench_driver import WorkbenchDriver
+from workbench_driver import TestbenchDriver
 
 
 def pytest_addoption(parser):
     parser.addoption(
         "--wt-url",
-        default=os.environ.get("WORKBENCH_URL", "http://localhost:8080"),
-        help="Portal URL for the Embedded Workbench Pi",
+        default=(os.environ.get("TESTBENCH_URL")
+                 or os.environ.get("WORKBENCH_URL")   # what it was called
+                 or "http://localhost:8080"),
+        help="Portal URL for the Embedded Testbench Pi",
     )
     parser.addoption(
         "--run-dut",
@@ -60,8 +62,18 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest.fixture(scope="session")
-def workbench(request):
-    """Session-scoped connection to the Embedded Workbench.
+def workbench(testbench):
+    """The old name for `testbench`, so existing tests keep running.
+
+    Same object, not a second connection — a fixture that opened its own
+    driver would run a second bench reset partway through a session.
+    """
+    return testbench
+
+
+@pytest.fixture(scope="session")
+def testbench(request):
+    """Session-scoped connection to the Embedded Testbench.
 
     The run begins with a bench reset (FR-036), which is what that endpoint
     was built for and what nothing was calling. Skipping it is not a
@@ -75,7 +87,7 @@ def workbench(request):
     from an unknown state is exactly what this prevents.
     """
     url = request.config.getoption("--wt-url")
-    driver = WorkbenchDriver(url)
+    driver = TestbenchDriver(url)
     driver.open()
     driver.ping()
     r = driver.bench_reset()
@@ -96,14 +108,14 @@ def workbench(request):
 
 
 @pytest.fixture
-def wifi_network(workbench):
+def wifi_network(testbench):
     """Start a fresh AP for this test, stop on teardown."""
     ssid = f"WT-{uuid.uuid4().hex[:6].upper()}"
     password = "testpass123"
-    workbench.drain_events()
-    workbench.ap_start(ssid, password)
+    testbench.drain_events()
+    testbench.ap_start(ssid, password)
     yield {"ssid": ssid, "password": password, "ap_ip": "192.168.4.1"}
-    workbench.ap_stop()
+    testbench.ap_stop()
 
 
 # The bench's own test partner — the firmware in test-firmware/, built by CI.
@@ -115,17 +127,17 @@ TEST_PARTNER_HTTP_PORT = 8080           # its own server, not the portal's
 TEST_PARTNER_IMAGE_ENV = "WT_TEST_PARTNER_IMAGE"
 
 
-def _dut_answers(workbench, slot, timeout=6.0) -> bool:
+def _dut_answers(testbench, slot, timeout=6.0) -> bool:
     """Does this slot's device answer the test partner console?"""
     try:
         since = time.time()
-        workbench.serial_write(slot, text="ping")
+        testbench.serial_write(slot, text="ping")
     except Exception:
         return False
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            out = workbench.serial_output(slot, lines=200, since=since)
+            out = testbench.serial_output(slot, lines=200, since=since)
         except Exception:
             return False
         if any("OK pong" in ln.get("text", "")
@@ -152,7 +164,7 @@ def _flash_args_offsets(image_dir):
     return parts
 
 
-def ensure_test_partner_firmware(workbench):
+def ensure_test_partner_firmware(testbench):
     """Put the bench's own test partner back to the image the suite assumes.
 
     A run has to begin from a defined bench *and* a defined partner. FR-036
@@ -168,9 +180,9 @@ def ensure_test_partner_firmware(workbench):
     already report an unmet precondition naming what to flash.
     """
     image_dir = os.environ.get(TEST_PARTNER_IMAGE_ENV)
-    slots = [d for d in workbench.get_devices() if d.get("present")]
+    slots = [d for d in testbench.get_devices() if d.get("present")]
     for dev in slots:
-        if _dut_answers(workbench, dev["label"]):
+        if _dut_answers(testbench, dev["label"]):
             return None                     # already the image we want
     if not image_dir or not os.path.isdir(image_dir):
         return None                         # nothing to restore from
@@ -188,14 +200,14 @@ def ensure_test_partner_firmware(workbench):
             continue
         try:
             images = dict(_flash_args_offsets(image_dir))
-            r = workbench.flash(dev["label"], images, chip=chip)
+            r = testbench.flash(dev["label"], images, chip=chip)
             if not r.get("ok"):
                 return (f"could not restore {dev['label']}: "
                         f"{r.get('error') or r}")
         except Exception as exc:
             return f"could not restore {dev['label']}: {exc}"
         time.sleep(10)
-        if _dut_answers(workbench, dev["label"], timeout=15):
+        if _dut_answers(testbench, dev["label"], timeout=15):
             return f"restored test partner firmware on {dev['label']}"
         return (f"flashed {dev['label']} from {image_dir} but it does not "
                 f"answer the console")
@@ -203,7 +215,7 @@ def ensure_test_partner_firmware(workbench):
 
 
 @pytest.fixture(scope="session")
-def _test_partner_session(workbench):
+def _test_partner_session(testbench):
     """Provision the test partner onto a fresh AP, once per run.
 
     Provisioning costs a reboot and half a minute, and every test that
@@ -212,47 +224,47 @@ def _test_partner_session(workbench):
     fresh per session, so a pass still shows the partner used what it was just
     given rather than something cached.
 
-    The device is the bench's own — never a project's board. A workbench
+    The device is the bench's own — never a project's board. A testbench
     test that asserts on project firmware goes red when that project ships,
     which is the dependency backwards.
     """
     ssid = f"WT-{uuid.uuid4().hex[:6].upper()}"
     password = "testpass123"
-    workbench.drain_events()
-    workbench.ap_start(ssid, password, internet=True)
+    testbench.drain_events()
+    testbench.ap_start(ssid, password, internet=True)
 
-    station = _wait_for_any_station(workbench, timeout=20)
+    station = _wait_for_any_station(testbench, timeout=20)
 
-    if not station and _provision_over_serial(workbench, ssid, password):
+    if not station and _provision_over_serial(testbench, ssid, password):
         # The wire first. Credentials used to arrive only through the partner's
         # own captive portal, which means every station and HTTP test
         # depended on the portal working — so a portal defect failed nine
         # tests that are not about provisioning at all, and a radio that
         # would not transmit failed all of them with no way in. The portal
         # path is still exercised, deliberately, by WT-2100.
-        station = _wait_for_any_station(workbench, timeout=90)
+        station = _wait_for_any_station(testbench, timeout=90)
 
     if not station:
         # Neither joined nor reachable over the wire: either unprovisioned,
         # or holding a previous run's SSID. Its portal is the way in — the
         # firmware clears stale credentials and returns to the portal by
         # itself.
-        if not _portal_is_up(workbench):
-            _ap_stop_quietly(workbench)
+        if not _portal_is_up(testbench):
+            _ap_stop_quietly(testbench)
             pytest.skip(
                 f"precondition unmet: no test partner. Nothing joined the AP "
                 f"and no '{TEST_PARTNER_PORTAL}' portal is on the air. Flash "
                 f"test-firmware/ to a free slot (CI publishes it as "
                 f"test-partner-<target>)."
             )
-        workbench.provision_wifimanager(
+        testbench.provision_wifimanager(
             TEST_PARTNER_PORTAL, ssid, password,
             save_path="/connect", field_ssid="ssid",
             field_password="password", internet=True)
-        station = _wait_for_any_station(workbench, timeout=120)
+        station = _wait_for_any_station(testbench, timeout=120)
 
     if not station:
-        _ap_stop_quietly(workbench)
+        _ap_stop_quietly(testbench)
         pytest.skip(
             "precondition unmet: the test partner was provisioned but never "
             f"joined '{ssid}'"
@@ -263,11 +275,11 @@ def _test_partner_session(workbench):
         "mac": station["mac"], "ip": station["ip"],
         "url": f"http://{station['ip']}:{TEST_PARTNER_HTTP_PORT}",
     }
-    _ap_stop_quietly(workbench)
+    _ap_stop_quietly(testbench)
 
 
 @pytest.fixture
-def test_partner(workbench, _test_partner_session):
+def test_partner(testbench, _test_partner_session):
     """The provisioned test partner, confirmed reachable for *this* test.
 
     The provisioning is session-scoped; the AP is not, and must not be
@@ -281,19 +293,19 @@ def test_partner(workbench, _test_partner_session):
     credentials, so raising the same AP again brings it back by itself.
     """
     d = _test_partner_session
-    status = workbench.ap_status()
+    status = testbench.ap_status()
     if not (status.get("active") and status.get("ssid") == d["ssid"]):
-        workbench.ap_start(d["ssid"], d["password"], internet=True)
+        testbench.ap_start(d["ssid"], d["password"], internet=True)
 
-    station = _wait_for_any_station(workbench, timeout=60)
+    station = _wait_for_any_station(testbench, timeout=60)
     if not station:
         # It may have forgotten the network rather than merely lost it:
         # WT-301 proves the disconnect event by asking the partner to erase its
         # credentials, which is the correct way to cause a disconnect and
         # leaves the next test with a partner that cannot rejoin anything. Hand
         # them back over the wire — it costs a reboot, not a re-flash.
-        if _provision_over_serial(workbench, d["ssid"], d["password"]):
-            station = _wait_for_any_station(workbench, timeout=90)
+        if _provision_over_serial(testbench, d["ssid"], d["password"]):
+            station = _wait_for_any_station(testbench, timeout=90)
     if not station:
         pytest.skip(
             f"precondition unmet: the test partner did not rejoin '{d['ssid']}'"
@@ -309,7 +321,7 @@ def test_partner(workbench, _test_partner_session):
     deadline = time.time() + 90
     while time.time() < deadline:
         try:
-            if workbench.wifi_http(f"{url}/status",
+            if testbench.wifi_http(f"{url}/status",
                                    timeout=5).get("status") == 200:
                 break
         except Exception:
@@ -322,7 +334,7 @@ def test_partner(workbench, _test_partner_session):
     return {**d, "mac": station["mac"], "ip": station["ip"], "url": url}
 
 
-def _ap_stop_quietly(workbench):
+def _ap_stop_quietly(testbench):
     """Bring the AP down without letting the attempt become the verdict.
 
     ap_stop reconfigures hostapd and dnsmasq and can exceed the driver's
@@ -331,13 +343,13 @@ def _ap_stop_quietly(workbench):
     next test then meets a radio nobody finished putting away.
     """
     try:
-        workbench.ap_stop()
+        testbench.ap_stop()
     except Exception:
         pass
 
 
 @pytest.fixture(scope="session")
-def present_slot(workbench):
+def present_slot(testbench):
     """A slot that currently holds a device, with its proxy running.
 
     Discovered, not written down. Two classes named SLOT3 as a constant —
@@ -346,7 +358,7 @@ def present_slot(workbench):
     broken proxy rather than an empty slot. Which slot is populated is a
     property of the bench today, not of the test.
     """
-    for dev in workbench.get_devices():
+    for dev in testbench.get_devices():
         if dev.get("present") and dev.get("running"):
             return dev["label"]
     pytest.skip("precondition unmet: no slot holds a device with a running "
@@ -354,7 +366,7 @@ def present_slot(workbench):
 
 
 @pytest.fixture(scope="session")
-def console_dut(workbench):
+def console_dut(testbench):
     """A slot whose device answers the test partner console (`ping` → `OK pong`).
 
     Found by asking, not configured: the board moves between slots and a
@@ -368,7 +380,7 @@ def console_dut(workbench):
     is the FR-030 proof skipping itself for the wrong reason.
     """
     for _ in range(4):
-        slot = _find_console_slot(workbench)
+        slot = _find_console_slot(testbench)
         if slot:
             return slot
         time.sleep(8)
@@ -378,10 +390,10 @@ def console_dut(workbench):
     )
 
 
-def _find_console_slot(workbench):
+def _find_console_slot(testbench):
     """One pass over the present slots, asking each whether it answers."""
     import threading
-    for dev in workbench.get_devices():
+    for dev in testbench.get_devices():
         if not dev.get("present"):
             continue
         slot = dev["label"]
@@ -389,7 +401,7 @@ def _find_console_slot(workbench):
 
         def watch():
             try:
-                result["r"] = workbench.serial_monitor(
+                result["r"] = testbench.serial_monitor(
                     slot, pattern="OK pong", timeout=8)
             except Exception:
                 result["r"] = {}
@@ -398,7 +410,7 @@ def _find_console_slot(workbench):
         th.start()
         time.sleep(1.0)
         try:
-            workbench.serial_write(slot, text="ping\n")
+            testbench.serial_write(slot, text="ping\n")
         except Exception:
             pass
         th.join()
@@ -407,23 +419,23 @@ def _find_console_slot(workbench):
     return None
 
 
-def _provision_over_serial(workbench, ssid: str, password: str) -> bool:
+def _provision_over_serial(testbench, ssid: str, password: str) -> bool:
     """Hand the bench's credentials to whichever slot answers the console.
 
     Returns True if a device acknowledged. The device reboots itself into
     STA mode afterwards, so the caller still has to wait for the join —
     an acknowledgement is not an association.
     """
-    for dev in workbench.get_devices():
+    for dev in testbench.get_devices():
         if not dev.get("present"):
             continue
         slot = dev["label"]
         try:
             since = time.time()
-            workbench.serial_write(slot, text=f"wifi {ssid} {password}")
+            testbench.serial_write(slot, text=f"wifi {ssid} {password}")
             deadline = time.time() + 6
             while time.time() < deadline:
-                out = workbench.serial_output(slot, lines=200, since=since)
+                out = testbench.serial_output(slot, lines=200, since=since)
                 if any("OK wifi stored" in ln.get("text", "")
                        for ln in out.get("lines", [])):
                     return True
@@ -433,7 +445,7 @@ def _provision_over_serial(workbench, ssid: str, password: str) -> bool:
     return False
 
 
-def _wait_for_any_station(workbench, timeout: float):
+def _wait_for_any_station(testbench, timeout: float):
     """Poll for a station on the bench AP. Returns it, or None on timeout.
 
     A failed poll is not an answer. The radio is still settling into AP mode
@@ -446,7 +458,7 @@ def _wait_for_any_station(workbench, timeout: float):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            stations = workbench.ap_status().get("stations") or []
+            stations = testbench.ap_status().get("stations") or []
         except Exception:
             stations = []
         if stations and stations[0].get("ip"):
@@ -455,14 +467,14 @@ def _wait_for_any_station(workbench, timeout: float):
     return None
 
 
-def _portal_is_up(workbench) -> bool:
+def _portal_is_up(testbench) -> bool:
     """Is the partner advertising its provisioning portal?
 
     Scanning needs the radio, which the AP is using, so this is best-effort:
     a scan that cannot run is not evidence the portal is absent.
     """
     try:
-        nets = workbench.scan().get("networks", [])
+        nets = testbench.scan().get("networks", [])
     except Exception:
         return True          # cannot tell — let provisioning try and fail loudly
     return any(n["ssid"] == TEST_PARTNER_PORTAL for n in nets)

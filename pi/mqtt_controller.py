@@ -2,7 +2,7 @@
 MQTT Controller — manages a mosquitto broker for ESP32 MQTT client testing.
 
 Used by the portal to start/stop a local MQTT broker accessible to devices
-on the workbench WiFi AP.
+on the testbench WiFi AP.
 """
 
 import logging

@@ -103,7 +103,7 @@ if [ "$UPDATE_ONLY" = false ]; then
     echo "Telling NetworkManager to leave $WLAN_IF to the portal..."
     mkdir -p /etc/NetworkManager/conf.d
     cat > /etc/NetworkManager/conf.d/99-workbench.conf <<NMCONF
-# Installed by the Embedded Workbench. The portal owns this radio: it runs
+# Installed by the testbench. The portal owns this radio: it runs
 # hostapd on it for the test AP and its own wpa_supplicant for station mode.
 [keyfile]
 unmanaged-devices=interface-name:$WLAN_IF
@@ -182,7 +182,7 @@ else
 fi
 
 # rtl_433 flex-decoder database (auto-loaded from /etc/rtl_433/rtl_433.conf):
-# devices reverse-engineered on the workbench (e.g. Euromot Awning remote).
+# devices reverse-engineered on the testbench (e.g. Euromot Awning remote).
 echo "Installing rtl_433 device database..."
 mkdir -p /etc/rtl_433
 cp "$SCRIPT_DIR/config/rtl_433.conf" /etc/rtl_433/rtl_433.conf

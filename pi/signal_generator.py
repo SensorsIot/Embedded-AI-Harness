@@ -1,4 +1,4 @@
-"""Unified signal generator for the Embedded Workbench.
+"""Unified signal generator for the testbench.
 
 Consolidates three carrier sources behind one API:
 

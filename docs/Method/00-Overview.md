@@ -9,7 +9,7 @@ changed. Entry point for any task: **[`AI-Workflow.md`](AI-Workflow.md)**.
 |------|----------|
 | [`AI-Workflow.md`](AI-Workflow.md) | The loop every change follows. Read it before touching code. |
 | [`standards/`](standards/) | Portable rules — [engineering](standards/engineering.md), [testing](standards/testing.md), [documentation](standards/documentation.md). Reusable on any project. |
-| [`project/`](project/) | Workbench-specific bindings — [architecture](project/architecture.md), [conventions](project/conventions.md). |
+| [`project/`](project/) | Testbench-specific bindings — [architecture](project/architecture.md), [conventions](project/conventions.md). |
 
 ## The three planes
 

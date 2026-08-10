@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""MCP server for the Embedded AI Harness workbench — zero dependencies.
+"""MCP server for the Embedded AI Harness testbench — zero dependencies.
 
-Exposes the workbench HTTP API (http://<host>:8080/api/...) as MCP tools, so any
+Exposes the testbench HTTP API (http://<host>:8080/api/...) as MCP tools, so any
 MCP client (Claude Code, Claude Desktop, ...) can drive the bench — SDR, signal
 generator, flashing, OTA, serial, WiFi/provisioning, MQTT, BLE, GPIO, debug.
 
@@ -10,7 +10,7 @@ with the Python standard library only (stdio JSON-RPC + urllib), so it runs on a
 Python 3 with no `pip install` — which is what lets it ship as a one-file .mcpb
 Desktop extension.
 
-Run (stdio):  WORKBENCH_URL=http://workbench.local:8080 python3 workbench_mcp.py
+Run (stdio):  TESTBENCH_URL=http://workbench.local:8080 python3 workbench_mcp.py
 """
 import json
 import os
@@ -19,7 +19,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = os.environ.get("WORKBENCH_URL", "http://workbench.local:8080").rstrip("/")
+# Both spellings: TESTBENCH_URL is the name, WORKBENCH_URL is what every
+# installed client already has in its config.
+BASE = (os.environ.get("TESTBENCH_URL")
+        or os.environ.get("WORKBENCH_URL")
+        or "http://workbench.local:8080").rstrip("/")
 
 S_INT = {"type": "integer"}
 S_NUM = {"type": "number"}
@@ -36,10 +40,10 @@ def p(**props):
 # /api/hotplug and /api/wifi/lease_event are deliberately absent: they are udev
 # callbacks fired on the Pi itself, not client-callable operations.
 SPECS = [
-    dict(name="workbench_devices", method="GET", path="/api/devices",
+    dict(name="testbench_devices", method="GET", path="/api/devices",
          desc="List USB slots and connected devices (topology, ports, chip, state)."),
-    dict(name="workbench_info", method="GET", path="/api/info", desc="Workbench host/system info."),
-    dict(name="workbench_log", method="GET", path="/api/log", desc="Recent activity-log entries."),
+    dict(name="testbench_info", method="GET", path="/api/info", desc="Testbench host/system info."),
+    dict(name="testbench_log", method="GET", path="/api/log", desc="Recent activity-log entries."),
 
     dict(name="flash", method="UPLOAD", path="/api/flash",
          desc="Flash a board on a USB slot via local-Pi esptool (classic ESP32 behind "
@@ -159,7 +163,7 @@ SPECS = [
               "`timeout` s to wait for the next event; 0 returns immediately.",
          props=p(timeout=dict(**S_NUM, default=0)), timeout=90),
     dict(name="enter_portal", method="POST", path="/api/enter-portal",
-         desc="Provision a captive-portal DUT onto the workbench AP (WiFiManager: pass "
+         desc="Provision a captive-portal DUT onto the testbench AP (WiFiManager: pass "
               "portal_ssid, ssid, password, save_path=/wifisave, field_ssid=s, field_password=p, "
               "method=POST, internet=true, extra={host,port}); or trigger the portal with {slot,resets}.",
          props=p(portal_ssid=S_STR, ssid=S_STR, password=S_STR, save_path=S_STR, field_ssid=S_STR,
@@ -305,7 +309,7 @@ def _handle(req):
     if m == "initialize":
         pv = (req.get("params") or {}).get("protocolVersion") or "2025-06-18"
         return {"protocolVersion": pv, "capabilities": {"tools": {}},
-                "serverInfo": {"name": "universal-embedded-workbench", "version": "1.0.0"}}
+                "serverInfo": {"name": "universal-embedded-testbench", "version": "1.0.0"}}
     if m == "tools/list":
         return {"tools": _tool_defs()}
     if m == "tools/call":

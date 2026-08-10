@@ -1,10 +1,10 @@
 {
   "manifest_version": "0.2",
   "name": "embedded-ai-harness-workbench",
-  "display_name": "Embedded AI Harness Workbench",
+  "display_name": "Embedded AI Harness Testbench",
   "version": "1.1.0",
-  "description": "Drive the Embedded AI Harness workbench (Raspberry Pi ESP32 test bench) from Claude: SDR, signal generator, flashing, OTA, serial, WiFi/provisioning, MQTT, BLE, GPIO, GDB debug.",
-  "long_description": "Exposes the workbench HTTP API as MCP tools so Claude can operate the bench conversationally. Zero Python dependencies (standard library only) — you only need Python 3 on this machine and network reach to the workbench. Set the workbench URL when you install.",
+  "description": "Drive the Embedded AI Harness testbench (Raspberry Pi ESP32 test bench) from Claude: SDR, signal generator, flashing, OTA, serial, WiFi/provisioning, MQTT, BLE, GPIO, GDB debug.",
+  "long_description": "Exposes the testbench HTTP API as MCP tools so Claude can operate the bench conversationally. Zero Python dependencies (standard library only) — you only need Python 3 on this machine and network reach to the testbench. Set the testbench URL when you install.",
   "author": {
     "name": "SensorsIot",
     "url": "https://github.com/SensorsIot/Embedded-AI-Harness"
@@ -27,8 +27,8 @@
   "user_config": {
     "workbench_url": {
       "type": "string",
-      "title": "Workbench URL",
-      "description": "Base URL of your workbench, e.g. http://workbench.local:8080 (or http://workbench.local:8080). Find it in the workbench portal.",
+      "title": "Testbench URL",
+      "description": "Base URL of your testbench, e.g. http://workbench.local:8080 (or http://workbench.local:8080). Find it in the testbench portal.",
       "default": "http://workbench.local:8080",
       "required": true
     }

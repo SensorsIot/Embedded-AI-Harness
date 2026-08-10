@@ -1,6 +1,6 @@
 # The Harness — User Manual
 
-How to build, wire, and operate the Harness workbench: a Raspberry Pi that turns
+How to build, wire, and operate the Harness testbench: a Raspberry Pi that turns
 into a complete remote test instrument for ESP32 devices — serial, debug, WiFi,
 BLE, GPIO, MQTT, RF signal generation, and SDR receive — all over one HTTP API.
 
@@ -82,7 +82,11 @@ new phantom on a model not yet listed.
 Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In the imager
 settings:
 
-- **Hostname:** `workbench` (this is what makes `workbench.local` resolve)
+- **Hostname:** `workbench` — still the old spelling, and deliberately: it is
+  what makes `workbench.local` resolve, and every project pointing at this
+  bench uses that name. The machine is a *testbench* everywhere it is
+  described; renaming the host is a separate change that has to happen on the
+  Pi and in those projects at the same moment.
 - **Enable SSH:** yes (password or key auth)
 - **Username:** `pi`
 - **WiFi:** configure your network (country code as needed)
@@ -91,8 +95,8 @@ settings:
 ### 2.2 First boot — system hardening
 
 These changes prevent the OOM crash cycle that kills Pi Zero 2 W boards (512 MB).
-**Do this before installing the workbench.** On a Pi 3/4/5 with 1 GB or more you
-can skip to [2.3](#23-install-the-workbench).
+**Do this before installing the testbench.** On a Pi 3/4/5 with 1 GB or more you
+can skip to [2.3](#23-install-the-testbench).
 
 ```bash
 ssh pi@workbench.local
@@ -136,7 +140,7 @@ vcgencmd get_mem gpu          # should show gpu=16M
 free -h                       # should show ~480 MB total + swap
 ```
 
-### 2.3 Install the workbench
+### 2.3 Install the testbench
 
 ```bash
 git clone https://github.com/SensorsIot/Embedded-AI-Harness.git
@@ -275,7 +279,7 @@ dedicated to WiFi testing. They never overlap.
 | 17 | Hardware reset (active LOW) | EN / RST |
 | 18 | Boot mode select (active LOW) | GPIO0 (ESP32) / GPIO9 (C3) |
 
-Without GPIO the workbench still provides serial and debug for every plugged-in
+Without GPIO the testbench still provides serial and debug for every plugged-in
 device; GPIO only adds automated download-mode entry and flap recovery.
 
 ---
@@ -447,7 +451,7 @@ Add `-F erase=1` to erase the whole flash first.
 
 For a board already **deployed on the LAN**, off the USB slots, that your client
 can't reach directly — for example a NAT'd container that can't accept
-ArduinoOTA's reverse connection — the workbench relays the push. (A host already
+ArduinoOTA's reverse connection — the testbench relays the push. (A host already
 on the LAN can OTA the board directly and doesn't need this.)
 
 ```bash
@@ -457,7 +461,7 @@ curl -X POST http://workbench.local:8080/api/ota \
 
 ### 5.4 After flashing
 
-The workbench detects the USB re-enumeration and brings serial and debug back up
+The testbench detects the USB re-enumeration and brings serial and debug back up
 automatically. If a slot is left in `download_mode`, release it:
 
 ```bash
@@ -469,7 +473,7 @@ curl -X POST http://workbench.local:8080/api/serial/release \
 
 ## 6. GDB / JTAG debugging
 
-OpenOCD starts **automatically** on plug-in. The workbench detects the chip and
+OpenOCD starts **automatically** on plug-in. The testbench detects the chip and
 publishes the GDB port in `/api/devices`. Serial and JTAG coexist on the same USB
 connection.
 
@@ -899,7 +903,7 @@ pytest workbench_test.py --wt-url http://workbench.local:8080
 pytest workbench_test.py --wt-url http://workbench.local:8080 --run-dut
 ```
 
-`--wt-url` defaults to `$WORKBENCH_URL`, then `http://localhost:8080`. Tests
+`--wt-url` defaults to `$TESTBENCH_URL`, then `http://localhost:8080`. Tests
 marked `requires_dut` are skipped unless you pass `--run-dut`.
 
 The suite covers basic protocol, SoftAP management, station events, STA mode,
@@ -956,14 +960,14 @@ Claude Code loads skills at session start, so restart your session after copying
 
 | Skill | Covers |
 |-------|--------|
-| `esp-idf-handling` · `esp-pio-handling` | Build / flash / monitor lifecycle, local USB or workbench |
+| `esp-idf-handling` · `esp-pio-handling` | Build / flash / monitor lifecycle, local USB or testbench |
 | `workbench-logging` | Serial monitor with pattern matching, UDP logs, crash analysis |
 | `workbench-wifi` | AP/STA, scan, HTTP relay, captive-portal provisioning |
 | `workbench-ble` · `workbench-mqtt` | BLE scan/connect/write · broker lifecycle and pub/sub |
 | `workbench-debug` | GDB/JTAG: USB JTAG, dual-USB, ESP-Prog |
 | `signal-generator` · `sdr-receiver` | RF transmit · RF receive, decode, reverse-engineering |
 | `workbench-test-handling` | The test execution protocol, live progress, operator prompts, `WorkbenchDriver` |
-| `workbench-integration` | Add workbench support to an existing ESP32 project |
+| `workbench-integration` | Add testbench support to an existing ESP32 project |
 | `define` | Phase 0 — the FSD: requirements, verification contracts, state models, the three planes |
 | `harness` | Phase 1 — one-time project setup: planes, plan, capabilities, CI, runner |
 | `commission` | Phase 2 — prove the testbench; burn down the debugging agenda |
@@ -980,12 +984,12 @@ maps 1:1 to an endpoint from a single `SPECS` table. It is **pure Python standar
 library — no `pip install`** — so it runs anywhere Python 3 does.
 
 The server runs on the machine running the MCP client (your laptop), **not** on
-the Pi. It just needs network reach to the bench, pointed by `WORKBENCH_URL`.
+the Pi. It just needs network reach to the bench, pointed by `TESTBENCH_URL`.
 
 **Claude Desktop, one click.** Download
 [`mcp/embedded-ai-harness-workbench.mcpb`](../mcp/embedded-ai-harness-workbench.mcpb),
 then in Claude Desktop go to **Settings → Extensions** and drag the file onto the
-window. When prompted, enter your workbench URL — e.g.
+window. When prompted, enter your testbench URL — e.g.
 `http://workbench.local:8080`, or `http://workbench.local:8080` if mDNS resolves.
 You need Python 3 on the machine (macOS has it; on Windows install from
 python.org and tick **Add Python to PATH**).
@@ -999,14 +1003,14 @@ URL — no reinstall. To update, install a newer `.mcpb` over the old one.
 **Claude Code.**
 
 ```bash
-claude mcp add workbench \
-  --env WORKBENCH_URL=http://workbench.local:8080 \
+claude mcp add testbench \
+  --env TESTBENCH_URL=http://workbench.local:8080 \
   -- python3 /abs/path/to/Embedded-AI-Harness/mcp/workbench_mcp.py
 
-claude mcp list      # look for: workbench … ✔ Connected
+claude mcp list      # look for: testbench … ✔ Connected
 ```
 
-Use an **absolute** path. Tools surface as `mcp__workbench__<name>`.
+Use an **absolute** path. Tools surface as `mcp__testbench__<name>`.
 
 **Claude Desktop, manual config.** **Settings → Developer → Edit Config** opens
 `claude_desktop_config.json` (macOS `~/Library/Application Support/Claude/`,
@@ -1015,10 +1019,10 @@ Windows `%APPDATA%\Claude\`, Linux `~/.config/Claude/`). Merge in:
 ```json
 {
   "mcpServers": {
-    "workbench": {
+    "testbench": {
       "command": "python3",
       "args": ["/abs/path/to/Embedded-AI-Harness/mcp/workbench_mcp.py"],
-      "env": { "WORKBENCH_URL": "http://workbench.local:8080" }
+      "env": { "TESTBENCH_URL": "http://workbench.local:8080" }
     }
   }
 }
@@ -1034,7 +1038,7 @@ npx @anthropic-ai/mcpb pack . embedded-ai-harness-workbench.mcpb
 npx @anthropic-ai/mcpb validate manifest.json
 ```
 
-**Tools by group** — discovery (`workbench_devices/info/log`), flashing (`flash`,
+**Tools by group** — discovery (`testbench_devices/info/log`), flashing (`flash`,
 `ota`, `firmware_list/upload/delete`), serial (`serial_reset/monitor/output/
 recover/release`), logs (`udplog_get/clear`), sdr (`sdr_status/capture/analyze/
 power/acquire`, `sdr_live_*`, `sdr_log_*`, `sdr_reset/stop`), siggen
@@ -1056,7 +1060,7 @@ Full tool reference:
 
 ## 16. Validating the bench
 
-`test-firmware/` holds a generic ESP-IDF firmware that exercises the workbench
+`test-firmware/` holds a generic ESP-IDF firmware that exercises the testbench
 infrastructure without any project-specific logic. Use it to confirm the bench
 still works after changing the portal or the skills.
 
@@ -1086,7 +1090,7 @@ esptool --port 'rfc2217://workbench.local:4001?ign_set_control' \
         --chip esp32s3 --baud 460800 write_flash @flash_args
 ```
 
-Or just use the `esp-idf-handling` skill, which picks the workbench or local USB
+Or just use the `esp-idf-handling` skill, which picks the testbench or local USB
 automatically.
 
 ### 16.2 What the firmware exercises
@@ -1096,7 +1100,7 @@ automatically.
 | `udp_log.c` | UDP log forwarding to `workbench.local:5555` |
 | `wifi_prov.c` | SoftAP captive portal (`WB-Test-Setup`), STA mode with stored creds |
 | `ble_nus.c` | BLE advertisement as `WB-Test`, NUS service |
-| `ota_update.c` | HTTP OTA from the workbench firmware server |
+| `ota_update.c` | HTTP OTA from the testbench firmware server |
 | `http_server.c` | `/status`, `/ota`, `/wifi-reset` endpoints |
 | `nvs_store.c` | WiFi credential persistence in NVS (`wb_test` namespace) |
 | `mqtt_pub.c` | Publishes to the broker the portal was given, or to its own gateway |
@@ -1131,7 +1135,7 @@ the board to being a station without a second step.
 | `esp-idf-handling` (OTA) | Upload binary, trigger OTA via HTTP `/ota` | Serial shows `"OTA succeeded"`, device reboots with new firmware |
 | `esp-pio-handling` | Build and upload the same firmware from PlatformIO | Upload completes over RFC2217; firmware boots |
 | `workbench-logging` | Serial monitor; check UDP logs | Serial shows boot output; `GET /api/udplog` returns heartbeat lines |
-| `workbench-wifi` | Run `enter-portal` with the device in AP mode | Serial shows `"STA got IP"`; device joins the workbench network |
+| `workbench-wifi` | Run `enter-portal` with the device in AP mode | Serial shows `"STA got IP"`; device joins the testbench network |
 | `workbench-ble` | Scan for `WB-Test`, connect, discover services | Scan finds it; NUS UUID appears in characteristics |
 | `workbench-mqtt` | Start broker, verify DUT can reach `192.168.4.1:1883` | (Firmware doesn't use MQTT; test broker start/stop independently) |
 | `workbench-debug` | Start a debug session on a JTAG-capable slot | `/api/debug/status` reports running; GDB attaches on 3333 |
@@ -1194,14 +1198,14 @@ curl -s -X POST http://workbench.local:8080/api/serial/reset \
      -H 'Content-Type: application/json' -d '{"slot":"<SLOT>","lines":80}'
 ```
 
-Expect: `"=== Workbench Test Firmware v0.1.0 ==="`, `"NVS initialized"`,
+Expect: `"=== Testbench Test Firmware v0.1.0 ==="`, `"NVS initialized"`,
 `"UDP logging -> workbench.local:5555"`,
 `"No WiFi credentials, starting AP provisioning"`,
 `"AP mode: SSID='WB-Test-Setup'"`, `"BLE NUS initialized"`,
 `"Init complete, running event-driven"`.
 
 **3. WiFi provisioning.** With the device in AP mode, run `enter-portal` with
-`portal_ssid: WB-Test-Setup` and the workbench AP's SSID/password. Serial should
+`portal_ssid: WB-Test-Setup` and the testbench AP's SSID/password. Serial should
 show `"Credentials saved, rebooting"`, `"STA mode, connecting to '<ssid>'"`,
 `"STA got IP"`.
 
@@ -1229,7 +1233,7 @@ even when the slot isn't flapping, resetting the retry counter. Expect
 
 ### 16.4 Extending the walkthrough
 
-When you change a workbench skill, add a row to the matrix in
+When you change a testbench skill, add a row to the matrix in
 [16.2](#162-what-the-firmware-exercises) if it isn't covered, add a step here if
 it needs a new sequence, then flash the test firmware and re-run the affected
 steps.
@@ -1287,7 +1291,7 @@ curl 'http://workbench.local:8080/api/log'      # portal activity log
 ## 18. Security
 
 The API and RFC2217 have **no authentication** — anyone who can reach the ports
-can drive the bench, flash firmware, and read serial output. Keep the workbench
+can drive the bench, flash firmware, and read serial output. Keep the testbench
 on a trusted network.
 
 For remote access, tunnel over SSH rather than exposing the ports:

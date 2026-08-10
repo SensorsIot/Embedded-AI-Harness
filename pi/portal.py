@@ -4562,7 +4562,7 @@ _UI_HTML = """\
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RFC2217 Embedded Workbench</title>
+    <title>RFC2217 testbench</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html { height: 100%; }
@@ -4801,7 +4801,7 @@ _UI_HTML = """\
     </style>
 </head>
 <body>
-    <h1 id="title">RFC2217 Embedded Workbench</h1>
+    <h1 id="title">RFC2217 testbench</h1>
     <div class="subtitle" id="subtitle"></div>
     <div class="main-content">
     <div class="slots" id="slots"></div>
@@ -4948,8 +4948,8 @@ async function fetchDevices() {
         hostName = data.hostname || '';
         hostIp = data.host_ip || '';
         if (hostName) {
-            document.getElementById('title').textContent = 'Embedded Workbench';
-            document.title = 'Embedded Workbench';
+            document.getElementById('title').textContent = 'testbench';
+            document.title = 'testbench';
         }
         // Show GPIO config in subtitle (Pi-level, not per-slot)
         const gpioSlot = data.slots.find(s => s.has_gpio);

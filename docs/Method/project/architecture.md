@@ -1,6 +1,6 @@
 # Project — Architecture and source layout
 
-How the workbench code is structured. The FSD's §2.4 states the layering as
+How the testbench code is structured. The FSD's §2.4 states the layering as
 behaviour; this file states the rules the source obeys.
 
 ## Layers

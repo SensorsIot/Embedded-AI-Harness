@@ -33,11 +33,11 @@ duplicates them.
 
 ### 1.1 Purpose
 
-The workbench is the physical subsystem of the **Harness** — the instrument
+The testbench is the physical subsystem of the **Harness** — the instrument
 through which **AI Closed-Loop Programming** reaches real hardware. In AICLP
 the AI develops a product's firmware in a closed loop: code, build, flash,
 verify against tests derived from the product's FSD, correct — exiting only
-when the tests run clean. The workbench is the loop's hands and eyes: it
+when the tests run clean. The testbench is the loop's hands and eyes: it
 flashes the DUT, resets it, watches its serial and UDP output, surrounds it
 with WiFi, MQTT, BLE and RF peers, and reports every observation over one
 HTTP API.
@@ -55,7 +55,7 @@ including prohibited outcomes, and the standard end-to-end run green.
 The instrument itself: a combined serial interface and WiFi test instrument on
 a single Raspberry Pi.  The serial interface exposes USB serial devices to
 network clients via RFC2217 protocol with event-driven hotplug and slot-based
-port assignment.  The WiFi workbench uses the Pi's onboard wlan0 radio as a
+port assignment.  The WiFi testbench uses the Pi's onboard wlan0 radio as a
 test instrument — starting SoftAP, joining networks, scanning, relaying HTTP,
 and reporting station events — all controlled over the same HTTP API.
 
@@ -69,7 +69,7 @@ and reporting station events — all controlled over the same HTTP API.
        │                                               │
        ▼                                               ▼
 ┌─────────────────────────┐              ┌─────────────────────────────────┐
-│  Workbench              │              │  VM Host (192.168.0.160)        │
+│  Testbench              │              │  VM Host (192.168.0.160)        │
 │  workbench.local        │              │                                 │
 │                         │              │  ┌─────────────────────┐        │
 │  ┌───────────┐          │              │  │ Container A         │        │
@@ -83,7 +83,7 @@ and reporting station events — all controlled over the same HTTP API.
 │  └───────────┘          │              └─────────────────────────────────┘
 │                         │
 │  ┌───────────────────┐  │
-│  │ WiFi Workbench    │  │
+│  │ WiFi Testbench    │  │
 │  │ wlan0 (onboard)   │  │
 │  │  AP: 192.168.4.1  │  │
 │  │  STA / Scan       │  │
@@ -124,18 +124,18 @@ and reporting station events — all controlled over the same HTTP API.
 
 The system operates in one of two modes at any time:
 
-| Mode | Default | eth0 | wlan0 | Serial | WiFi Workbench |
+| Mode | Default | eth0 | wlan0 | Serial | WiFi Testbench |
 |------|---------|------|-------|--------|-------------|
 | **WiFi-Testing** | Yes | LAN (management + serial) | Test instrument (AP/STA/scan) | Active | Active |
 | **Serial Interface** | No | LAN (management + serial) | Joins WiFi for additional LAN | Active | Disabled |
 
 - **WiFi-Testing** (default): eth0 provides wired LAN connectivity.  wlan0 is
   dedicated to the WiFi test instrument — it can start a SoftAP, join external
-  networks, scan, and relay HTTP.  Both serial slots and WiFi workbench are active.
+  networks, scan, and relay HTTP.  Both serial slots and WiFi testbench are active.
 
 - **Serial Interface**: wlan0 joins a user-specified WiFi network to provide
   wireless LAN connectivity (useful when no wired Ethernet is available).
-  Serial slots remain active.  WiFi workbench endpoints return an error.
+  Serial slots remain active.  WiFi testbench endpoints return an error.
 
 Mode is switched via `POST /api/wifi/mode` or the web UI toggle.
 
@@ -154,7 +154,7 @@ Mode is switched via `POST /api/wifi/mode` or the web UI toggle.
 | workbench.json | /etc/rfc2217/workbench.json | Hardware config (GPIO pins, debug probes) — optional |
 | workbench_driver.py | pytest/ | HTTP test driver for the WiFi instrument |
 | conftest.py | pytest/ | Pytest fixtures and CLI options |
-| workbench_test.py | pytest/ | Workbench self-tests |
+| workbench_test.py | pytest/ | Testbench self-tests |
 | signal_generator.py | /usr/local/bin/signal_generator.py | Unified RF source — Si5351 + PE4302 attenuator, GPCLK fallback, Morse keyer |
 | si5351.py | /usr/local/bin/si5351.py | Si5351A I²C clock-generator driver |
 | pe4302.py | /usr/local/bin/pe4302.py | PE4302 3-wire serial step-attenuator driver |
@@ -1266,8 +1266,8 @@ Writes through the proxy, which owns the device. Control lines are driven low
 **Open gap — the bench owns no responder.** The first row is the only one
 that proves a byte left the bench, and it needs something on the far end that
 answers. The bench has nothing of its own, so the test borrowed a project's
-simulator; when that project reflashed it, a workbench test went red for a
-reason that had nothing to do with the workbench — the law of §"no project
+simulator; when that project reflashed it, a testbench test went red for a
+reason that had nothing to do with the testbench — the law of §"no project
 tests the testbench", inverted. Until the bench can answer for itself — a
 loopback slot, or entering ROM download mode on demand and observing the
 SYNC reply, which is silicon behaviour no firmware can remove — the responder
@@ -1336,7 +1336,7 @@ known-good bench-DUT image at session start and after its flash tests.
 
 ### FR-010 — API Summary
 
-Complete API for both Serial and WiFi services.  WiFi workbench endpoints (all
+Complete API for both Serial and WiFi services.  WiFi testbench endpoints (all
 except `/api/wifi/mode` and `/api/wifi/ping`) return `{"ok": false, "error":
 "WiFi testing disabled (Serial Interface mode)"}` when the system is in
 serial-interface mode.
@@ -1409,14 +1409,14 @@ serial-interface mode.
 | POST | /api/mqtt/stop | Stop the broker (FR-029) |
 | **Composite** | | |
 | GET | /api/log | Activity log (timestamped entries, filterable with `?since=`) |
-| POST | /api/enter-portal | Ensure device is connected to workbench AP — provision via captive portal if needed |
+| POST | /api/enter-portal | Ensure device is connected to testbench AP — provision via captive portal if needed |
 
 #### Enter-Portal Composite Operation
 
 `POST /api/enter-portal` provisions a DUT that is showing a captive portal.
-The workbench joins the DUT's portal SoftAP, submits the credentials of the
-AP the workbench will then offer, disconnects, and raises that AP so the DUT
-reboots and connects to it. The DUT ends up on the workbench's WiFi network.
+The testbench joins the DUT's portal SoftAP, submits the credentials of the
+AP the testbench will then offer, disconnects, and raises that AP so the DUT
+reboots and connects to it. The DUT ends up on the testbench's WiFi network.
 
 The portal form contract is parameterized so different DUT firmwares are
 supported. The defaults target the WiFi-Tester DUT (`POST /connect` with
@@ -1435,21 +1435,21 @@ its extra portal fields (MQTT host/port/user/pass) via `extra`.
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `portal_ssid` | Yes | — | The DUT's captive-portal SoftAP name |
-| `ssid` | Yes | — | Workbench AP SSID (submitted to the portal, then started) |
-| `password` | Yes | — | Workbench AP password |
+| `ssid` | Yes | — | Testbench AP SSID (submitted to the portal, then started) |
+| `password` | Yes | — | Testbench AP password |
 | `save_path` | No | `/connect` | Portal form endpoint (WiFiManager: `/wifisave`) |
 | `field_ssid` | No | `ssid` | Form field name for the SSID (WiFiManager: `s`) |
 | `field_password` | No | `password` | Form field name for the password (WiFiManager: `p`) |
 | `method` | No | `POST` | Form submit method (`GET` or `POST`) |
 | `extra` | No | — | Additional form fields, e.g. MQTT `host`/`port`/`user`/`pass` |
-| `internet` | No | `false` | Start the workbench AP NAT-bridged to `eth0` (FR-011) so the DUT reaches the LAN/internet |
+| `internet` | No | `false` | Start the testbench AP NAT-bridged to `eth0` (FR-011) so the DUT reaches the LAN/internet |
 
 **Procedure:**
 1. Join the DUT's captive-portal SoftAP (`portal_ssid`)
 2. Submit `{field_ssid: ssid, field_password: password, **extra}` to
    `http://<portal_ip><save_path>` using `method`
 3. Disconnect from the DUT's SoftAP
-4. Start the workbench AP (`ssid`/`password`); with `internet: true` the AP is
+4. Start the testbench AP (`ssid`/`password`); with `internet: true` the AP is
    NAT-bridged to the LAN. The DUT reboots and connects to it.
 
 Each step is logged to the activity log (`GET /api/log?since=<ts>`).
@@ -1464,9 +1464,9 @@ of a WiFiManager DUT onto a NAT-bridged AP, verifying it reaches the LAN:
 1. DUT is unprovisioned and broadcasting its portal SoftAP (`portal_ssid`).
 2. `POST /api/mqtt/start` — bring up the broker on the Pi's LAN address.
 3. `POST /api/enter-portal` with the WiFiManager form params and
-   `internet: true`, submitting the workbench AP creds and an `extra` MQTT
+   `internet: true`, submitting the testbench AP creds and an `extra` MQTT
    `host` set to the Pi's LAN IP (`192.168.0.x`).
-4. The workbench joins the portal, submits `/wifisave` (HTTP 200), disconnects,
+4. The testbench joins the portal, submits `/wifisave` (HTTP 200), disconnects,
    and raises the NAT AP. The DUT reboots and connects.
 5. **WT-2101** — `GET /api/wifi/ap_status` shows the DUT as a station with a
    `192.168.4.x` lease; `POST /api/wifi/http` relay to the DUT's status
@@ -1532,7 +1532,7 @@ a WPA2 AP of a known name — the `testap` console command in `test-firmware/`
 beaconing, rather than being indistinguishable from WT-403's "nothing there".
 
 A project consuming this bench inherits the requirement as verified and owes
-nothing here; the obligation falls on whatever DUT firmware the *workbench's*
+nothing here; the obligation falls on whatever DUT firmware the *testbench's*
 own suite runs, alongside the FR-036 obligation above.
 
 ### FR-013 — WiFi Scan
@@ -1584,7 +1584,7 @@ WiFi side of the network:
 - Mode switch failure (e.g., can't join WiFi) reverts to `wifi-testing`
 - `GET /api/wifi/mode` returns `{mode}` (and `ssid`, `ip` when in
   serial-interface mode)
-- While in serial-interface mode, workbench endpoints (`ap_start`, `ap_stop`,
+- While in serial-interface mode, testbench endpoints (`ap_start`, `ap_stop`,
   `sta_join`, `sta_leave`, `scan`, `http`) return a guard error
 
 ## 5. Device Control & Test Support
@@ -1894,12 +1894,12 @@ wt.firmware_delete("ios-keyboard", "ios-keyboard.bin")
 
 **End-to-end OTA workflow:**
 
-The workbench supports a complete remote OTA workflow for ESP32 devices
+The testbench supports a complete remote OTA workflow for ESP32 devices
 connected to its WiFi AP.  The HTTP relay (`POST /api/wifi/http`) bridges
 the LAN and WiFi AP networks, allowing OTA to be triggered from any
 client on the LAN.
 
-1. **Upload firmware** to the workbench's OTA repository:
+1. **Upload firmware** to the testbench's OTA repository:
    ```
    POST /api/firmware/upload  (multipart: project=ios-keyboard, file=ios-keyboard.bin)
    ```
@@ -1918,12 +1918,12 @@ client on the LAN.
    GET /api/udplog?source=192.168.4.15
    ```
    The ESP32 logs OTA progress (download bytes, partition writes, reboot)
-   which the workbench captures on UDP port 5555.
+   which the testbench captures on UDP port 5555.
 
 **Prerequisites for the ESP32 device:**
-- Connected to the workbench's WiFi AP (via `POST /api/enter-portal` or manual provisioning)
+- Connected to the testbench's WiFi AP (via `POST /api/enter-portal` or manual provisioning)
 - HTTP server running with a `POST /ota` trigger endpoint
-- OTA URL configured to point at the workbench's firmware repository
+- OTA URL configured to point at the testbench's firmware repository
 
 **Implementation notes:**
 - Path traversal protection: reject `..` in both project and filename
@@ -2097,7 +2097,7 @@ wt.ble_disconnect()
 
 An on-demand mosquitto broker for testing DUT MQTT clients, backed by
 `mqtt_controller.py`. The broker is open (anonymous, no auth) and listens on
-all interfaces at port 1883, so it is reachable both from the workbench AP
+all interfaces at port 1883, so it is reachable both from the testbench AP
 (`192.168.4.1:1883`) and from the Pi's LAN address (`192.168.0.x:1883`) — a
 DUT on a NAT-bridged AP (FR-011) reaching the LAN address exercises the full
 provisioned network path.
@@ -2561,7 +2561,7 @@ Same as FR-024 §24.7, except:
 The application USB port (SLOT*n*-APP) appears as whatever USB device class
 the DUT firmware implements.  Common cases:
 
-| DUT USB Class | Linux Device | Workbench Use |
+| DUT USB Class | Linux Device | Testbench Use |
 |---------------|-------------|---------------|
 | CDC-ACM (serial) | `/dev/ttyACM*` | Second RFC2217 proxy (data channel) |
 | HID (keyboard/mouse) | `/dev/hidraw*` | Capture HID reports |
@@ -3074,7 +3074,7 @@ a custom flex decoder; **classify** then checks the built-in decoders. The
 `tools/sdr_acquire.py` CLI drives these phases interactively with live operator
 prompts — the operator, not a remote caller, times the transmissions. `acquire`
 also streams each phase prompt into the portal activity log as it runs (START →
-carrier → gain → decoded → DONE), so an operator watching the workbench web UI
+carrier → gain → decoded → DONE), so an operator watching the testbench web UI
 sees the live instructions without a terminal.
 
 **Live console.** The **SDR Console** panel on the portal page wraps a
@@ -3103,7 +3103,7 @@ marks while the operator presses several keys; `GET /api/sdr/log` returns the
 recorded lines. The intended workflow is *log → press keys → stop → AI reverse-
 engineers the timing*: an AI reads the recorded bursts and derives the
 modulation/encoding, the constant preamble/device-ID, and the per-key varying
-field. In-session an assistant reads the log directly; a workbench-hosted
+field. In-session an assistant reads the log directly; a testbench-hosted
 Claude-API endpoint is the later productization. The recorded row is folded into
 the console's **AI Sherlock** toggle (analyze+AGC, record → stop & analyze).
 
@@ -3198,30 +3198,30 @@ files. Adding an API endpoint is one row in `SPECS`. The two udev callbacks
 (`/api/hotplug`, `/api/wifi/lease_event`) are deliberately not exposed — they are
 fired on the Pi itself, not client-callable.
 
-The server runs on the **client** machine (not the Pi) and reaches the workbench
-via the `WORKBENCH_URL` env var (default `http://<host>:8080`). It uses only the
+The server runs on the **client** machine (not the Pi) and reaches the testbench
+via the `TESTBENCH_URL` env var (default `http://<host>:8080`). It uses only the
 Python standard library (stdio JSON-RPC + `urllib`), so it needs **no dependency
 install** — only Python 3. It ships two ways, both covered in the
 [User Manual §15.2](Harness-User-Manual.md#152-mcp-server):
 
 - **`mcp/embedded-ai-harness-workbench.mcpb`** — a Claude Desktop extension (built
   from `mcp/manifest.json` + the server via `npx @anthropic-ai/mcpb pack`).
-  Installed by drag-and-drop; the `workbench_url` user-config field prompts for
-  `WORKBENCH_URL` at install.
+  Installed by drag-and-drop; the `testbench_url` user-config field prompts for
+  `TESTBENCH_URL` at install.
 - **manual registration** — `claude mcp add` (Claude Code) or a
   `claude_desktop_config.json` entry.
 
 **Verified with Claude Code:**
 
 ```bash
-claude mcp add workbench --env WORKBENCH_URL=http://<host>:8080 \
+claude mcp add testbench --env TESTBENCH_URL=http://<host>:8080 \
   -- python3 /abs/path/to/mcp/workbench_mcp.py
-claude mcp list      # → workbench … ✔ Connected
+claude mcp list      # → testbench … ✔ Connected
 ```
 
 The health check completes the MCP handshake and enumerates all 70 tools; live
-tool calls (`sdr_status`, `workbench_devices`, `mqtt_status`, …) return real
-bench data. Tools surface to the client as `mcp__workbench__<name>`.
+tool calls (`sdr_status`, `testbench_devices`, `mqtt_status`, …) return real
+bench data. Tools surface to the client as `mcp__testbench__<name>`.
 
 ---
 
@@ -3231,12 +3231,12 @@ The portal serves a single-page HTML UI at `GET /` (port 8080):
 
 - **Serial slot cards** — one card per configured slot showing label, status
   badge (RUNNING/PRESENT/EMPTY), devnode, PID, and copyable RFC2217 URL
-- **WiFi Workbench section** — mode toggle (WiFi-Testing / Serial Interface),
+- **WiFi Testbench section** — mode toggle (WiFi-Testing / Serial Interface),
   AP status (SSID, channel, station count), and mode-specific information
 - **Mode toggle** — clicking "Serial Interface" prompts for SSID/password;
   clicking "WiFi-Testing" switches back immediately
 - **Activity Log** — scrollable log panel showing timestamped entries for
-  hotplug events, WiFi workbench operations (sta_join, sta_leave, scan, HTTP
+  hotplug events, WiFi testbench operations (sta_join, sta_leave, scan, HTTP
   relay), and enter-portal sequence steps.  Entries are categorised (info,
   ok, error, step) with colour coding.  "Enter Captive Portal" button
   triggers `POST /api/enter-portal` to connect to a DUT's captive portal
@@ -3252,7 +3252,7 @@ The portal serves a single-page HTML UI at `GET /` (port 8080):
 - **Auto-refresh** — every 2 seconds via `setInterval`, fetches
   `/api/devices`, `/api/wifi/mode`, `/api/wifi/ap_status`, `/api/log`,
   `/api/human/status`, and `/api/test/progress`
-- **Title** — `RFC2217 Embedded Workbench`
+- **Title** — `RFC2217 Embedded Testbench`
 
 ---
 
@@ -3283,7 +3283,7 @@ The portal serves a single-page HTML UI at `GET /` (port 8080):
 ### 6.4 WiFi Mutual Exclusivity
 
 - AP and STA are mutually exclusive — starting one stops the other
-- Mode guard prevents workbench endpoints from running in serial-interface mode;
+- Mode guard prevents testbench endpoints from running in serial-interface mode;
   guarded endpoints return HTTP 200 with `{"ok": false, "error": "WiFi testing
   disabled (Serial Interface mode)"}`
 
@@ -3313,7 +3313,7 @@ two USB interfaces through a single cable:
 | USB-Serial/JTAG | Espressif `303a:1001` | Flashing (esptool), DTR/RTS reset | **JTAG slot** |
 | USB-to-UART bridge | e.g. CH340 `1a86:55d3`, CP2102 `10c4:ea60` | UART0 console output | **UART slot** |
 
-These boards occupy **two slots** in the workbench configuration because the hub
+These boards occupy **two slots** in the testbench configuration because the hub
 presents two independent `ttyACM` (or `ttyUSB`) devices with distinct `ID_PATH`
 values.  Both paths share a common hub parent — e.g. `usb-0:1.1.2:1.0` and
 `usb-0:1.1.4:1.0` both descend from the hub at `usb-0:1.1`.
@@ -3363,7 +3363,7 @@ reset and boot mode via DTR/RTS on the USB-Serial/JTAG interface, making
 external GPIO wiring unnecessary.  Single-USB boards **may or may not**
 have GPIO wires connected.
 
-The workbench can auto-detect whether a board responds to Pi GPIO control
+The testbench can auto-detect whether a board responds to Pi GPIO control
 using a two-step probe:
 
 #### Probe Algorithm
@@ -3437,7 +3437,7 @@ Step 2: Try USB DTR/RTS reset (fallback)
 | TC-007 | Boot persistence | Same slots get same ports after reboot |
 | TC-008 | Unknown slot | Portal logs "unknown slot_key", no crash |
 
-### 7.2 WiFi Workbench Tests
+### 7.2 WiFi Testbench Tests
 
 Tests are implemented in `pytest/workbench_test.py` and run via:
 ```
@@ -3551,7 +3551,7 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-2001 | MQTT broker status when stopped | MQTT Broker | No |
 | WT-2002 | MQTT broker start is idempotent | MQTT Broker | No |
 | WT-2100 | Captive-portal provisioning of a WiFiManager DUT | Captive Portal | Yes |
-| WT-2101 | Provisioned DUT joins the workbench AP (appears as station) | Captive Portal | Yes |
+| WT-2101 | Provisioned DUT joins the testbench AP (appears as station) | Captive Portal | Yes |
 | WT-2102 | NAT-bridged AP: DUT reaches the LAN broker (192.168.0.x MQTT) | Captive Portal | Yes |
 | WT-1400 | Debug start (USB JTAG) | Debug: USB JTAG | Yes |
 | WT-1401 | Debug stop restores serial | Debug: USB JTAG | Yes |
@@ -3601,16 +3601,16 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | 1.2 | 2026-02-05 | Claude | Testing complete for serial-based approach |
 | 2.0 | 2026-02-05 | Claude | Major rewrite: event-driven slot-based architecture |
 | 3.0 | 2026-02-05 | Claude | Portal v3: direct hotplug handling, in-memory seq + locking, systemd-run udev |
-| 4.0 | 2026-02-07 | Claude | WiFi Workbench integration: combined Serial + WiFi FSD, two operating modes, appendices for technical details |
+| 4.0 | 2026-02-07 | Claude | WiFi Testbench integration: combined Serial + WiFi FSD, two operating modes, appendices for technical details |
 | 5.0 | 2026-02-07 | Claude | ESP32-C3 native USB support: FR-006 (ttyACM handling, plain RFC2217 server, controlled boot sequence, USB reset types, flashing via SSH), FR-007 (USB flap detection), updated edge cases and device settle checks |
 | 5.1 | 2026-02-08 | Claude | plain_rfc2217_server for ALL devices (ttyACM and ttyUSB); esp_rfc2217_server deprecated; flashing via RFC2217 works for both chip types (no SSH needed); updated proxy selection, flashing docs, deliverables |
-| 5.3 | 2026-02-08 | Claude | Activity log system (`GET /api/log`, `POST /api/enter-portal` for captive portal trigger via rapid resets); WiFi workbench fixes (stale wpa_supplicant socket cleanup, `ctrl_interface=` in wpa_passphrase output, `dhcpcd` DHCP client support); activity logging for hotplug events and WiFi workbench operations; activity log UI panel with colour-coded entries |
+| 5.3 | 2026-02-08 | Claude | Activity log system (`GET /api/log`, `POST /api/enter-portal` for captive portal trigger via rapid resets); WiFi testbench fixes (stale wpa_supplicant socket cleanup, `ctrl_interface=` in wpa_passphrase output, `dhcpcd` DHCP client support); activity logging for hotplug events and WiFi testbench operations; activity log UI panel with colour-coded entries |
 | 5.2 | 2026-02-08 | Claude | Removed esp_rfc2217_server.py and serial_proxy.py (no longer installed); proxy auto-restart after esptool USB re-enumeration (background stop_proxy, BrokenPipeError fix, curl timeout 10s); FR-004 logging removed; updated deliverables |
 | 6.0 | 2026-02-08 | Claude | Service separation — Serial and WiFi as independent services with state models (§1.6); serial reset (FR-008) and serial monitor (FR-009) as first-class API operations; flapping recovery via active reset; WiFi section renamed to WiFi Service with states Idle/Captive/AP; enter-portal rewritten as composite serial operation; consolidated API table (FR-010) |
 | 6.1 | 2026-02-09 | Claude | Human interaction request (FR-017): blocking endpoint for test steps requiring physical operator actions; pulsing orange UI modal; ThreadingHTTPServer for concurrent requests; driver `human_interaction()` method; WT-700–703 test cases |
 | 6.2 | 2026-02-09 | Claude | GPIO control (FR-018): drive Pi GPIO pins from test scripts to control DUT hardware signals (e.g. hold GPIO 2 low during boot for captive portal trigger); pin allowlist, lazy gpiod init, release-to-input lifecycle; WT-800–806 test cases. Test progress tracking (FR-019): live test session updates pushed to web UI; WT-900–903 test cases |
 | 7.0 | 2026-02-25 | Claude | Three new services: UDP log receiver (FR-020) for ESP32 remote debug logs on port 5555; OTA firmware repository (FR-021) for serving .bin files to ESP32 OTA clients; BLE proxy (FR-022) for scan/connect/write to BLE peripherals via HTTP API using bleak. New deliverable: `ble_controller.py`. WT-1000–1207 test cases |
-| 7.1 | 2026-03-15 | Claude | Hostname renamed Serial1 → workbench; all references updated to workbench.local. UDP discovery beacon added to portal.py (port 5888) — containers can discover the workbench automatically. Skills consolidated from 14 → 9: merged flash skills into `esp-idf-handling` (auto-detects local vs workbench), PIO skills into `esp-pio-handling`, FSD + WiFi tests into `fsd-writer` with 9 test spec libraries (WiFi, captive portal, MQTT, BLE, OTA, USB HID, NVS, watchdog, logging). Removed `esp32-` prefix from workbench service skills. `fsd-writer` renamed from `esp32-fsd-writer` to be project-agnostic |
+| 7.1 | 2026-03-15 | Claude | Hostname renamed Serial1 → workbench; all references updated to workbench.local. UDP discovery beacon added to portal.py (port 5888) — containers can discover the bench automatically. Skills consolidated from 14 → 9: merged flash skills into `esp-idf-handling` (auto-detects local vs bench), PIO skills into `esp-pio-handling`, FSD + WiFi tests into `fsd-writer` with 9 test spec libraries (WiFi, captive portal, MQTT, BLE, OTA, USB HID, NVS, watchdog, logging). Removed `esp32-` prefix from bench service skills. `fsd-writer` renamed from `esp32-fsd-writer` to be project-agnostic |
 | 8.1 | 2026-03-28 | Claude | Auto-debug: OpenOCD starts automatically on hotplug/boot with chip auto-detection (C3/S3/C6/H2 via USB JTAG, classic ESP32 via ESP-Prog fallback). Debug status in /api/devices. Hotplug suppression during active debug. Zero-config: just plug in any ESP32. WT-1700–1709 test cases. TASK-160–166 |
 | 8.3 | 2026-03-28 | Claude | Auto-discovery: fully plug-and-play slot management. No slots.json needed — devices auto-assigned labels (AUTO-1, AUTO-2), TCP ports (4001+), GDB ports (3333+). Renamed slots.json to workbench.json (hardware config only). Remove hotplug events processed during debugging (unplug detection fix). End-to-end verified: plug→flash→debug with zero configuration |
 | 8.2 | 2026-03-28 | Claude | JTAG-based reset and recovery: `/api/serial/reset` auto-selects JTAG reset when debug session is active (no USB re-enumeration, no flapping risk). Flapping recovery via JTAG halt when available. Skills updated with JTAG reset documentation |
@@ -3812,7 +3812,7 @@ WantedBy=multi-user.target
 | DHCP_RANGE_START | `192.168.4.2` |
 | DHCP_RANGE_END | `192.168.4.20` |
 | DHCP_LEASE_TIME | `1h` |
-| WORK_DIR | `/tmp/wifi-workbench` |
+| WORK_DIR | `/tmp/wifi-testbench` |
 | VERSION | `1.0.0-pi` |
 
 ---
@@ -4022,7 +4022,7 @@ RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 `mcp/workbench_mcp.py` exposes this entire API as **70 MCP tools** (one per
 endpoint, from a single `SPECS` table) for MCP clients such as Claude Desktop and
 Claude Code. It is a thin **stdio proxy** that runs on the client machine and
-reaches the bench via `WORKBENCH_URL`: `GET` args become query params, `POST`/`DELETE`
+reaches the bench via `TESTBENCH_URL`: `GET` args become query params, `POST`/`DELETE`
 args a JSON body, and `flash`/`ota`/`firmware_upload` upload local files. Adding an
 endpoint above is one row in `SPECS`. The server is standard-library only (no
 `pip install`); it ships as a one-click Claude Desktop `.mcpb` extension
@@ -4057,4 +4057,4 @@ Verified with Claude Code
 
 **Renames:**
 - `test_instrument.py` → `workbench_test.py`
-- `WIFI_TESTER_URL` → `WORKBENCH_URL` environment variable
+- `WIFI_TESTER_URL` → `TESTBENCH_URL` environment variable

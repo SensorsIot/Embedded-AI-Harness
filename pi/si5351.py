@@ -10,7 +10,7 @@ Output-enable register is used for clean carrier keying (no glitches from
 reconfiguring the PLL).
 
 Registers per AN619.  This driver deliberately does not implement the full
-chip feature set — only what the workbench signal generator needs.
+chip feature set — only what the testbench signal generator needs.
 """
 
 from __future__ import annotations

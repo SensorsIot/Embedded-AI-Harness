@@ -34,18 +34,18 @@ DEBUG_TEST_DIR = os.path.join(
 class TestBasicProtocol:
     """WT-1xx: Basic protocol tests."""
 
-    def test_wt100_ping_response(self, workbench):
+    def test_wt100_ping_response(self, testbench):
         """WT-100: PING returns fw_version and uptime."""
-        resp = workbench.ping()
+        resp = testbench.ping()
         assert "fw_version" in resp
         assert "uptime" in resp
         assert isinstance(resp["uptime"], (int, float))
         assert resp["uptime"] >= 0
 
-    def test_wt104_command_while_busy(self, workbench):
+    def test_wt104_command_while_busy(self, testbench):
         """WT-104: Rapid commands don't crash the device."""
-        r1 = workbench.ping()
-        r2 = workbench.ping()
+        r1 = testbench.ping()
+        r2 = testbench.ping()
         assert "fw_version" in r1
         assert "fw_version" in r2
 
@@ -58,71 +58,71 @@ class TestBasicProtocol:
 class TestSoftAPManagement:
     """WT-2xx: SoftAP start/stop/status tests."""
 
-    def test_wt200_start_ap(self, workbench):
+    def test_wt200_start_ap(self, testbench):
         """WT-200: AP_START with valid SSID/pass returns OK with IP."""
-        resp = workbench.ap_start("WT-TEST-200", "password123")
+        resp = testbench.ap_start("WT-TEST-200", "password123")
         assert "ip" in resp
         assert resp["ip"].startswith("192.168.")
-        workbench.ap_stop()
+        testbench.ap_stop()
 
-    def test_wt201_start_open_ap(self, workbench):
+    def test_wt201_start_open_ap(self, testbench):
         """WT-201: AP_START with empty password creates open network."""
-        resp = workbench.ap_start("WT-OPEN-201")
+        resp = testbench.ap_start("WT-OPEN-201")
         assert "ip" in resp
-        workbench.ap_stop()
+        testbench.ap_stop()
 
-    def test_wt202_stop_ap(self, workbench):
+    def test_wt202_stop_ap(self, testbench):
         """WT-202: AP_STOP after AP_START returns OK."""
-        workbench.ap_start("WT-TEST-202", "password123")
-        workbench.ap_stop()
-        status = workbench.ap_status()
+        testbench.ap_start("WT-TEST-202", "password123")
+        testbench.ap_stop()
+        status = testbench.ap_status()
         assert status["active"] is False
 
-    def test_wt203_stop_when_not_running(self, workbench):
+    def test_wt203_stop_when_not_running(self, testbench):
         """WT-203: AP_STOP is idempotent."""
-        workbench.ap_stop()
-        workbench.ap_stop()
+        testbench.ap_stop()
+        testbench.ap_stop()
 
-    def test_wt204_restart_ap_new_config(self, workbench):
+    def test_wt204_restart_ap_new_config(self, testbench):
         """WT-204: AP_START while running restarts with new config."""
-        workbench.ap_start("WT-SSID-A", "password123")
-        status_a = workbench.ap_status()
+        testbench.ap_start("WT-SSID-A", "password123")
+        status_a = testbench.ap_status()
         assert status_a["ssid"] == "WT-SSID-A"
 
-        workbench.ap_start("WT-SSID-B", "password456")
-        status_b = workbench.ap_status()
+        testbench.ap_start("WT-SSID-B", "password456")
+        status_b = testbench.ap_status()
         assert status_b["ssid"] == "WT-SSID-B"
-        workbench.ap_stop()
+        testbench.ap_stop()
 
-    def test_wt205_ap_status_when_running(self, workbench):
+    def test_wt205_ap_status_when_running(self, testbench):
         """WT-205: AP_STATUS reports active, SSID, channel."""
-        workbench.ap_start("WT-STATUS-205", "password123", channel=6)
-        status = workbench.ap_status()
+        testbench.ap_start("WT-STATUS-205", "password123", channel=6)
+        status = testbench.ap_status()
         assert status["active"] is True
         assert status["ssid"] == "WT-STATUS-205"
         assert status["channel"] == 6
         assert "stations" in status
-        workbench.ap_stop()
+        testbench.ap_stop()
 
-    def test_wt206_ap_status_when_stopped(self, workbench):
+    def test_wt206_ap_status_when_stopped(self, testbench):
         """WT-206: AP_STATUS without AP reports inactive."""
-        workbench.ap_stop()
-        status = workbench.ap_status()
+        testbench.ap_stop()
+        status = testbench.ap_status()
         assert status["active"] is False
 
-    def test_wt207_max_ssid_length(self, workbench):
+    def test_wt207_max_ssid_length(self, testbench):
         """WT-207: 32-character SSID is accepted."""
         long_ssid = "A" * 32
-        resp = workbench.ap_start(long_ssid, "password123")
+        resp = testbench.ap_start(long_ssid, "password123")
         assert "ip" in resp
-        workbench.ap_stop()
+        testbench.ap_stop()
 
-    def test_wt208_channel_selection(self, workbench):
+    def test_wt208_channel_selection(self, testbench):
         """WT-208: Channel parameter is respected."""
-        workbench.ap_start("WT-CHAN-208", "password123", channel=11)
-        status = workbench.ap_status()
+        testbench.ap_start("WT-CHAN-208", "password123", channel=11)
+        status = testbench.ap_status()
         assert status["channel"] == 11
-        workbench.ap_stop()
+        testbench.ap_stop()
 
 
 # =====================================================================
@@ -134,38 +134,38 @@ class TestSoftAPManagement:
 class TestStationEvents:
     """WT-3xx: Station connect/disconnect events (requires partner)."""
 
-    def test_wt300_station_connect_event(self, workbench, test_partner):
+    def test_wt300_station_connect_event(self, testbench, test_partner):
         """WT-300: the joined station carries a MAC and an AP-subnet IP."""
         assert ":" in test_partner["mac"]
         assert test_partner["ip"].startswith("192.168.4."), test_partner
 
-    def test_wt301_station_disconnect_event(self, workbench, test_partner):
+    def test_wt301_station_disconnect_event(self, testbench, test_partner):
         """WT-301: STA_DISCONNECT names the station that left.
 
         The partner is asked to leave rather than waited on: a test that waits
         for a disconnect it never causes passes only when something else
         goes wrong.
         """
-        workbench.drain_events()
+        testbench.drain_events()
         # POST, because that is how the partner registers the route. This used to
         # send a GET, which the device answered with 404 and then carried on
         # happily connected — so the test waited sixty seconds for a
         # disconnect it had not caused, exactly as the paragraph above warns.
         # Asserting on the reply is the part that stops it recurring.
-        r = workbench.wifi_http(f"{test_partner['url']}/wifi-reset",
+        r = testbench.wifi_http(f"{test_partner['url']}/wifi-reset",
                                 method="POST", timeout=6)
         assert r["status"] == 200, f"the partner refused the reset: {r}"
-        evt = workbench.wait_for_event("STA_DISCONNECT", timeout=60)
+        evt = testbench.wait_for_event("STA_DISCONNECT", timeout=60)
         assert evt["mac"] == test_partner["mac"], evt
 
-    def test_wt302_station_in_ap_status(self, workbench, test_partner):
+    def test_wt302_station_in_ap_status(self, testbench, test_partner):
         """WT-302: the connected station appears in AP_STATUS."""
-        macs = [s["mac"] for s in workbench.ap_status()["stations"]]
+        macs = [s["mac"] for s in testbench.ap_status()["stations"]]
         assert test_partner["mac"] in macs, macs
 
-    def test_wt303_ip_matches_event(self, workbench, test_partner):
+    def test_wt303_ip_matches_event(self, testbench, test_partner):
         """WT-303: the IP reported at join matches the one in AP_STATUS."""
-        for s in workbench.ap_status()["stations"]:
+        for s in testbench.ap_status()["stations"]:
             if s["mac"] == test_partner["mac"]:
                 assert s["ip"] == test_partner["ip"]
                 return
@@ -201,17 +201,17 @@ class TestSTAMode:
 
     @pytest.fixture(scope="class")
     @classmethod
-    def dut_ap(cls, workbench):
+    def dut_ap(cls, testbench):
         """Put the partner on the air as a WPA2 AP, and take the bench off it."""
-        slot = _find_console_slot(workbench)
+        slot = _find_console_slot(testbench)
         if not slot:
             pytest.skip(
                 "precondition unmet: no slot answers the test partner console, "
                 "so no partner can host the AP these tests join"
             )
 
-        _ap_stop_quietly(workbench)      # the radio is about to be a station
-        workbench.serial_write(
+        _ap_stop_quietly(testbench)      # the radio is about to be a station
+        testbench.serial_write(
             slot, text=f"testap {STA_TEST_AP_SSID} {STA_TEST_AP_PASS}")
 
         # The partner acknowledges, then reboots. Wait for it to say it is
@@ -223,9 +223,9 @@ class TestSTAMode:
             time.sleep(5)
             try:
                 since = time.time()
-                workbench.serial_write(slot, text="status")
+                testbench.serial_write(slot, text="status")
                 time.sleep(1.5)
-                out = workbench.serial_output(slot, lines=100, since=since)
+                out = testbench.serial_output(slot, lines=100, since=since)
                 on_air = any(f"ap_ssid={STA_TEST_AP_SSID}" in ln.get("text", "")
                              for ln in out.get("lines", []))
             except Exception:
@@ -243,26 +243,26 @@ class TestSTAMode:
         # next fixture provisions over serial, and `wifi` clears the
         # request anyway, so a missed reply here costs nothing.
         try:
-            workbench.sta_leave()
+            testbench.sta_leave()
         except Exception:
             pass
         try:
-            workbench.serial_write(slot, text="testap off")
+            testbench.serial_write(slot, text="testap off")
         except Exception:
             pass
 
-    def test_wt401_join_wpa2_network(self, workbench, dut_ap):
+    def test_wt401_join_wpa2_network(self, testbench, dut_ap):
         """WT-401: the bench joins a WPA2 network with the right passphrase."""
-        resp = workbench.sta_join(dut_ap["ssid"], dut_ap["password"])
+        resp = testbench.sta_join(dut_ap["ssid"], dut_ap["password"])
         try:
             assert resp.get("ip", "").startswith("192.168.4."), (
                 f"joined '{dut_ap['ssid']}' and got {resp}"
             )
             assert "gateway" in resp, resp
         finally:
-            workbench.sta_leave()
+            testbench.sta_leave()
 
-    def test_wt402_join_wrong_password(self, workbench, dut_ap):
+    def test_wt402_join_wrong_password(self, testbench, dut_ap):
         """WT-402: the wrong passphrase is refused, not quietly accepted.
 
         The passphrase has to be wrong against an AP that is *there* — a
@@ -270,34 +270,34 @@ class TestSTAMode:
         pass this test for the wrong reason.
         """
         with pytest.raises(CommandError):
-            workbench.sta_join(
+            testbench.sta_join(
                 dut_ap["ssid"], "wrong_password_here", timeout=30,
             )
 
-    def test_wt403_join_nonexistent_network(self, workbench):
+    def test_wt403_join_nonexistent_network(self, testbench):
         """WT-403: Nonexistent SSID returns ERR with timeout."""
         with pytest.raises(CommandError):
-            workbench.sta_join(
+            testbench.sta_join(
                 "NONEXISTENT_NETWORK_XYZ_999", timeout=5,
             )
 
-    def test_wt404_leave_sta(self, workbench, dut_ap):
+    def test_wt404_leave_sta(self, testbench, dut_ap):
         """WT-404: STA_LEAVE after join returns OK."""
-        workbench.sta_join(dut_ap["ssid"], dut_ap["password"])
-        workbench.sta_leave()
+        testbench.sta_join(dut_ap["ssid"], dut_ap["password"])
+        testbench.sta_leave()
 
-    def test_wt405_softap_stops_during_sta(self, workbench, dut_ap):
+    def test_wt405_softap_stops_during_sta(self, testbench, dut_ap):
         """WT-405: AP is stopped when entering STA mode."""
-        workbench.ap_start("WT-AP-405", "password123")
-        status = workbench.ap_status()
+        testbench.ap_start("WT-AP-405", "password123")
+        status = testbench.ap_status()
         assert status["active"] is True
 
-        workbench.sta_join(dut_ap["ssid"], dut_ap["password"])
+        testbench.sta_join(dut_ap["ssid"], dut_ap["password"])
         try:
-            status = workbench.ap_status()
+            status = testbench.ap_status()
             assert status["active"] is False
         finally:
-            workbench.sta_leave()
+            testbench.sta_leave()
 
 
 # =====================================================================
@@ -314,49 +314,49 @@ class TestHTTPRelay:
         """The test partner's own HTTP server (port 8080, /status)."""
         return test_partner["url"]
 
-    def test_wt500_get_request(self, workbench, dut_url):
+    def test_wt500_get_request(self, testbench, dut_url):
         """WT-500: GET through the relay returns 200 and a body."""
-        resp = workbench.http_get(f"{dut_url}/status")
+        resp = testbench.http_get(f"{dut_url}/status")
         assert resp.status_code == 200
         assert len(resp.content) > 0
 
-    def test_wt501_post_with_body(self, workbench, dut_url):
+    def test_wt501_post_with_body(self, testbench, dut_url):
         """WT-501: a POST body reaches the partner and an answer comes back.
 
         404 counts: the relay's job is to carry the request and return what
         the device said, not to make the device implement the path.
         """
-        resp = workbench.http_post(
+        resp = testbench.http_post(
             f"{dut_url}/api/test",
             json_data={"key": "value"},
         )
         assert resp.status_code in (200, 201, 404)
 
-    def test_wt502_custom_headers(self, workbench, dut_url):
+    def test_wt502_custom_headers(self, testbench, dut_url):
         """WT-502: Custom headers are forwarded."""
-        resp = workbench.http_get(
+        resp = testbench.http_get(
             f"{dut_url}/status",
             headers={"X-Test-Header": "test-value"},
         )
         assert resp.status_code == 200
 
-    def test_wt503_connection_refused(self, workbench, wifi_network):
+    def test_wt503_connection_refused(self, testbench, wifi_network):
         """WT-503: HTTP to non-existent IP returns ERR."""
         with pytest.raises(CommandError):
-            workbench.http_get("http://192.168.4.99/", timeout=5)
+            testbench.http_get("http://192.168.4.99/", timeout=5)
 
-    def test_wt504_request_timeout(self, workbench, wifi_network):
+    def test_wt504_request_timeout(self, testbench, wifi_network):
         """WT-504: HTTP to non-responding device times out."""
         with pytest.raises(CommandError):
-            workbench.http_get("http://192.168.4.99/", timeout=3)
+            testbench.http_get("http://192.168.4.99/", timeout=3)
 
-    def test_wt505_large_response(self, workbench, dut_url):
+    def test_wt505_large_response(self, testbench, dut_url):
         """WT-505: a multi-line JSON body survives the relay intact."""
-        resp = workbench.http_get(f"{dut_url}/status")
+        resp = testbench.http_get(f"{dut_url}/status")
         assert resp.status_code == 200
         assert json.loads(resp.text), "relayed body is not the JSON the partner sent"
 
-    def test_wt506_http_via_sta_mode(self, workbench):
+    def test_wt506_http_via_sta_mode(self, testbench):
         """WT-506: the relay carries a request over the station link.
 
         Everywhere else the relay reaches a device on the bench's own AP
@@ -379,22 +379,22 @@ class TestHTTPRelay:
         """
         # The partner has to be in front of its own portal. It is provisioned
         # onto the bench AP by the time this runs, so ask it to forget.
-        slot = _find_console_slot(workbench)
+        slot = _find_console_slot(testbench)
         if not slot:
             pytest.skip(
                 "precondition unmet: no slot answers the test partner console, "
                 "so no partner can host the AP this test joins"
             )
-        _ap_stop_quietly(workbench)          # the radio is about to be a station
-        workbench.serial_write(slot, text="forget")
+        _ap_stop_quietly(testbench)          # the radio is about to be a station
+        testbench.serial_write(slot, text="forget")
         time.sleep(20)
 
-        joined = workbench.sta_join(TEST_PARTNER_PORTAL, "")
+        joined = testbench.sta_join(TEST_PARTNER_PORTAL, "")
         try:
             assert joined.get("ip", "").startswith("192.168.4."), (
                 f"joined '{TEST_PARTNER_PORTAL}' and got {joined}"
             )
-            r = workbench.http_get(
+            r = testbench.http_get(
                 f"http://192.168.4.1:{TEST_PARTNER_HTTP_PORT}/status", timeout=10)
             assert r.status_code == 200, (
                 f"the bench is a station on the partner's AP and the relay got "
@@ -404,7 +404,7 @@ class TestHTTPRelay:
             assert body.get("project"), f"relayed body is not the partner's: {body}"
         finally:
             try:
-                workbench.sta_leave()
+                testbench.sta_leave()
             except Exception:
                 pass
 
@@ -417,7 +417,7 @@ class TestHTTPRelay:
 class TestWiFiScan:
     """WT-6xx: WiFi scan tests."""
 
-    def test_wt600_scan_finds_networks(self, workbench):
+    def test_wt600_scan_finds_networks(self, testbench):
         """WT-600: SCAN returns non-empty network list.
 
         An empty list used to skip here as "RF-shielded?". It was not: `iw`
@@ -428,18 +428,18 @@ class TestWiFiScan:
         so an empty list here means the air really was empty — which, on a
         bench that is not in a shielded chamber, is a finding.
         """
-        workbench.ap_stop()
-        result = workbench.scan()
+        testbench.ap_stop()
+        result = testbench.scan()
         assert "networks" in result
         assert len(result["networks"]) > 0, (
             "scan succeeded and saw nothing — either this bench is in a "
             "shielded chamber, or the radio is not scanning"
         )
 
-    def test_wt601_scan_returns_fields(self, workbench):
+    def test_wt601_scan_returns_fields(self, testbench):
         """WT-601: Each scan entry has ssid, rssi, auth."""
-        workbench.ap_stop()
-        result = workbench.scan()
+        testbench.ap_stop()
+        result = testbench.scan()
         assert len(result["networks"]) > 0, "see WT-600"
         for net in result["networks"]:
             assert "ssid" in net
@@ -448,7 +448,7 @@ class TestWiFiScan:
             assert isinstance(net["rssi"], (int, float))
             assert net["rssi"] < 0
 
-    def test_wt602_scan_reports_the_air_now_not_last_time(self, workbench):
+    def test_wt602_scan_reports_the_air_now_not_last_time(self, testbench):
         """WT-602: an SSID that has left the air is gone from the next scan.
 
         This asked whether our own AP appears in our own scan, and could
@@ -465,12 +465,12 @@ class TestWiFiScan:
         demand, which makes it the instrument for the question.
         """
         ssid = f"WT-STALE-{uuid.uuid4().hex[:6].upper()}"
-        workbench.ap_start(ssid, "password123")
+        testbench.ap_start(ssid, "password123")
         time.sleep(2)
-        workbench.ap_stop()
+        testbench.ap_stop()
         time.sleep(3)
 
-        ssids = [n["ssid"] for n in workbench.scan().get("networks", [])]
+        ssids = [n["ssid"] for n in testbench.scan().get("networks", [])]
         assert ssid not in ssids, (
             f"'{ssid}' was taken off the air and the scan still reports it — "
             f"the result is cached, not measured: {ssids}"
@@ -479,7 +479,7 @@ class TestWiFiScan:
         # empty list.
         assert ssids, "the scan saw nothing; absence of our SSID proves nothing"
 
-    def test_wt603_scan_while_ap_running(self, workbench):
+    def test_wt603_scan_while_ap_running(self, testbench):
         """WT-603: a scan attempted while the AP runs is refused, with its
         reason, and does not cost the AP.
 
@@ -495,16 +495,16 @@ class TestWiFiScan:
         up. An empty network list returned as a successful measurement is
         the failure mode this whole class exists to prevent.
         """
-        workbench.ap_start("WT-SCAN-603", "password123")
+        testbench.ap_start("WT-SCAN-603", "password123")
         try:
             with pytest.raises((CommandError, WorkbenchError)) as exc:
-                workbench.scan()
+                testbench.scan()
             assert "cannot scan while the AP is running" in str(exc.value), \
                 exc.value
-            assert workbench.ap_status()["active"] is True, \
+            assert testbench.ap_status()["active"] is True, \
                 "the refused scan took the AP down with it"
         finally:
-            workbench.ap_stop()
+            testbench.ap_stop()
 
 
 # =====================================================================
@@ -515,31 +515,31 @@ class TestWiFiScan:
 class TestSiggen:
     """WT-13xx: signal generator tests against /api/siggen/*."""
 
-    def test_wt1300_start_and_status(self, workbench):
+    def test_wt1300_start_and_status(self, testbench):
         """WT-1300: Start carrier and verify status shows active."""
-        result = workbench.siggen_start(freq_hz=3_500_000)
+        result = testbench.siggen_start(freq_hz=3_500_000)
         assert result["active"] is True
         assert result["backend"] in ("si5351", "gpclk")
         assert result["freq_hz"] > 0
 
-        status = workbench.siggen_status()
+        status = testbench.siggen_status()
         assert status["active"] is True
         assert status["backend"] == result["backend"]
         assert status["freq_hz"] == result["freq_hz"]
 
-        workbench.siggen_stop()
+        testbench.siggen_stop()
 
-    def test_wt1301_stop(self, workbench):
+    def test_wt1301_stop(self, testbench):
         """WT-1301: Stop carrier and verify status shows inactive."""
-        workbench.siggen_start(freq_hz=3_571_000)
-        workbench.siggen_stop()
+        testbench.siggen_start(freq_hz=3_571_000)
+        testbench.siggen_stop()
 
-        status = workbench.siggen_status()
+        status = testbench.siggen_status()
         assert status["active"] is False
 
-    def test_wt1302_frequency_list(self, workbench):
+    def test_wt1302_frequency_list(self, testbench):
         """WT-1302: Frequency list returns valid entries in range."""
-        freqs = workbench.siggen_frequencies(
+        freqs = testbench.siggen_frequencies(
             low=3_500_000, high=4_000_000, backend="gpclk")
         assert len(freqs) > 0
         for f in freqs:
@@ -547,40 +547,40 @@ class TestSiggen:
             assert "freq_hz" in f
             assert 3_500_000 <= f["freq_hz"] <= 4_000_000
 
-    def test_wt1303_morse_keying(self, workbench):
+    def test_wt1303_morse_keying(self, testbench):
         """WT-1303: Morse-keyed start records message in status."""
-        workbench.siggen_start(
+        testbench.siggen_start(
             freq_hz=3_571_000,
             morse={"message": "VVV DE TEST", "wpm": 15, "repeat": True})
-        status = workbench.siggen_status()
+        status = testbench.siggen_status()
         assert status["active"] is True
         assert status["morse"]["message"] == "VVV DE TEST"
         assert status["morse"]["wpm"] == 15
 
-        workbench.siggen_stop()
+        testbench.siggen_stop()
 
-    def test_wt1304_replaces_previous(self, workbench):
+    def test_wt1304_replaces_previous(self, testbench):
         """WT-1304: Starting a new carrier replaces the previous one."""
-        workbench.siggen_start(
+        testbench.siggen_start(
             freq_hz=3_571_000,
             morse={"message": "AAA", "wpm": 10, "repeat": True})
-        result2 = workbench.siggen_start(
+        result2 = testbench.siggen_start(
             freq_hz=3_597_000,
             morse={"message": "BBB", "wpm": 20, "repeat": True})
 
-        status = workbench.siggen_status()
+        status = testbench.siggen_status()
         assert status["active"] is True
         assert status["morse"]["message"] == "BBB"
         assert status["morse"]["wpm"] == 20
         assert status["freq_hz"] == result2["freq_hz"]
 
-        workbench.siggen_stop()
+        testbench.siggen_stop()
 
 
-def _sdr_available(workbench) -> bool:
+def _sdr_available(testbench) -> bool:
     """True when a dongle + rtl_433 are present (RF tests need them)."""
     try:
-        return bool(workbench.sdr_status().get("available"))
+        return bool(testbench.sdr_status().get("available"))
     except WorkbenchError:
         return False
 
@@ -618,34 +618,34 @@ class TestRfLoopback:
     GAIN_DB = 20.0                   # fixed: AGC rescales and destroys the delta
     MIN_LIFT_DB = 15.0               # measured ~24 dB at fixed gain
 
-    def _peak(self, workbench) -> float:
+    def _peak(self, testbench) -> float:
         # A fixed gain is not optional here. On AGC the tuner rescales from
         # whatever it saw recently, so the quiet floor wandered 16 dB between
         # runs on the reference bench and the carrier was compressed to a 3.7 dB
         # lift — the comparison this test makes is meaningless without it.
-        r = workbench.sdr_power(freq_hz=self.TARGET_HZ, duration_s=3,
+        r = testbench.sdr_power(freq_hz=self.TARGET_HZ, duration_s=3,
                                 span_hz=200_000, bin_hz=5_000,
                                 gain=self.GAIN_DB)
         return float(r["peak_db"])
 
-    def test_wt1909_bench_transmitter_reaches_own_receiver(self, workbench):
+    def test_wt1909_bench_transmitter_reaches_own_receiver(self, testbench):
         """WT-1909: siggen ON lifts peak_db at 433.92 MHz well clear of quiet."""
-        if not _sdr_available(workbench):
+        if not _sdr_available(testbench):
             pytest.skip("no RTL-SDR dongle available")
-        hw = workbench.siggen_status().get("hardware", {})
+        hw = testbench.siggen_status().get("hardware", {})
         if not hw.get("si5351"):
             pytest.skip("no Si5351 signal generator present")
 
-        workbench.siggen_stop()
+        testbench.siggen_stop()
         time.sleep(1)
-        quiet = self._peak(workbench)
+        quiet = self._peak(testbench)
         try:
-            workbench.siggen_start(freq_hz=self.FUNDAMENTAL_HZ)
+            testbench.siggen_start(freq_hz=self.FUNDAMENTAL_HZ)
             time.sleep(2)
-            transmitting = self._peak(workbench)
+            transmitting = self._peak(testbench)
         finally:
             # Leave no carrier on air even if an assertion fails.
-            workbench.siggen_stop()
+            testbench.siggen_stop()
 
         lift = transmitting - quiet
         assert lift >= self.MIN_LIFT_DB, (
@@ -654,7 +654,7 @@ class TestRfLoopback:
             f"receive path is broken or the generator is not radiating.")
 
         time.sleep(2)
-        after = self._peak(workbench)
+        after = self._peak(testbench)
         assert transmitting - after >= self.MIN_LIFT_DB, (
             f"level stayed at {after:.1f} dB after the carrier stopped — the "
             "reading is not tracking the transmitter")
@@ -668,30 +668,30 @@ class TestRfLoopback:
 
 
 class TestMqttBroker:
-    """WT-20xx: workbench mosquitto broker via /api/mqtt/*."""
+    """WT-20xx: testbench mosquitto broker via /api/mqtt/*."""
 
-    def test_wt2000_start_reports_running(self, workbench):
+    def test_wt2000_start_reports_running(self, testbench):
         """WT-2000: Starting the broker reports running on port 1883."""
-        r = workbench.mqtt_start()
+        r = testbench.mqtt_start()
         assert r.get("ok") is True
         assert r.get("port") == 1883
-        st = workbench.mqtt_status()
+        st = testbench.mqtt_status()
         assert st.get("running") is True
 
-    def test_wt2001_status_when_stopped(self, workbench):
+    def test_wt2001_status_when_stopped(self, testbench):
         """WT-2001: After stop, status reports not running."""
-        workbench.mqtt_stop()
-        st = workbench.mqtt_status()
+        testbench.mqtt_stop()
+        st = testbench.mqtt_status()
         assert st.get("running") is False
 
-    def test_wt2002_start_idempotent(self, workbench):
+    def test_wt2002_start_idempotent(self, testbench):
         """WT-2002: Starting an already-running broker is a no-op success."""
-        workbench.mqtt_start()
-        r = workbench.mqtt_start()
+        testbench.mqtt_start()
+        r = testbench.mqtt_start()
         assert r.get("ok") is True and r.get("port") == 1883
-        workbench.mqtt_stop()
+        testbench.mqtt_stop()
 
-    def test_wt2003_broker_carries_a_message(self, workbench):
+    def test_wt2003_broker_carries_a_message(self, testbench):
         """WT-2003: a message published to the broker reaches a subscriber.
 
         The three tests above start it, stop it, and read a status flag —
@@ -700,9 +700,9 @@ class TestMqttBroker:
         bench would go on declaring MQTT as a capability it had never
         demonstrated.
         """
-        workbench.mqtt_start()
-        host = workbench.info()["host_ip"]
-        topic = f"workbench/selftest/{uuid.uuid4().hex[:8]}"
+        testbench.mqtt_start()
+        host = testbench.info()["host_ip"]
+        topic = f"testbench/selftest/{uuid.uuid4().hex[:8]}"
         payload = f"hello-{uuid.uuid4().hex[:8]}"
 
         got = self._roundtrip(host, topic, payload, timeout=20)
@@ -711,7 +711,7 @@ class TestMqttBroker:
             f"subscriber received {got!r}"
         )
 
-    def test_wt2004_stopped_broker_refuses_connections(self, workbench):
+    def test_wt2004_stopped_broker_refuses_connections(self, testbench):
         """WT-2004: after stop, the port is actually closed.
 
         `running: false` is the broker's own opinion of itself. A process
@@ -719,15 +719,15 @@ class TestMqttBroker:
         later test would pass against a broker nobody thought was there.
         """
         import socket as _socket
-        workbench.mqtt_stop()
-        host = workbench.info()["host_ip"]
+        testbench.mqtt_stop()
+        host = testbench.info()["host_ip"]
         try:
             with _socket.create_connection((host, 1883), timeout=5):
                 refused = False
         except OSError:
             refused = True
         finally:
-            workbench.mqtt_start()      # shared infrastructure; put it back
+            testbench.mqtt_start()      # shared infrastructure; put it back
         assert refused, f"{host}:1883 still accepts connections after stop"
 
     @staticmethod
@@ -806,10 +806,10 @@ class TestCaptivePortal:
     """
 
     BROKER_FROM_PARTNER = "mqtt://192.168.4.1"   # the bench, from the AP side
-    TOPIC = "workbench/dut/+/hello"
+    TOPIC = "testbench/dut/+/hello"
 
     @pytest.fixture(scope="class")
-    def journey(self, workbench):
+    def journey(self, testbench):
         j = {"portal_ssid": TEST_PARTNER_PORTAL, "portal_on_air": False,
              "form": "", "submitted": None, "station": None,
              "mqtt_message": None, "notes": []}
@@ -818,25 +818,25 @@ class TestCaptivePortal:
         password = "testpass123"
         j["ssid"], j["password"] = ssid, password
 
-        workbench.mqtt_start()
+        testbench.mqtt_start()
 
         # ── Step 1: put the partner back in front of its own portal ──────
         # It is provisioned from earlier tests, so it has to be asked to
         # forget. Erasing over the wire is the one route that does not
         # depend on the radio we are about to test.
-        for dev in workbench.get_devices():
+        for dev in testbench.get_devices():
             if dev.get("present"):
                 try:
-                    workbench.serial_write(dev["label"], text="forget")
+                    testbench.serial_write(dev["label"], text="forget")
                 except Exception:
                     pass
         time.sleep(25)
-        _ap_stop_quietly(workbench)     # free the radio to scan
+        _ap_stop_quietly(testbench)     # free the radio to scan
         time.sleep(3)
 
         for _ in range(4):
             try:
-                nets = workbench.scan().get("networks", [])
+                nets = testbench.scan().get("networks", [])
             except Exception:
                 nets = []
             hit = [n for n in nets if n["ssid"] == TEST_PARTNER_PORTAL]
@@ -854,15 +854,15 @@ class TestCaptivePortal:
         # blamed the wrong side, which is the failure this suite keeps
         # meeting.
         j["dut_says_ap_mode"] = None
-        for dev in workbench.get_devices():
+        for dev in testbench.get_devices():
             if not dev.get("present"):
                 continue
             try:
                 since = time.time()
-                workbench.serial_write(dev["label"], text="status")
+                testbench.serial_write(dev["label"], text="status")
                 deadline = time.time() + 6
                 while time.time() < deadline:
-                    for ln in workbench.serial_output(
+                    for ln in testbench.serial_output(
                             dev["label"], lines=200,
                             since=since).get("lines", []):
                         if "OK status" in ln.get("text", ""):
@@ -879,8 +879,8 @@ class TestCaptivePortal:
         # ── Step 2: join the portal and read the form it serves ──────
         if j["portal_on_air"]:
             try:
-                workbench.sta_join(TEST_PARTNER_PORTAL, "")
-                r = workbench.wifi_http("http://192.168.4.1/", timeout=8)
+                testbench.sta_join(TEST_PARTNER_PORTAL, "")
+                r = testbench.wifi_http("http://192.168.4.1/", timeout=8)
                 body = r.get("body", "")
                 try:
                     body = base64.b64decode(body).decode(errors="replace")
@@ -891,13 +891,13 @@ class TestCaptivePortal:
                 j["notes"].append(f"reading the form failed: {exc}")
             finally:
                 try:
-                    workbench.sta_leave()
+                    testbench.sta_leave()
                 except Exception:
                     pass
 
             # ── Step 3: submit the credentials through that form ─────
             try:
-                j["submitted"] = workbench.provision_wifimanager(
+                j["submitted"] = testbench.provision_wifimanager(
                     TEST_PARTNER_PORTAL, ssid, password,
                     save_path="/connect", field_ssid="ssid",
                     field_password="password", internet=True,
@@ -906,17 +906,17 @@ class TestCaptivePortal:
                 j["notes"].append(f"submitting the form failed: {exc}")
 
             # ── Step 4: the partner reboots and joins the AP it was given ──
-            j["station"] = _wait_for_any_station(workbench, timeout=150)
+            j["station"] = _wait_for_any_station(testbench, timeout=150)
 
         # ── Step 5: and publishes to the broker it was given ─────────
         if j["station"]:
-            j["mqtt_message"] = self._await_publication(workbench, timeout=90)
+            j["mqtt_message"] = self._await_publication(testbench, timeout=90)
 
         yield j
-        _ap_stop_quietly(workbench)
+        _ap_stop_quietly(testbench)
 
     @staticmethod
-    def _await_publication(workbench, timeout):
+    def _await_publication(testbench, timeout):
         """Subscribe to the bench broker and wait for the partner to publish.
 
         Subscribed from here rather than through an endpoint the bench does
@@ -928,7 +928,7 @@ class TestCaptivePortal:
             import paho.mqtt.client as mqtt
         except ImportError:
             return None
-        host = workbench.info()["host_ip"]
+        host = testbench.info()["host_ip"]
         got = []
 
         def on_connect(client, userdata, flags, rc, properties=None):
@@ -1024,51 +1024,51 @@ class TestUSBJTAGDebug:
     """WT-14xx: USB JTAG debug tests (requires device with native USB)."""
 
     @requires_dut
-    def test_wt1400_debug_start(self, workbench):
+    def test_wt1400_debug_start(self, testbench):
         """WT-1400: Start debug and verify GDB port assigned."""
         # Stop any auto-started session first
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(1)
-        result = workbench.debug_start()
+        result = testbench.debug_start()
         assert result["gdb_port"] > 0
         assert result["chip"] in ("esp32c3", "esp32c6", "esp32h2", "esp32s3", "esp32")
         assert len(result["slot"]) > 0
         assert "gdb_target" in result
-        workbench.debug_stop()
+        testbench.debug_stop()
 
     @requires_dut
-    def test_wt1401_debug_stop_restores(self, workbench):
+    def test_wt1401_debug_stop_restores(self, testbench):
         """WT-1401: After debug stop, slot returns to normal."""
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(1)
-        workbench.debug_start()
-        workbench.debug_stop()
+        testbench.debug_start()
+        testbench.debug_stop()
         time.sleep(2)
-        status = workbench.debug_status()
+        status = testbench.debug_status()
         # No slots should be debugging after stop
         for info in status.get("slots", {}).values():
             assert info["debugging"] is False
 
     @requires_dut
-    def test_wt1402_debug_status(self, workbench):
+    def test_wt1402_debug_status(self, testbench):
         """WT-1402: Debug status shows active session."""
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(1)
-        result = workbench.debug_start()
+        result = testbench.debug_start()
         slot = result["slot"]
-        status = workbench.debug_status()
+        status = testbench.debug_status()
         assert status["slots"][slot]["debugging"] is True
         assert status["slots"][slot]["chip"] == result["chip"]
         assert status["slots"][slot]["gdb_port"] == result["gdb_port"]
-        workbench.debug_stop()
+        testbench.debug_stop()
 
-    def test_wt1403_debug_reject_absent(self, workbench):
+    def test_wt1403_debug_reject_absent(self, testbench):
         """WT-1403: Debug on absent slot returns error."""
         with pytest.raises((CommandError, CommandTimeout)):
-            workbench.debug_start(slot="SLOT99")
+            testbench.debug_start(slot="SLOT99")
 
     @requires_dut
-    def test_wt1404_debug_reject_unsupported(self, workbench):
+    def test_wt1404_debug_reject_unsupported(self, testbench):
         """WT-1404: Unsupported chip returns error.
 
         Needs a partner despite only checking a rejection: with no slot given the
@@ -1076,31 +1076,31 @@ class TestUSBJTAGDebug:
         answers "no device found" before it ever looks at the chip.
         """
         with pytest.raises(CommandError):
-            workbench.debug_start(chip="esp8266")
+            testbench.debug_start(chip="esp8266")
 
     @requires_dut
-    def test_wt1405_debug_reject_duplicate(self, workbench):
+    def test_wt1405_debug_reject_duplicate(self, testbench):
         """WT-1405: Second start while debugging returns error."""
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(1)
-        result = workbench.debug_start()
+        result = testbench.debug_start()
         slot = result["slot"]
         with pytest.raises(CommandError):
-            workbench.debug_start(slot=slot)
-        workbench.debug_stop()
+            testbench.debug_start(slot=slot)
+        testbench.debug_stop()
 
     @requires_dut
-    def test_wt1406_jtag_reset(self, workbench):
+    def test_wt1406_jtag_reset(self, testbench):
         """WT-1406: serial/reset uses JTAG when debug session is active."""
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(1)
-        result = workbench.debug_start()
+        result = testbench.debug_start()
         slot = result["slot"]
         # Reset via serial API — should auto-select JTAG
-        reset = workbench.serial_reset(slot)
+        reset = testbench.serial_reset(slot)
         assert reset.get("method") == "jtag"
         assert "reset run" in reset.get("command", "")
-        workbench.debug_stop()
+        testbench.debug_stop()
 
 
 # =====================================================================
@@ -1112,28 +1112,28 @@ class TestAutoDebug:
     """WT-17xx: Auto-debug tests (OpenOCD auto-starts on hotplug/boot)."""
 
     @requires_dut
-    def test_wt1704_auto_debug_on_boot(self, workbench):
+    def test_wt1704_auto_debug_on_boot(self, testbench):
         """WT-1704: Debug can be started automatically (simulates boot)."""
         # Ensure a session is active (start if needed after prior stop)
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(1)
-        result = workbench.debug_start()
+        result = testbench.debug_start()
         assert result["chip"] in (
             "esp32c3", "esp32c6", "esp32h2", "esp32s3", "esp32")
-        status = workbench.debug_status()
+        status = testbench.debug_status()
         active = [s for s, info in status.get("slots", {}).items()
                   if info["debugging"]]
         assert len(active) >= 1, "No debug session active"
 
     @requires_dut
-    def test_wt1705_auto_debug_in_devices(self, workbench):
+    def test_wt1705_auto_debug_in_devices(self, testbench):
         """WT-1705: Debug status reports in /api/devices."""
         # Ensure debugging is active
-        status = workbench.debug_status()
+        status = testbench.debug_status()
         if not any(i["debugging"] for i in status.get("slots", {}).values()):
-            workbench.debug_start()
+            testbench.debug_start()
             time.sleep(1)
-        devices = workbench.get_devices()
+        devices = testbench.get_devices()
         debug_devices = [d for d in devices
                          if d.get("debugging") and d.get("present")]
         assert len(debug_devices) >= 1
@@ -1144,31 +1144,31 @@ class TestAutoDebug:
         assert dev["debug_gdb_port"] > 0
 
     @requires_dut
-    def test_wt1707_manual_stop_prevents_autorestart(self, workbench):
+    def test_wt1707_manual_stop_prevents_autorestart(self, testbench):
         """WT-1707: Manual debug_stop prevents auto-restart."""
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(3)
-        status = workbench.debug_status()
+        status = testbench.debug_status()
         # After manual stop, no session should be active
         for info in status.get("slots", {}).values():
             assert info["debugging"] is False
         # Restart for other tests
-        workbench.debug_start()
+        testbench.debug_start()
 
     @requires_dut
-    def test_wt1709_auto_debug_skipped_during_flapping(self, workbench):
+    def test_wt1709_auto_debug_skipped_during_flapping(self, testbench):
         """WT-1709: Auto-debug is not attempted when slot is flapping."""
         # We can only verify the logic exists — triggering real flapping
         # requires rapid USB connect/disconnect which we can't do remotely.
         # Instead, verify that debug_start on a non-present slot fails cleanly.
-        workbench.debug_stop()
+        testbench.debug_stop()
         time.sleep(1)
-        status = workbench.debug_status()
+        status = testbench.debug_status()
         # Verify the API is responsive and all sessions are stopped
         for info in status.get("slots", {}).values():
             assert info["debugging"] is False
         # Restart for other tests
-        workbench.debug_start()
+        testbench.debug_start()
 
 
 # =====================================================================
@@ -1176,14 +1176,14 @@ class TestAutoDebug:
 # =====================================================================
 
 
-def _find_present_device(workbench):
+def _find_present_device(testbench):
     """Find the first present partner (not a debug probe) and return its slot info.
 
     Any present device that isn't a probe or HID-warning slot is a partner.
     This covers both native USB chips (VID 303a, ttyACM) and classic ESP32
     boards with third-party USB-UART bridges (CP2102, CH340, ttyUSB).
     """
-    devices = workbench.get_devices()
+    devices = testbench.get_devices()
     for d in devices:
         if not d.get("present"):
             continue
@@ -1231,11 +1231,11 @@ def _ocd_command(host, port, cmd, timeout=3.0):
         s.close()
 
 
-def _wait_for_state(workbench, check_fn, timeout=30, poll=1.0, what="state"):
-    """Poll workbench until check_fn(device) returns True or timeout."""
+def _wait_for_state(testbench, check_fn, timeout=30, poll=1.0, what="state"):
+    """Poll testbench until check_fn(device) returns True or timeout."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         if dev and check_fn(dev):
             return dev
         time.sleep(poll)
@@ -1256,7 +1256,7 @@ def _jtag_capable(dev: dict) -> bool:
     return not bridge
 
 
-def _flash_device(workbench, chip, target_dir):
+def _flash_device(testbench, chip, target_dir):
     """Flash debug-test firmware via esptool over RFC2217.
 
     Uses the RFC2217 proxy for flashing (binaries stay on the host).
@@ -1275,7 +1275,7 @@ def _flash_device(workbench, chip, target_dir):
         print(f"Missing binaries in {target_dir}", flush=True)
         return False
 
-    dev = _find_present_device(workbench)
+    dev = _find_present_device(testbench)
     if not dev:
         return False
 
@@ -1288,9 +1288,9 @@ def _flash_device(workbench, chip, target_dir):
     # Stop debug if active (native USB shares serial + JTAG on same USB)
     was_debugging = dev.get("debugging")
     if was_debugging:
-        workbench.debug_stop(slot=slot_label)
+        testbench.debug_stop(slot=slot_label)
         _wait_for_state(
-            workbench,
+            testbench,
             lambda d: d.get("running") and not d.get("debugging"),
             timeout=20, what="debug stopped before flash")
 
@@ -1319,18 +1319,18 @@ def _flash_device(workbench, chip, target_dir):
     print(f"Flash OK: {slot_label} ({chip})", flush=True)
 
     # Reboot device into new firmware
-    workbench.serial_reset(slot_label)
+    testbench.serial_reset(slot_label)
 
     # Restart debug if it was active (resume CPU so firmware runs)
     if was_debugging:
-        workbench.debug_start(slot=slot_label, chip=chip)
+        testbench.debug_start(slot=slot_label, chip=chip)
         _wait_for_state(
-            workbench,
+            testbench,
             lambda d: d.get("debugging"),
             timeout=30, what="debug restart after flash")
         # OpenOCD halts CPU on connect — reset run so firmware boots
-        host = workbench.base_url.split("//")[1].split(":")[0]
-        dev = _find_present_device(workbench)
+        host = testbench.base_url.split("//")[1].split(":")[0]
+        dev = _find_present_device(testbench)
         telnet_port = dev.get("openocd_telnet_port") if dev else None
         if telnet_port:
             try:
@@ -1341,9 +1341,9 @@ def _flash_device(workbench, chip, target_dir):
     return True
 
 
-def _jtag_slots(workbench) -> list:
+def _jtag_slots(testbench) -> list:
     """Present slots whose board has a built-in USB-JTAG interface."""
-    return [d for d in workbench.get_devices()
+    return [d for d in testbench.get_devices()
             if d.get("present") and not d.get("is_probe")
             and _jtag_capable(d)]
 
@@ -1372,21 +1372,21 @@ class TestPerSlotDebugIsolation:
     as well, but nothing is skipped for want of one.
     """
 
-    def _jtag_slots_here(self, workbench):
-        slots = _jtag_slots(workbench)
+    def _jtag_slots_here(self, testbench):
+        slots = _jtag_slots(testbench)
         if not slots:
             pytest.skip("precondition unmet: no built-in-JTAG board present")
         return slots
 
     @requires_dut
-    def test_each_slot_reports_its_own_chip(self, workbench):
+    def test_each_slot_reports_its_own_chip(self, testbench):
         # verifies: FR-037
         """Detection blind to USB topology reports a neighbour's silicon.
 
         Observed before the location filter: SLOT1, holding an ESP32-C3,
         was reported as esp32s3 — the chip of the board in SLOT4.
         """
-        slots = self._jtag_slots_here(workbench)
+        slots = self._jtag_slots_here(testbench)
         chips = {d["label"]: (d.get("detected_chip") or d.get("debug_chip"))
                  for d in slots}
         for label, chip in chips.items():
@@ -1398,7 +1398,7 @@ class TestPerSlotDebugIsolation:
         # is the original bug, where both slots named one device.
         macs = {}
         for d in slots:
-            info = workbench.chip_info(d["label"])
+            info = testbench.chip_info(d["label"])
             macs[d["label"]] = info.get("mac")
         assert all(macs.values()), f"a slot reported no MAC: {macs}"
         assert len(set(macs.values())) == len(macs), (
@@ -1407,7 +1407,7 @@ class TestPerSlotDebugIsolation:
         # No slot that holds nothing may claim a chip: attributing the one
         # present board to an empty slot is the same fault seen from the
         # other side, and it needs no second board to catch.
-        for d in workbench.get_devices():
+        for d in testbench.get_devices():
             if not d.get("present"):
                 assert not d.get("detected_chip"), (
                     f"{d['label']} is empty and reports "
@@ -1415,7 +1415,7 @@ class TestPerSlotDebugIsolation:
                 )
 
     @requires_dut
-    def test_slots_do_not_share_debug_ports_or_sessions(self, workbench):
+    def test_slots_do_not_share_debug_ports_or_sessions(self, testbench):
         # verifies: FR-037
         """OpenOCD listens on three ports; the portal only ever assigned two.
 
@@ -1427,7 +1427,7 @@ class TestPerSlotDebugIsolation:
         # here is the whole defect: the third OpenOCD port defaulted to 6666
         # for every session, so the second debugger to start anywhere on the
         # bench died with "Address already in use".
-        slots = [d for d in workbench.get_devices() if d.get("gdb_port")]
+        slots = [d for d in testbench.get_devices() if d.get("gdb_port")]
         assert slots, "no slot declares a gdb port"
         for field in ("gdb_port", "openocd_telnet_port"):
             ports = [d[field] for d in slots if d.get(field)]
@@ -1441,21 +1441,21 @@ class TestPerSlotDebugIsolation:
         tcl = [6666 + (d["gdb_port"] - 3333) for d in slots]
         assert len(set(tcl)) == len(tcl), f"slots share a TCL port: {tcl}"
 
-        jtag = _jtag_slots(workbench)
+        jtag = _jtag_slots(testbench)
         if len(jtag) < 2:
             return      # the allotment is proven; two live sessions need two boards
         a, b = jtag[:2]
         for d in (a, b):
             try:
-                workbench.debug_stop(d["label"])
+                testbench.debug_stop(d["label"])
             except CommandError:
                 pass
         time.sleep(1)
 
-        ra = workbench.debug_start(a["label"])
+        ra = testbench.debug_start(a["label"])
         assert ra["ok"] is True, ra
         try:
-            rb = workbench.debug_start(b["label"])
+            rb = testbench.debug_start(b["label"])
             assert rb["ok"] is True, (
                 f"second concurrent session refused: {rb}"
             )
@@ -1463,25 +1463,25 @@ class TestPerSlotDebugIsolation:
                 assert ra["gdb_port"] != rb["gdb_port"], (
                     "both sessions on one GDB port"
                 )
-                status = workbench.debug_status()["slots"]
+                status = testbench.debug_status()["slots"]
                 assert status[a["label"]]["debugging"] is True
                 assert status[b["label"]]["debugging"] is True
 
                 # Stopping one must leave the other alone.
-                workbench.debug_stop(b["label"])
+                testbench.debug_stop(b["label"])
                 time.sleep(1)
-                after = workbench.debug_status()["slots"]
+                after = testbench.debug_status()["slots"]
                 assert after[a["label"]]["debugging"] is True, (
                     "stopping one slot's session ended another's"
                 )
             finally:
                 try:
-                    workbench.debug_stop(b["label"])
+                    testbench.debug_stop(b["label"])
                 except CommandError:
                     pass
         finally:
             try:
-                workbench.debug_stop(a["label"])
+                testbench.debug_stop(a["label"])
             except CommandError:
                 pass
 
@@ -1504,7 +1504,7 @@ class TestEndToEnd:
     _flash_ok = False
 
     @pytest.fixture(autouse=True, scope="class")
-    def _end_test_session(self, workbench):
+    def _end_test_session(self, testbench):
         """Send test_end when all tests in this class are done, and give the
         the bench its test partner back.
 
@@ -1517,17 +1517,17 @@ class TestEndToEnd:
         """
         yield
         try:
-            workbench.test_end()
+            testbench.test_end()
         except Exception:
             pass
         TestEndToEnd._test_session_started = False
-        restored = ensure_test_partner_firmware(workbench)
+        restored = ensure_test_partner_firmware(testbench)
         if restored:
             print(f"\n{restored}")
 
     @pytest.fixture(autouse=True)
-    def _track_progress(self, workbench, request):
-        """Report test progress to the workbench panel."""
+    def _track_progress(self, testbench, request):
+        """Report test progress to the testbench panel."""
         test_id = request.node.name.split("_")[1].upper()  # e.g. "WT1800"
         raw_name = request.node.obj.__doc__.split("\n")[0].strip() if request.node.obj.__doc__ else request.node.name
         # Strip "WT-1800: " prefix from docstring — test_id already carries it
@@ -1536,14 +1536,14 @@ class TestEndToEnd:
         if not TestEndToEnd._test_session_started:
             TestEndToEnd._test_session_started = True
             try:
-                workbench.test_start(
+                testbench.test_start(
                     spec="End-to-End Flash+Debug", phase="WT-18xx", total=6)
             except Exception:
                 pass
 
         for _attempt in range(3):
             try:
-                workbench.test_step(test_id, test_name, "Running...")
+                testbench.test_step(test_id, test_name, "Running...")
                 break
             except Exception:
                 time.sleep(2)
@@ -1563,15 +1563,15 @@ class TestEndToEnd:
                 result = "SKIP"
         for _attempt in range(3):
             try:
-                workbench.test_result(test_id, test_name, result, details=detail)
+                testbench.test_result(test_id, test_name, result, details=detail)
                 break
             except Exception:
                 time.sleep(2)
 
     @requires_dut
-    def test_wt1800_flash_and_serial(self, workbench):
+    def test_wt1800_flash_and_serial(self, testbench):
         """WT-1800: Flash debug-test firmware and verify serial output."""
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
 
         chip = dev.get("debug_chip", "")
@@ -1581,7 +1581,7 @@ class TestEndToEnd:
         esptool_chip = chip if chip else None
         if not esptool_chip:
             # Try to detect from debug_start
-            result = workbench.debug_start()
+            result = testbench.debug_start()
             esptool_chip = result.get("chip")
             assert esptool_chip, "Could not detect chip type"
 
@@ -1590,29 +1590,29 @@ class TestEndToEnd:
             pytest.skip(f"No pre-built binaries for {esptool_chip}")
 
         # Flash via portal API (stops proxy, runs esptool locally, restarts proxy)
-        success = _flash_device(workbench, esptool_chip, target_dir)
+        success = _flash_device(testbench, esptool_chip, target_dir)
         assert success, f"Flash failed for {esptool_chip}"
 
         # Verify serial output
-        result = workbench.serial_monitor(slot, pattern="LOOP:", timeout=20)
+        result = testbench.serial_monitor(slot, pattern="LOOP:", timeout=20)
         assert result.get("matched"), \
             f"Expected 'LOOP:' in serial output, got: {result.get('output', [])[-5:]}"
         TestEndToEnd._flash_ok = True
 
     @requires_dut
-    def test_wt1801_debug_halt_and_resume(self, workbench):
+    def test_wt1801_debug_halt_and_resume(self, testbench):
         """WT-1801: Halt CPU via JTAG, read PC, resume."""
         if not TestEndToEnd._flash_ok:
             pytest.skip("WT-1800 (flash) did not pass")
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         assert dev.get("debugging"), "Debug not active — flash first (WT-1800)"
 
-        host = workbench.base_url.split("//")[1].split(":")[0]
+        host = testbench.base_url.split("//")[1].split(":")[0]
         telnet_port = dev["debug_gdb_port"] + 1111  # gdb=3333 → telnet=4444
 
         # Get actual telnet port from debug status
-        status = workbench.debug_status()
+        status = testbench.debug_status()
         for label, info in status.get("slots", {}).items():
             if info.get("debugging"):
                 telnet_port = info.get("telnet_port", telnet_port)
@@ -1630,16 +1630,16 @@ class TestEndToEnd:
         _ocd_command(host, telnet_port, "resume", timeout=2)
 
     @requires_dut
-    def test_wt1802_debug_single_step(self, workbench):
+    def test_wt1802_debug_single_step(self, testbench):
         """WT-1802: Single-step CPU via JTAG."""
         if not TestEndToEnd._flash_ok:
             pytest.skip("WT-1800 (flash) did not pass")
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         assert dev.get("debugging"), "Debug not active"
 
-        host = workbench.base_url.split("//")[1].split(":")[0]
-        status = workbench.debug_status()
+        host = testbench.base_url.split("//")[1].split(":")[0]
+        status = testbench.debug_status()
         telnet_port = None
         for info in status.get("slots", {}).values():
             if info.get("debugging"):
@@ -1674,16 +1674,16 @@ class TestEndToEnd:
         _ocd_command(host, telnet_port, "resume", timeout=2)
 
     @requires_dut
-    def test_wt1803_debug_memory_read(self, workbench):
+    def test_wt1803_debug_memory_read(self, testbench):
         """WT-1803: Read memory via JTAG."""
         if not TestEndToEnd._flash_ok:
             pytest.skip("WT-1800 (flash) did not pass")
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         assert dev.get("debugging"), "Debug not active"
 
-        host = workbench.base_url.split("//")[1].split(":")[0]
-        status = workbench.debug_status()
+        host = testbench.base_url.split("//")[1].split(":")[0]
+        status = testbench.debug_status()
         telnet_port = None
         for info in status.get("slots", {}).values():
             if info.get("debugging"):
@@ -1702,16 +1702,16 @@ class TestEndToEnd:
         _ocd_command(host, telnet_port, "resume", timeout=2)
 
     @requires_dut
-    def test_wt1804_debug_breakpoint(self, workbench):
+    def test_wt1804_debug_breakpoint(self, testbench):
         """WT-1804: Set and hit a hardware breakpoint via JTAG."""
         if not TestEndToEnd._flash_ok:
             pytest.skip("WT-1800 (flash) did not pass")
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         assert dev.get("debugging"), "Debug not active"
 
-        host = workbench.base_url.split("//")[1].split(":")[0]
-        status = workbench.debug_status()
+        host = testbench.base_url.split("//")[1].split(":")[0]
+        status = testbench.debug_status()
         telnet_port = None
         for info in status.get("slots", {}).values():
             if info.get("debugging"):
@@ -1744,18 +1744,18 @@ class TestEndToEnd:
         _ocd_command(host, telnet_port, "resume", timeout=2)
 
     @requires_dut
-    def test_wt1805_flash_preserves_debug(self, workbench):
+    def test_wt1805_flash_preserves_debug(self, testbench):
         """WT-1805: Debug auto-restarts after flash (no manual intervention)."""
         if not TestEndToEnd._flash_ok:
             pytest.skip("WT-1800 (flash) did not pass")
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
 
         chip = dev.get("debug_chip", "")
         slot = dev.get("label", "")
 
         if not chip:
-            result = workbench.debug_start()
+            result = testbench.debug_start()
             chip = result.get("chip", "")
         assert chip, "Could not detect chip"
 
@@ -1764,22 +1764,22 @@ class TestEndToEnd:
             pytest.skip(f"No pre-built binaries for {chip}")
 
         # Verify debug is active before flash
-        dev_before = _find_present_device(workbench)
+        dev_before = _find_present_device(testbench)
         assert dev_before.get("debugging"), "Debug should be active before flash"
 
         # Flash via portal API (handles debug stop/restart automatically)
-        success = _flash_device(workbench, chip, target_dir)
+        success = _flash_device(testbench, chip, target_dir)
         assert success, "Flash failed"
 
         # Verify debug auto-restarted (portal restarts debug after flash)
         dev_after = _wait_for_state(
-            workbench,
+            testbench,
             lambda d: d.get("debugging"),
             timeout=30, what="debug restart after flash")
         assert dev_after, "Device not found after flash"
 
         # Verify serial output (extra time — proxy just restarted, device booting)
-        result = workbench.serial_monitor(slot, pattern="LOOP:", timeout=20)
+        result = testbench.serial_monitor(slot, pattern="LOOP:", timeout=20)
         assert result.get("matched"), "Firmware not running after flash"
 
 
@@ -1791,9 +1791,9 @@ class TestEndToEnd:
 class TestSerialArchitecture:
     """WT-19xx: Serial reader buffer, passive output, and multi-slot detection."""
 
-    def test_wt2200_devices_have_slots(self, workbench):
+    def test_wt2200_devices_have_slots(self, testbench):
         """WT-2200: /api/devices returns slots with labels and state."""
-        devices = workbench.get_devices()
+        devices = testbench.get_devices()
         assert len(devices) > 0, "No slots configured"
         for d in devices:
             assert "label" in d
@@ -1804,9 +1804,9 @@ class TestSerialArchitecture:
             )
 
     @requires_dut
-    def test_wt2201_present_device_detected(self, workbench):
+    def test_wt2201_present_device_detected(self, testbench):
         """WT-2201: Present device has detected_chip set."""
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         chip = dev.get("detected_chip") or dev.get("debug_chip")
         assert chip, (
@@ -1819,9 +1819,9 @@ class TestSerialArchitecture:
         ), f"Unexpected chip: {chip}"
 
     @requires_dut
-    def test_wt2202_all_present_devices_detected(self, workbench):
+    def test_wt2202_all_present_devices_detected(self, testbench):
         """WT-2202: Every present partner slot has a detected chip."""
-        devices = workbench.get_devices()
+        devices = testbench.get_devices()
         duts = [d for d in devices
                 if d.get("present") and not d.get("is_probe")
                 and _jtag_capable(d)]
@@ -1834,15 +1834,15 @@ class TestSerialArchitecture:
             )
 
     @requires_dut
-    def test_wt2203_serial_output_buffer(self, workbench):
+    def test_wt2203_serial_output_buffer(self, testbench):
         """WT-2203: GET /api/serial/output returns buffered lines."""
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         slot = dev["label"]
 
         # Wait briefly for the reader thread to accumulate some output
         time.sleep(3)
-        result = workbench.serial_output(slot, lines=20)
+        result = testbench.serial_output(slot, lines=20)
         assert result.get("ok"), f"serial_output failed: {result}"
         lines = result.get("lines", [])
         # Buffer should have entries (device is running firmware)
@@ -1855,18 +1855,18 @@ class TestSerialArchitecture:
             assert isinstance(entry["text"], str)
 
     @requires_dut
-    def test_wt2204_serial_output_since_filter(self, workbench):
+    def test_wt2204_serial_output_since_filter(self, testbench):
         """WT-2204: serial_output respects 'since' timestamp filter."""
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         slot = dev["label"]
 
         # Get all buffered lines
-        all_lines = workbench.serial_output(slot, lines=100)
+        all_lines = testbench.serial_output(slot, lines=100)
         assert all_lines.get("ok")
         if not all_lines["lines"]:
             time.sleep(3)
-            all_lines = workbench.serial_output(slot, lines=100)
+            all_lines = testbench.serial_output(slot, lines=100)
 
         if len(all_lines["lines"]) < 2:
             pytest.skip("Not enough serial output to test filtering")
@@ -1874,7 +1874,7 @@ class TestSerialArchitecture:
         # Use timestamp of a middle line as the 'since' filter
         mid = len(all_lines["lines"]) // 2
         since_ts = all_lines["lines"][mid]["ts"]
-        filtered = workbench.serial_output(slot, lines=100, since=since_ts)
+        filtered = testbench.serial_output(slot, lines=100, since=since_ts)
         assert filtered.get("ok")
         # Filtered results should be a subset
         assert len(filtered["lines"]) <= len(all_lines["lines"])
@@ -1883,37 +1883,37 @@ class TestSerialArchitecture:
             assert entry["ts"] > since_ts
 
     @requires_dut
-    def test_wt2205_serial_monitor_from_buffer(self, workbench):
+    def test_wt2205_serial_monitor_from_buffer(self, testbench):
         """WT-2205: serial_monitor reads from buffer, not hardware."""
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         slot = dev["label"]
 
         # Monitor with no pattern — returns immediately with buffered data
-        result = workbench.serial_monitor(slot, timeout=2)
+        result = testbench.serial_monitor(slot, timeout=2)
         assert result.get("matched") is False
         assert isinstance(result.get("output"), list)
 
     @requires_dut
-    def test_wt2206_serial_monitor_pattern_match(self, workbench):
+    def test_wt2206_serial_monitor_pattern_match(self, testbench):
         """WT-2206: serial_monitor matches pattern from buffer."""
-        dev = _find_present_device(workbench)
+        dev = _find_present_device(testbench)
         assert dev, "No device connected"
         slot = dev["label"]
 
         # The firmware prints "LOOP:" repeatedly — match from buffer
-        result = workbench.serial_monitor(slot, pattern="LOOP:", timeout=15)
+        result = testbench.serial_monitor(slot, pattern="LOOP:", timeout=15)
         if not result.get("matched"):
             # Firmware may not be running — try a boot message instead
-            result = workbench.serial_monitor(
+            result = testbench.serial_monitor(
                 slot, pattern="esp", timeout=10)
         # At minimum, we should get some output lines
         assert len(result.get("output", [])) >= 0
 
     @requires_dut
-    def test_wt2207_multi_slot_detection(self, workbench):
+    def test_wt2207_multi_slot_detection(self, testbench):
         """WT-2207: Multiple slots independently detect their chips."""
-        devices = workbench.get_devices()
+        devices = testbench.get_devices()
         duts = [d for d in devices
                 if d.get("present") and not d.get("is_probe")
                 and _jtag_capable(d)]
@@ -1957,7 +1957,7 @@ class TestSlotAccessManager:
     SLOT = None
 
     @pytest.fixture(autouse=True)
-    def _bind_slot(self, workbench, present_slot):
+    def _bind_slot(self, testbench, present_slot):
         type(self).SLOT = present_slot
         # These cases are about the manager's own arbitration, so the slot
         # has to start unheld. The constant this replaced named a slot with
@@ -1966,45 +1966,45 @@ class TestSlotAccessManager:
         # board, which then arrives here still `debugging` from an earlier
         # class and refuses every acquire.
         try:
-            if workbench.get_slot(self.SLOT).get("debugging"):
-                workbench.debug_stop(self.SLOT)
+            if testbench.get_slot(self.SLOT).get("debugging"):
+                testbench.debug_stop(self.SLOT)
         except Exception:
             pass
 
-    def _drain(self, workbench):
+    def _drain(self, testbench):
         """Leave the slot idle whatever a previous case did."""
-        m = workbench.slot_mode(self.SLOT)
+        m = testbench.slot_mode(self.SLOT)
         if m.get("mode") not in (None, "idle", "absent", "debugging"):
             # No token to hand back; the lease is what reclaims it.
             pass
 
-    def test_idle_slot_reports_idle(self, workbench):
+    def test_idle_slot_reports_idle(self, testbench):
         # verifies: FR-031
-        m = workbench.slot_mode(self.SLOT)
+        m = testbench.slot_mode(self.SLOT)
         assert m["ok"] is True
         assert m["mode"] in ("idle", "absent"), m
 
-    def test_acquire_then_release_round_trip(self, workbench):
+    def test_acquire_then_release_round_trip(self, testbench):
         # verifies: FR-031
-        g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-roundtrip", ttl=30)
+        g = testbench.slot_acquire(self.SLOT, "monitoring", "pytest-roundtrip", ttl=30)
         assert g["ok"] is True, g
         token = g["token"]
         try:
-            held = workbench.slot_mode(self.SLOT)
+            held = testbench.slot_mode(self.SLOT)
             assert held["mode"] == "monitoring"
             assert held["owner"] == "pytest-roundtrip"
             assert held["since"], "a grant must record when it started"
         finally:
-            r = workbench.slot_release(token)
+            r = testbench.slot_release(token)
             assert r["ok"] is True, r
-        assert workbench.slot_mode(self.SLOT)["mode"] in ("idle", "absent")
+        assert testbench.slot_mode(self.SLOT)["mode"] in ("idle", "absent")
 
-    def test_conflicting_acquire_is_refused_naming_the_incumbent(self, workbench):
+    def test_conflicting_acquire_is_refused_naming_the_incumbent(self, testbench):
         # verifies: FR-033
-        g = workbench.slot_acquire(self.SLOT, "flashing", "pytest-first", ttl=30)
+        g = testbench.slot_acquire(self.SLOT, "flashing", "pytest-first", ttl=30)
         assert g["ok"] is True, g
         try:
-            second = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-second")
+            second = testbench.slot_acquire(self.SLOT, "monitoring", "pytest-second")
             assert second["ok"] is False, "a held slot must not be granted twice"
             assert second["error"] == "held"
             assert second["owner"] == "pytest-first", (
@@ -2013,24 +2013,24 @@ class TestSlotAccessManager:
             )
             assert second["mode"] == "flashing"
             # FR-033: the incumbent keeps it.
-            assert workbench.slot_mode(self.SLOT)["owner"] == "pytest-first"
+            assert testbench.slot_mode(self.SLOT)["owner"] == "pytest-first"
         finally:
-            workbench.slot_release(g["token"])
+            testbench.slot_release(g["token"])
 
-    def test_unknown_mode_is_rejected(self, workbench):
+    def test_unknown_mode_is_rejected(self, testbench):
         # verifies: FR-031
-        bad = workbench.slot_acquire(self.SLOT, "banana", "pytest-bad")
+        bad = testbench.slot_acquire(self.SLOT, "banana", "pytest-bad")
         assert bad["ok"] is False
         assert "unknown mode" in bad["error"]
         assert "modes" in bad, "a rejection should say what is valid"
 
-    def test_renew_extends_by_the_granted_ttl(self, workbench):
+    def test_renew_extends_by_the_granted_ttl(self, testbench):
         # verifies: FR-032
-        g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-renew", ttl=9)
+        g = testbench.slot_acquire(self.SLOT, "monitoring", "pytest-renew", ttl=9)
         assert g["ok"] is True, g
         try:
             assert g["expires_in"] == pytest.approx(9, abs=1)
-            r = workbench.slot_renew(g["token"])
+            r = testbench.slot_renew(g["token"])
             assert r["ok"] is True, r
             assert r["expires_in"] == pytest.approx(9, abs=1), (
                 "renew must extend by the ttl the grant was made with, not by "
@@ -2038,34 +2038,34 @@ class TestSlotAccessManager:
                 "a lease nobody asked for"
             )
         finally:
-            workbench.slot_release(g["token"])
+            testbench.slot_release(g["token"])
 
-    def test_expired_lease_is_reclaimed(self, workbench):
+    def test_expired_lease_is_reclaimed(self, testbench):
         # verifies: FR-032
         """A holder that stops renewing must not keep the slot forever.
 
         This is the bounded form of the failure it replaces: a client whose
         reader thread died held a slot until the portal was restarted.
         """
-        dead = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-dies", ttl=3)
+        dead = testbench.slot_acquire(self.SLOT, "monitoring", "pytest-dies", ttl=3)
         assert dead["ok"] is True, dead
-        blocked = workbench.slot_acquire(self.SLOT, "flashing", "pytest-waiting")
+        blocked = testbench.slot_acquire(self.SLOT, "flashing", "pytest-waiting")
         assert blocked["ok"] is False, "must still be held before the lease runs out"
 
         time.sleep(5)
-        after = workbench.slot_acquire(self.SLOT, "flashing", "pytest-waiting")
+        after = testbench.slot_acquire(self.SLOT, "flashing", "pytest-waiting")
         assert after["ok"] is True, (
             f"the lease should have been reclaimed after 3 s: {after}"
         )
-        workbench.slot_release(after["token"])
+        testbench.slot_release(after["token"])
 
-    def test_release_with_an_unknown_token_is_refused(self, workbench):
+    def test_release_with_an_unknown_token_is_refused(self, testbench):
         # verifies: FR-031
-        r = workbench.slot_release("deadbeefdead")
+        r = testbench.slot_release("deadbeefdead")
         assert r["ok"] is False
         assert "unknown" in r["error"]
 
-    def test_debug_session_holds_the_slot_it_owns(self, workbench):
+    def test_debug_session_holds_the_slot_it_owns(self, testbench):
         # verifies: FR-035
         """FR-035. OpenOCD claims a different USB interface, so devnode
         inspection cannot see it — the manager's own record must."""
@@ -2074,14 +2074,14 @@ class TestSlotAccessManager:
         # so on a tidy bench, where nothing is left holding a session, the
         # one test of FR-035 quietly never ran. A test that needs a state
         # the bench can be asked for should ask.
-        devices = [d for d in workbench.get_devices() if d.get("present")]
+        devices = [d for d in testbench.get_devices() if d.get("present")]
         label = next((d["label"] for d in devices if d.get("debugging")), None)
         started_here = False
         if label is None:
             candidate = next((d for d in devices if d.get("detected_chip")), None)
             if candidate is None:
                 pytest.skip("precondition unmet: no present slot to debug")
-            r = workbench.debug_start(candidate["label"])
+            r = testbench.debug_start(candidate["label"])
             if not r.get("ok"):
                 pytest.skip(
                     "precondition unmet: could not start a debug session on "
@@ -2090,9 +2090,9 @@ class TestSlotAccessManager:
             label, started_here = candidate["label"], True
 
         try:
-            m = workbench.slot_mode(label)
+            m = testbench.slot_mode(label)
             assert m["mode"] == "debugging", m
-            refused = workbench.slot_acquire(label, "flashing", "pytest-vs-debug")
+            refused = testbench.slot_acquire(label, "flashing", "pytest-vs-debug")
             assert refused["ok"] is False, (
                 "a flash must not proceed while OpenOCD holds the USB interface"
             )
@@ -2102,11 +2102,11 @@ class TestSlotAccessManager:
                 # OpenOCD halts the part on attach; leaving it held would
                 # silence the partner for every test after this one.
                 try:
-                    workbench.debug_stop(label)
+                    testbench.debug_stop(label)
                 except Exception:
                     pass
 
-    def test_acquire_is_not_blocked_by_the_slots_own_proxy(self, workbench):
+    def test_acquire_is_not_blocked_by_the_slots_own_proxy(self, testbench):
         """FR-034, the false-positive half.
 
         The manager refuses to grant while an unexpected process holds the
@@ -2120,45 +2120,45 @@ class TestSlotAccessManager:
         to start arbitrary processes. Recorded as the limit of this test
         rather than left as a silent gap.
         """
-        slot = workbench.get_slot(self.SLOT)
+        slot = testbench.get_slot(self.SLOT)
         assert slot["running"] is True, "the proxy must be holding the device"
-        g = workbench.slot_acquire(self.SLOT, "monitoring", "pytest-fp", ttl=20)
+        g = testbench.slot_acquire(self.SLOT, "monitoring", "pytest-fp", ttl=20)
         assert g["ok"] is True, (
             f"acquire was refused while only the slot's own proxy held the "
             f"device — the out-of-band detector does not recognise its own "
             f"proxy: {g}"
         )
-        workbench.slot_release(g["token"])
+        testbench.slot_release(g["token"])
 
 
 class TestBenchReset:
     """FR-036. The call that makes "before" mean the same thing every time."""
 
-    def test_reset_reports_what_it_changed(self, workbench):
-        r = workbench.bench_reset()
+    def test_reset_reports_what_it_changed(self, testbench):
+        r = testbench.bench_reset()
         assert r["ok"] is True, r
         assert isinstance(r.get("changed"), list)
         assert not r.get("errors"), f"reset reported errors: {r['errors']}"
 
-    def test_reset_clears_a_held_slot(self, workbench):
-        g = workbench.slot_acquire("SLOT3", "monitoring", "pytest-dirt", ttl=600)
+    def test_reset_clears_a_held_slot(self, testbench):
+        g = testbench.slot_acquire("SLOT3", "monitoring", "pytest-dirt", ttl=600)
         assert g["ok"] is True, g
-        assert workbench.slot_mode("SLOT3")["mode"] == "monitoring"
-        r = workbench.bench_reset()
+        assert testbench.slot_mode("SLOT3")["mode"] == "monitoring"
+        r = testbench.bench_reset()
         assert r["ok"] is True, r
-        assert workbench.slot_mode("SLOT3")["mode"] in ("idle", "absent"), (
+        assert testbench.slot_mode("SLOT3")["mode"] in ("idle", "absent"), (
             "a long-lived grant survived the reset, so the next test would "
             "start from the previous test's state"
         )
 
-    def test_reset_leaves_the_broker_running(self, workbench):
+    def test_reset_leaves_the_broker_running(self, testbench):
         """The broker is shared infrastructure: ensured, never stopped."""
-        workbench.bench_reset()
-        assert workbench.mqtt_status().get("running") is True
+        testbench.bench_reset()
+        assert testbench.mqtt_status().get("running") is True
 
-    def test_reset_is_idempotent(self, workbench):
-        workbench.bench_reset()
-        second = workbench.bench_reset()
+    def test_reset_is_idempotent(self, testbench):
+        testbench.bench_reset()
+        second = testbench.bench_reset()
         assert second["ok"] is True
         assert not second.get("errors"), second
 
@@ -2174,13 +2174,13 @@ class TestSerialWrite:
         type(self).SLOT = present_slot
 
     def test_write_reaches_the_device_and_the_reply_is_captured(
-            self, workbench, console_dut):
+            self, testbench, console_dut):
         """The only test here that proves bytes leave the bench.
 
         It needs something on the far end that answers. The bench used to
         own nothing that did, so this borrowed a project's M-Bus simulator —
         and went red when that project reflashed it, for a reason that had
-        nothing to do with the workbench. The bench now carries its own
+        nothing to do with the testbench. The bench now carries its own
         console (test-firmware/): `ping` answers `OK pong`.
 
         The monitor has to be listening *before* the write. A reply to a
@@ -2193,13 +2193,13 @@ class TestSerialWrite:
         result = {}
 
         def watch():
-            result["r"] = workbench.serial_monitor(
+            result["r"] = testbench.serial_monitor(
                 slot, pattern="OK pong", timeout=12)
 
         t = threading.Thread(target=watch)
         t.start()
         time.sleep(1.5)
-        w = workbench.serial_write(slot, text="ping\n")
+        w = testbench.serial_write(slot, text="ping\n")
         assert w["ok"] is True, w
         assert w["written"] > 0
         t.join()
@@ -2211,23 +2211,23 @@ class TestSerialWrite:
             f"{result['r'].get('output', [])[-3:]}"
         )
 
-    def test_hex_form_is_accepted(self, workbench):
-        w = workbench.serial_write(self.SLOT, hex_bytes="0d0a")
+    def test_hex_form_is_accepted(self, testbench):
+        w = testbench.serial_write(self.SLOT, hex_bytes="0d0a")
         assert w["ok"] is True, w
         assert w["written"] == 2
 
-    def test_neither_text_nor_hex_is_refused(self, workbench):
-        w = workbench.serial_write(self.SLOT)
+    def test_neither_text_nor_hex_is_refused(self, testbench):
+        w = testbench.serial_write(self.SLOT)
         assert w["ok"] is False
         assert "text" in w["error"] and "hex" in w["error"]
 
-    def test_bad_hex_is_refused(self, workbench):
-        w = workbench.serial_write(self.SLOT, hex_bytes="zz")
+    def test_bad_hex_is_refused(self, testbench):
+        w = testbench.serial_write(self.SLOT, hex_bytes="zz")
         assert w["ok"] is False
         assert "hex" in w["error"]
 
-    def test_unknown_slot_is_refused(self, workbench):
-        w = workbench.serial_write("SLOT9", text="x")
+    def test_unknown_slot_is_refused(self, testbench):
+        w = testbench.serial_write("SLOT9", text="x")
         assert w["ok"] is False
 
 
@@ -2241,63 +2241,63 @@ class TestApiSurface:
     while reading the source instead of the contract.
     """
 
-    def test_info_and_devices_answer(self, workbench):
-        assert workbench.info().get("hostname")
-        assert isinstance(workbench.get_devices(), list)
+    def test_info_and_devices_answer(self, testbench):
+        assert testbench.info().get("hostname")
+        assert isinstance(testbench.get_devices(), list)
 
-    def test_chip_info_reads_the_silicon(self, workbench):
-        dut = next((d for d in workbench.get_devices()
+    def test_chip_info_reads_the_silicon(self, testbench):
+        dut = next((d for d in testbench.get_devices()
                     if d.get("present") and d.get("detected_chip")), None)
         if not dut:
             pytest.skip("precondition unmet: no chip-detected partner present")
-        r = workbench._api_post_raw("/api/chip/info", {"slot": dut["label"]},
+        r = testbench._api_post_raw("/api/chip/info", {"slot": dut["label"]},
                                     timeout=90)
         if not r.get("ok"):
             pytest.skip(f"precondition unmet: esptool could not read the part ({r.get('error')})")
         assert r.get("mac"), "chip info returned no MAC"
         assert "ESP32" in r.get("chip", ""), r
 
-    def test_proxy_stop_and_start_round_trip(self, workbench):
-        dut = next((d for d in workbench.get_devices() if d.get("present")), None)
+    def test_proxy_stop_and_start_round_trip(self, testbench):
+        dut = next((d for d in testbench.get_devices() if d.get("present")), None)
         if not dut:
             pytest.skip("precondition unmet: no device present")
         label, port = dut["label"], dut["tcp_port"]
         try:
-            assert workbench._api_post_raw("/api/stop", {"slot": label})["ok"]
-            after = workbench.get_slot(label)
+            assert testbench._api_post_raw("/api/stop", {"slot": label})["ok"]
+            after = testbench.get_slot(label)
             assert after["running"] is False
         finally:
-            assert workbench._api_post_raw("/api/start", {"slot": label})["ok"]
-        back = workbench.get_slot(label)
+            assert testbench._api_post_raw("/api/start", {"slot": label})["ok"]
+        back = testbench.get_slot(label)
         assert back["running"] is True
         assert back["tcp_port"] == port, (
             "the slot came back on a different port; a client's saved URL "
             "would now reach the wrong device"
         )
 
-    def test_human_interaction_lifecycle(self, workbench):
-        st = workbench._api_get("/api/human/status")
+    def test_human_interaction_lifecycle(self, testbench):
+        st = testbench._api_get("/api/human/status")
         assert st["ok"] is True
         assert st.get("pending") is False, (
             "a prompt was already pending — bench_reset should have cleared it"
         )
 
-    def test_test_progress_endpoint_answers(self, workbench):
-        p = workbench._api_get("/api/test/progress")
+    def test_test_progress_endpoint_answers(self, testbench):
+        p = testbench._api_get("/api/test/progress")
         assert p.get("ok") is not False
 
-    def test_sdr_endpoints_answer_or_declare_absence(self, workbench):
+    def test_sdr_endpoints_answer_or_declare_absence(self, testbench):
         """FR-0xx SDR. `live_stop` and `log_stop` had no test at all."""
-        st = workbench.sdr_status()
+        st = testbench.sdr_status()
         assert st["ok"] is True
         if not st.get("available"):
             # Honest: the endpoints must still answer, saying the dongle is absent.
             for ep in ("/api/sdr/live/stop", "/api/sdr/log/stop", "/api/sdr/stop"):
-                r = workbench._api_post_raw(ep, {})
+                r = testbench._api_post_raw(ep, {})
                 assert "ok" in r, f"{ep} returned no verdict at all: {r}"
             pytest.skip("precondition unmet: no RTL-SDR dongle on this bench")
         for ep in ("/api/sdr/live/stop", "/api/sdr/log/stop", "/api/sdr/stop"):
-            assert workbench._api_post_raw(ep, {}).get("ok") is not None
+            assert testbench._api_post_raw(ep, {}).get("ok") is not None
 
         # A declared instrument must be able to prove it exists. `available`
         # was cached from the first probe and never revisited downwards, so a
@@ -2308,7 +2308,7 @@ class TestApiSurface:
         # `duration_s`, not `duration` — the wrong name is ignored and the
         # endpoint takes its 10 s default, which then outran the driver's own
         # 10 s timeout and failed a working dongle on a stopwatch.
-        r = workbench._api_post_raw(
+        r = testbench._api_post_raw(
             "/api/sdr/power",
             {"freq_hz": 433920000, "duration_s": 2}, timeout=60)
         assert r.get("ok") is True, (
@@ -2318,12 +2318,12 @@ class TestApiSurface:
             f"an instrument it does not have."
         )
 
-    def test_firmware_repository_round_trip(self, workbench):
+    def test_firmware_repository_round_trip(self, testbench):
         # The driver unwraps to the file list itself.
-        assert isinstance(workbench.firmware_list(), list)
+        assert isinstance(testbench.firmware_list(), list)
 
-    def test_activity_log_answers(self, workbench):
-        log = workbench.get_log()
+    def test_activity_log_answers(self, testbench):
+        log = testbench.get_log()
         assert isinstance(log, (list, dict))
 
 
@@ -2347,7 +2347,7 @@ class TestFlashEndpoint:
             pytest.skip(f"precondition unmet: no prebuilt binaries for {chip}")
         return images
 
-    def _dut_slot(self, workbench):
+    def _dut_slot(self, testbench):
         """Any present part this class has a prebuilt image for.
 
         It used to demand an esp32c3 by name and skipped three tests on a
@@ -2356,7 +2356,7 @@ class TestFlashEndpoint:
         the same defect as a slot written into one: it describes the bench
         somebody had, and it goes quiet rather than red when that changes.
         """
-        for dev in workbench.get_devices():
+        for dev in testbench.get_devices():
             if not dev.get("present"):
                 continue
             chip = dev.get("detected_chip")
@@ -2367,48 +2367,48 @@ class TestFlashEndpoint:
             f"images under {DEBUG_TEST_DIR}"
         )
 
-    def test_flash_writes_and_the_device_runs_the_image(self, workbench):
+    def test_flash_writes_and_the_device_runs_the_image(self, testbench):
         """The whole point: after a flash, the part runs what was written.
 
         Asserting only that the call returned ok would pass on a flash that
         verified its hash and landed at an offset the partition table does not
         boot from — which is a real failure mode, and silent.
         """
-        dut = self._dut_slot(workbench)
+        dut = self._dut_slot(testbench)
         label = dut["label"]
         chip = dut["detected_chip"]
-        r = workbench.flash(label, self._images(chip), chip=chip)
+        r = testbench.flash(label, self._images(chip), chip=chip)
         assert r.get("ok") is True, f"flash reported failure: {str(r)[:300]}"
 
-        slot = workbench.get_slot(label)
+        slot = testbench.get_slot(label)
         assert slot["running"] is True, (
             "the proxy was not restarted after the flash, so the slot is "
             "unusable even though the flash succeeded"
         )
-        matched, lines = workbench.monitor_or_buffer(label, "LOOP:", seconds=20)
+        matched, lines = testbench.monitor_or_buffer(label, "LOOP:", seconds=20)
         assert matched, (
             f"the flash succeeded but the device is not running the image; "
             f"last lines: {lines[-3:]}"
         )
 
-    def test_flash_with_no_images_is_refused(self, workbench):
-        dut = self._dut_slot(workbench)
-        r = workbench.flash(dut["label"], {}, chip="esp32c3")
+    def test_flash_with_no_images_is_refused(self, testbench):
+        dut = self._dut_slot(testbench)
+        r = testbench.flash(dut["label"], {}, chip="esp32c3")
         assert r.get("ok") is False, "a flash with no binaries must not report success"
 
-    def test_flash_to_an_unknown_slot_is_refused(self, workbench):
-        r = workbench.flash("SLOT9", self._images(), chip="esp32c3")   # slot is the point
+    def test_flash_to_an_unknown_slot_is_refused(self, testbench):
+        r = testbench.flash("SLOT9", self._images(), chip="esp32c3")   # slot is the point
         assert r.get("ok") is False
         assert "not found" in str(r.get("error", "")).lower()
 
-    def test_flash_leaves_the_slot_on_its_own_port(self, workbench):
+    def test_flash_leaves_the_slot_on_its_own_port(self, testbench):
         """A flash stops and restarts the proxy. If the slot came back on a
         different port, every client's saved URL would reach the wrong device.
         """
-        dut = self._dut_slot(workbench)
+        dut = self._dut_slot(testbench)
         before = dut["tcp_port"]
-        workbench.flash(dut["label"], self._images(dut["detected_chip"]),
+        testbench.flash(dut["label"], self._images(dut["detected_chip"]),
                         chip=dut["detected_chip"])
-        after = workbench.get_slot(dut["label"])
+        after = testbench.get_slot(dut["label"])
         assert after["tcp_port"] == before
         assert after["monitor_port"] == before + 1000

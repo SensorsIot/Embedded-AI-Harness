@@ -88,7 +88,7 @@ pytest pytest/ --wt-url http://workbench.local:8080 --run-dut  # full
 
 ## Security testing
 
-The workbench has **no authentication** — that is a deliberate, documented
+The testbench has **no authentication** — that is a deliberate, documented
 position for an instrument on a trusted lab network, not an oversight, and it is
 recorded as such in the FSD and the User Manual. The corresponding rule is therefore
 about honesty rather than hardening: do not add a security requirement the product

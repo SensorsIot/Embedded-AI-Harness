@@ -77,7 +77,7 @@ spec true for the product's whole life.
   FSD: atomic, falsifiable requirements, each with its verification
   contract), `/harness` (one-time setup), `/commission` and `/build` (the
   loop's driver: test design, the plan, audit, what's next).
-- **The workbench** — a Raspberry Pi test instrument that gives the AI hands
+- **The testbench** — a Raspberry Pi test instrument that gives the AI hands
   and eyes on real hardware. Described below.
 - **The dev skills** — ESP-IDF and PlatformIO lifecycles, logging, WiFi,
   BLE, MQTT, debugging, RF, CI — the loop's individual muscles.
@@ -86,7 +86,7 @@ spec true for the product's whole life.
 
 | You need | For | Where |
 |---|---|---|
-| A **Raspberry Pi workbench** (Pi 3/4/5, or Zero 2 W + USB hub + Ethernet adapter) with an ESP32 board in a slot | The loop's hands and eyes — flash, reset, observe on real hardware | Build it: [Quick Start](#-quick-start--building-the-bench) below |
+| A **Raspberry Pi testbench** (Pi 3/4/5, or Zero 2 W + USB hub + Ethernet adapter) with an ESP32 board in a slot | The loop's hands and eyes — flash, reset, observe on real hardware | Build it: [Quick Start](#-quick-start--building-the-bench) below |
 | A **GitHub account**, `git` + `gh` authenticated | CI builds, releases, and the release-verify runner | [github.com](https://github.com) |
 | **Claude Code** with this repo's skills | The AI that pulls; the skills are the method | `npm i -g @anthropic-ai/claude-code`, then copy `.claude/skills/` from this repo into your project |
 | **Same LAN** | Your dev machine or devcontainer must reach the bench | `curl http://workbench.local:8080/api/devices` answers |
@@ -95,10 +95,10 @@ spec true for the product's whole life.
 Nothing else. The FSD, tests, firmware, CI and documentation are what the loop
 *produces*, not what you bring.
 
-## 🔌 The Workbench — the loop's hands and eyes
+## 🔌 The Testbench — the loop's hands and eyes
 
 Working on an ESP32 normally means being physically attached to it — and an
-AI can't hold a USB cable. The workbench puts the boards on a Raspberry Pi
+AI can't hold a USB cable. The testbench puts the boards on a Raspberry Pi
 and turns everything into HTTP:
 
 ```
@@ -225,7 +225,7 @@ Claude Code can operate the bench conversationally — "flash this to slot 1
 and tell me why it's crashing". Pure Python standard library, so there's
 nothing to `pip install`. For Claude Desktop, drag
 [`mcp/embedded-ai-harness-workbench.mcpb`](mcp/embedded-ai-harness-workbench.mcpb)
-onto **Settings → Extensions** and enter your workbench URL.
+onto **Settings → Extensions** and enter your testbench URL.
 
 The AICLP skills (`/define`, `/harness`, `/commission`, `/build`) and the
 instrument skills all live under `.claude/skills/`. Setup for both:

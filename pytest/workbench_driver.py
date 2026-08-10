@@ -1,6 +1,6 @@
-"""HTTP driver for the ESP32 Embedded Workbench.
+"""HTTP driver for the ESP32 testbench.
 
-Communicates with the workbench HTTP API.  Provides serial, debug, WiFi,
+Communicates with the testbench HTTP API.  Provides serial, debug, WiFi,
 BLE, GPIO, firmware, and test progress control over the network.
 """
 
@@ -43,11 +43,11 @@ class Response:
 # ── Exceptions ───────────────────────────────────────────────────────
 
 
-class WorkbenchError(Exception):
-    """Base exception for Embedded Workbench errors."""
+class TestbenchError(Exception):
+    """Base exception for testbench errors."""
 
 
-class CommandError(WorkbenchError):
+class CommandError(TestbenchError):
     """Portal returned ok=false."""
 
     def __init__(self, command: str, payload: dict):
@@ -57,7 +57,7 @@ class CommandError(WorkbenchError):
         super().__init__(f"{command}: {msg}")
 
 
-class CommandTimeout(WorkbenchError):
+class CommandTimeout(TestbenchError):
     """No response received within timeout."""
 
 
@@ -81,8 +81,8 @@ def _body_reason(err) -> str:
         return raw.decode("utf-8", "replace")[:300]
 
 
-class WorkbenchDriver:
-    """HTTP driver for the Embedded Workbench."""
+class TestbenchDriver:
+    """HTTP driver for the testbench."""
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
@@ -987,3 +987,13 @@ class WorkbenchDriver:
                 return {"ok": False, "error": f"HTTP {e.code}"}
         except urllib.error.URLError as e:
             raise CommandTimeout(f"POST /api/flash: {e}")
+
+
+# ── Compatibility ────────────────────────────────────────────────────
+#
+# The machine is a testbench; it was called a workbench for a year and
+# project repositories import it under that name. Renaming the class
+# without leaving these behind would break every one of them on their
+# next pull, for a spelling. They cost two lines.
+WorkbenchDriver = TestbenchDriver
+WorkbenchError = TestbenchError

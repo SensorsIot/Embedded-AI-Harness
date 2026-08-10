@@ -1,6 +1,6 @@
 # v1.0.0 — first official release
 
-The Harness is an AI closed-loop programming method plus the workbench that
+The Harness is an AI closed-loop programming method plus the testbench that
 gives it hands and eyes: a Raspberry Pi that holds ESP32 boards and turns
 every physical act — flash, reset, debug, join a network, listen on 433 MHz —
 into an HTTP call.
@@ -18,7 +18,7 @@ requirement and its proof are written together; a requirement whose stimulus
 cannot be stated is not finished. Gate checks run in a fresh checker that
 never saw the conversation that did the work.
 
-**The workbench.** One JSON API on `:8080`, every response carrying `ok`:
+**The testbench.** One JSON API on `:8080`, every response carrying `ok`:
 slots with stable identity by USB port, serial over RFC2217, flash three ways,
 OpenOCD and GDB per slot, a WiFi test AP with station events, BLE, an MQTT
 broker, HTTP relay, GPIO, SDR and signal generation, firmware hosting, live
@@ -99,7 +99,7 @@ broken* from *the AP is fine and nobody can hear it*.
 
 **The suite no longer depends on any project's firmware.** Tests used to
 assert on a specific project's board — an `awning-net` SSID, an M-Bus
-simulator answering `status` with `OK` — so a workbench test went red when
+simulator answering `status` with `OK` — so a testbench test went red when
 that project shipped, which is the dependency backwards. Twelve of them were
 hidden behind a `--run-wifi-dut` flag rather than fixed. They now provision
 the bench's own test partner, and the flag is gone: a fixture that can tell *absent*

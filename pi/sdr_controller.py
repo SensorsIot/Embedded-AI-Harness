@@ -1,4 +1,4 @@
-"""RTL-SDR receiver for the Embedded Workbench.
+"""RTL-SDR receiver for the testbench.
 
 Receive-side counterpart to :mod:`signal_generator` (transmit-only).  Wraps
 an RTL2832U dongle and the ``rtl_433`` toolchain behind one HTTP-friendly
@@ -620,7 +620,7 @@ class SdrReceiver:
 
         ``progress(msg, cat)`` is called at each phase boundary so a caller can
         surface live operator prompts (e.g. into the portal activity log) while
-        the run is still in flight — the operator watches the workbench UI
+        the run is still in flight — the operator watches the testbench UI
         instead of a buffered terminal.
         """
         freq_hz = int(freq_hz or self._config["default_freq_hz"])

@@ -6,7 +6,7 @@ boards move, and every fixture discovers the slot by asking. This page says
 what each of the bench tests needs from it, so its firmware is driven by the suite's
 demands rather than by whatever seemed useful at the time.
 
-**Why it exists at all.** A workbench test that asserts on a *project's*
+**Why it exists at all.** A testbench test that asserts on a *project's*
 firmware goes red when that project ships. It happened twice: the captive
 portal test drove an `awning-net` board that later left the bench, and the
 serial-write test asserted that an M-Bus simulator answered `status` with
