@@ -181,19 +181,26 @@ fi
 # The bench answers at testbench.local. Anything still pointing at
 # workbench.local must be updated — this is not aliased, deliberately: two
 # names for one machine is what the rename removed.
+# A bench called Workbench2 becomes testbench2, not testbench: the suffix is
+# how an operator with more than one of these tells them apart, and collapsing
+# them onto one name would put two machines on one mDNS record.
 CURRENT_HOST="$(hostname)"
-if [ "$CURRENT_HOST" != "testbench" ]; then
-    echo "Renaming host '$CURRENT_HOST' -> 'testbench' (mDNS: testbench.local)"
-    hostnamectl set-hostname testbench 2>/dev/null || \
-        echo "testbench" > /etc/hostname
+NEW_HOST="$(echo "$CURRENT_HOST" | sed -E 's/^[Ww]orkbench/testbench/')"
+if [ "$NEW_HOST" = "$CURRENT_HOST" ]; then
+    NEW_HOST="${TESTBENCH_HOSTNAME:-testbench}"
+fi
+if [ "$CURRENT_HOST" != "$NEW_HOST" ]; then
+    echo "Renaming host '$CURRENT_HOST' -> '$NEW_HOST' (mDNS: ${NEW_HOST}.local)"
+    hostnamectl set-hostname "$NEW_HOST" 2>/dev/null || \
+        echo "$NEW_HOST" > /etc/hostname
     # /etc/hosts must follow, or sudo stalls on every call resolving the old name
     if grep -q "127.0.1.1" /etc/hosts; then
-        sed -i "s/^127\.0\.1\.1.*/127.0.1.1\ttestbench/" /etc/hosts
+        sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t$NEW_HOST/" /etc/hosts
     else
-        echo -e "127.0.1.1\ttestbench" >> /etc/hosts
+        printf '127.0.1.1\t%s\n' "$NEW_HOST" >> /etc/hosts
     fi
     systemctl restart avahi-daemon 2>/dev/null || true
-    echo "  Host renamed. Anything using ${CURRENT_HOST}.local must now use testbench.local"
+    echo "  Host renamed. Anything using ${CURRENT_HOST}.local must now use ${NEW_HOST}.local"
 fi
 
 if [ ! -f /etc/rfc2217/signalgen.json ]; then
