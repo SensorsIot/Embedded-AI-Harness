@@ -1241,6 +1241,26 @@ watch serial for `"OTA succeeded, rebooting..."` and the boot banner again.
 **9. GPIO reset (GPIO only).** Toggle EN LOW then HIGH; serial shows fresh boot
 output.
 
+**9b. Measure the BOOT/EN wiring.** The portal fills in `gpio_boot=18` and
+`gpio_en=17` as defaults, and no software can see a wire — so `has_gpio` only
+means *pins are configured*. Ask the bench to find out:
+
+```bash
+curl -s -X POST http://$BENCH:8080/api/serial/gpio-test \
+     -H 'Content-Type: application/json' -d '{"slot":"<SLOT>"}'
+# {"ok":true,"en_wired":false,"boot_wired":false,"detail":"EN pulse produced no reset ..."}
+```
+
+It pulses EN and listens for the ROM boot banner, then — if EN answered —
+holds BOOT low across a reset and probes with esptool. Fifteen seconds, and
+the board is handed back running either way. The verdict is stored in
+`/var/lib/rfc2217/gpio-wiring.json`, survives a restart, and appears as
+`gpio_wired` in `/api/devices`. There is a per-slot button for it in the
+portal UI.
+
+Until a slot is measured, GPIO recovery is not used on it: the wire-free
+unbind/rebind cycle runs instead, and the log says why.
+
 **10. Manual recovery.** `POST /api/serial/recover` starts a fresh recovery cycle
 even when the slot isn't flapping, resetting the retry counter. Expect
 `{"ok": true, ...}`.

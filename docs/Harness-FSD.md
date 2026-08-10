@@ -3299,7 +3299,7 @@ The portal serves a single-page HTML UI at `GET /` (port 8080):
 | Dual-USB hub board | Board exposes onboard hub with JTAG + UART interfaces — occupies two slots (see §6.6) |
 | Device not ready | Settle checks with timeout, then fail with `last_error` |
 | ttyACM DTR trap | `wait_for_device()` skips `os.open()` for ttyACM; proxy uses controlled boot sequence (FR-006) |
-| Boot loop (USB flapping) | Portal auto-recovers: unbinds USB, enters download mode via GPIO (FR-007). For slots without GPIO: exponential backoff with 4 retries. Manual trigger: `POST /api/serial/recover` |
+| Boot loop (USB flapping) | Portal auto-recovers: unbinds USB, and enters download mode via GPIO (FR-007) **only where the BOOT/EN wiring has been measured** — `gpio_boot`/`gpio_en` are defaults the portal fills in, and configured pins are not connected pins. Unmeasured or unwired slots take the wire-free unbind/rebind cycle. Measure with `POST /api/serial/gpio-test`; manual trigger: `POST /api/serial/recover` |
 | ESP32-C3 stuck in download mode | Run esptool on Pi with `--after=watchdog-reset` to trigger system reset (FR-006.6) |
 | udev PrivateNetwork blocking curl | udev runs RUN+ handlers in a network-isolated sandbox (`PrivateNetwork=yes`). Direct `curl` to localhost silently fails. Fix: wrap the notify script with `systemd-run --no-block` in the udev rule so it runs outside the sandbox. |
 
@@ -3872,7 +3872,8 @@ errors add `"error": "..."`.
 | POST | `/api/serial/monitor` | Wait for a pattern `{"slot", "pattern?", "timeout?"}` → `{"ok", "matched", "line", "output"}` |
 | GET | `/api/serial/output` | Passive buffer read `?slot=&lines=&since=` |
 | POST | `/api/serial/write` | Send bytes `{"slot", "text"\|"hex", "newline?"}` → `{"ok", "written"}` (FR-030) |
-| POST | `/api/serial/recover` | Manual flap-recovery trigger `{"slot"}` |
+| POST | `/api/serial/recover` | Manual flap-recovery trigger `{"slot"}`. Reports the *attempt*; the outcome appears in `/api/devices` as `download_mode` or `flapping` + `last_error` |
+| POST | `/api/serial/gpio-test` | Measure whether BOOT/EN are physically wired to this slot's board `{"slot"}` → `{en_wired, boot_wired, detail}` |
 | POST | `/api/serial/release` | Release BOOT GPIO + reboot after a download-mode flash `{"slot"}` |
 | POST | `/api/enter-portal` | Provision a captive-portal DUT (WiFiManager: `portal_ssid`, `ssid`, `password`, `save_path=/wifisave`, `field_ssid=s`, `field_password=p`, `method=POST`, `internet`, `extra`); or trigger with `{slot, resets}` |
 | POST | `/api/start` · `/api/stop` | Manually start / stop the proxy for a slot `{"slot"}` (or `slot_key`). `start` takes an optional `devnode`, defaulting to the slot's own |
