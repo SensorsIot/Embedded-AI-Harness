@@ -2,22 +2,15 @@
 #
 # This image had no sdkconfig.defaults at all, so it took ESP-IDF's: primary
 # console on UART0, USB-Serial/JTAG mirrored as a *secondary* console, which
-# is output only. The bench could therefore read the board perfectly — the
-# `LOOP:` heartbeat arrived every 500 ms — and could not write to it at all.
+# is output only. The bench could therefore read the board — the `LOOP:`
+# heartbeat arrived every 500 ms — while writes to it went to a peripheral
+# nothing was listening on.
 #
-# The failure that produces is worth naming, because it looks like broken
-# hardware for a long time. esptool's reset works: the chip leaves the
-# application and the heartbeat stops. What it cannot then do is talk, so
-# every attempt ends in `Write timeout` or `No more data to read from the
-# serial port`, on a board whose USB device enumerates cleanly with no kernel
-# error anywhere. Rebinding the USB device does not clear it, and neither
-# does a JTAG CPU reset — only removing power does, which is why the board
-# appeared to need replugging every hour.
-#
-# `test-firmware` hit exactly this and fixed it; this image was left behind.
+# `test-firmware` hit the same thing and fixed it there; this image was left
+# behind, and could not be rebuilt to match because its binaries were
+# committed rather than built. Both halves are fixed: the setting is here and
+# .github/workflows/debug-test-firmware.yml builds the image.
 #
 # The settings themselves live in sdkconfig.defaults.<target>, because they
 # only exist on parts with a USB-Serial/JTAG peripheral. The classic ESP32
-# reaches the bench through a bridge chip on UART0 and has no such symbol —
-# putting it here builds an image for it that warns about a key nobody
-# applied.
+# reaches the bench through a bridge chip on UART0 and has no such symbol.
