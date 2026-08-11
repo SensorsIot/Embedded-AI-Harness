@@ -605,25 +605,30 @@ class TestRfLoopback:
     it, and it needs nothing plugged in. If it fails, treat every other SDR
     result as unreliable rather than debugging them individually.
 
-    Deliberately *not* asserted here: RSSI versus PE4302 attenuation. Measured
-    flat across 0–31.5 dB at both 433.92 MHz and the 86.784 MHz fundamental —
-    the attenuator is not in the path that reaches the dongle, so the coupling
-    is board-level leakage. A monotonicity test would need a deliberate coax
-    from the attenuator output to the dongle input; until that exists such a
-    test would assert something the hardware cannot do.
+    Attenuation is asserted separately, by WT-1910, and **at the fundamental**
+    rather than here. This test reads the 5th harmonic, where the attenuator
+    setting moves the level the *wrong way*: commanding 31.5 dB raised
+    433.92 MHz by about 7 dB, repeatably. The switch state changes the load the
+    Si5351 drives, so harmonic content can rise while the fundamental falls —
+    measuring a harmonic says nothing about the direction of the signal that
+    produced it. An earlier note here recorded the response as "flat across
+    0–31.5 dB at both frequencies" and used that to conclude the attenuator was
+    outside the coupling path; it is neither flat nor outside it.
     """
 
     FUNDAMENTAL_HZ = 86_784_000      # 5th harmonic = 433.920 MHz
+    MAX_ATTEN_DB = 31.5              # PE4302 full scale
+    MIN_ATTEN_DROP_DB = 2.0          # measured ~4.6 dB at the fundamental
     TARGET_HZ = 433_920_000
     GAIN_DB = 20.0                   # fixed: AGC rescales and destroys the delta
     MIN_LIFT_DB = 15.0               # measured ~24 dB at fixed gain
 
-    def _peak(self, testbench) -> float:
+    def _peak(self, testbench, freq_hz: int | None = None) -> float:
         # A fixed gain is not optional here. On AGC the tuner rescales from
         # whatever it saw recently, so the quiet floor wandered 16 dB between
         # runs on the reference bench and the carrier was compressed to a 3.7 dB
         # lift — the comparison this test makes is meaningless without it.
-        r = testbench.sdr_power(freq_hz=self.TARGET_HZ, duration_s=3,
+        r = testbench.sdr_power(freq_hz=freq_hz or self.TARGET_HZ, duration_s=3,
                                 span_hz=200_000, bin_hz=5_000,
                                 gain=self.GAIN_DB)
         return float(r["peak_db"])
@@ -660,6 +665,58 @@ class TestRfLoopback:
             "reading is not tracking the transmitter")
 
 
+
+    def test_wt1910_attenuator_lowers_the_radiated_level(self, testbench):
+        """WT-1910: commanding attenuation drops the level at the fundamental.
+
+        Measured at 86.784 MHz, not at the 433.92 MHz harmonic WT-1909 uses,
+        because the harmonic moves the wrong way (see this class's docstring).
+
+        Alternates 0 dB and full scale rather than sweeping, because a sweep
+        cannot tell attenuation from drift: readings climbed monotonically
+        through an ascending sweep and again through a descending one, which
+        looks like a response and is a clock. Alternating extremes and
+        averaging each pair removes anything that only moves one way with time.
+
+        The drop is far smaller than the 31.5 dB commanded — about 4.6 dB —
+        because what reaches the dongle is board-level leakage rather than the
+        attenuator's output. The threshold is set for the leakage path; this
+        asserts the attenuator *acts*, not that it is accurate.
+        """
+        if not _sdr_available(testbench):
+            pytest.skip("no RTL-SDR dongle available")
+        hw = testbench.siggen_status().get("hardware", {})
+        if not hw.get("si5351"):
+            pytest.skip("no Si5351 signal generator present")
+        if not hw.get("pe4302"):
+            pytest.skip("no PE4302 attenuator present")
+
+        readings = []
+        testbench.siggen_start(freq_hz=self.FUNDAMENTAL_HZ)
+        try:
+            time.sleep(2)
+            for db in (0.0, self.MAX_ATTEN_DB, 0.0, self.MAX_ATTEN_DB):
+                testbench.siggen_atten(db)
+                time.sleep(1.5)
+                readings.append(self._peak(testbench, self.FUNDAMENTAL_HZ))
+        finally:
+            # Leave the bench at reference loss with no carrier on air.
+            try:
+                testbench.siggen_atten(0.0)
+            except Exception:
+                pass
+            testbench.siggen_stop()
+
+        wide_open = (readings[0] + readings[2]) / 2
+        attenuated = (readings[1] + readings[3]) / 2
+        drop = wide_open - attenuated
+        assert drop >= self.MIN_ATTEN_DROP_DB, (
+            f"0 dB read {wide_open:.1f} dB and {self.MAX_ATTEN_DB} dB read "
+            f"{attenuated:.1f} dB — a drop of {drop:.1f} dB, under the "
+            f"{self.MIN_ATTEN_DROP_DB} dB this needs. Either the PE4302 is not "
+            f"switching, its control lines are miswired, or the generator is "
+            f"not reaching the dongle at all (WT-1909 answers the last one). "
+            f"Readings: {readings}")
 
 
 # =====================================================================
