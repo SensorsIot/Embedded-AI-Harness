@@ -183,6 +183,9 @@ curl -X POST $TESTBENCH_URL/api/test/update \
 
 # Poll current progress
 curl $TESTBENCH_URL/api/test/progress
+
+# The report survives the end and stays on the panel. Discard it when read:
+curl -X DELETE $TESTBENCH_URL/api/test/progress
 ```
 
 ### Python Driver Methods
@@ -192,6 +195,8 @@ wt.test_start("<test-spec> v1.0", "Phase 1", total=8)
 wt.test_step("TC-001", "WiFi Provisioning", "Joining AP...", manual=False)
 wt.test_result("TC-001", "WiFi Provisioning", "PASS")
 wt.test_end()
+report = wt.test_progress()   # poll the session, ended or not
+wt.test_clear()               # discard the finished report
 ```
 
 ## TestbenchDriver
@@ -298,6 +303,9 @@ curl -s "$TESTBENCH_URL/api/log?since=2025-01-01T00:00:00Z" | jq .
    - `POST /api/test/update` with `spec`, `phase`, `total` — start session
    - For each test: update step → run test → record result
    - `POST /api/test/update` with `end: true` — end session
+   - The report stays on the panel after `end`, marked ended, so the operator
+     can still read it. `DELETE /api/test/progress` (or the panel's Clear
+     button) discards it; a new session started later replaces it.
    - Operator monitors on web UI (progress bar, results with PASS/FAIL/SKIP badges)
 
 2. **Test requiring physical action:**

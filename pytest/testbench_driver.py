@@ -514,6 +514,31 @@ class TestbenchDriver:
         """End the test session."""
         return self._api_post("/api/test/update", {"end": True})
 
+    def test_progress(self) -> dict:
+        """GET /api/test/progress — poll current test session state."""
+        return self._api_get("/api/test/progress")
+
+    def test_clear(self) -> dict:
+        """DELETE /api/test/progress — clear the stored test report.
+
+        Refused while a session is still running, and the refusal says so.
+        That reason is the answer the caller needs, so it is read out of the
+        body rather than collapsed into a bare status code.
+        """
+        url = f"{self.base_url}/api/test/progress"
+        req = urllib.request.Request(url, method="DELETE")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            raise CommandError("test_clear", {"error": _body_reason(e)})
+        except urllib.error.URLError as e:
+            raise CommandTimeout(f"DELETE /api/test/progress: {e}")
+
+        if not data.get("ok", False):
+            raise CommandError("test_clear", data)
+        return data
+
     # ── GPIO control ──────────────────────────────────────────────────
 
     def gpio_set(self, pin: int, value) -> dict:

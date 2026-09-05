@@ -105,7 +105,8 @@ _human_message: str | None = None
 _human_lock = threading.Lock()
 
 # Test progress — test scripts push updates via POST /api/test/update,
-# UI polls via GET /api/test/progress.
+# UI polls via GET /api/test/progress and keeps the last finished report
+# visible until it is explicitly cleared from the UI.
 _test_lock = threading.Lock()
 _test_session = None  # dict or None; see _handle_test_update for schema
 
@@ -2925,6 +2926,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/udplog":
             _udp_log.clear()
             self._send_json({"ok": True})
+        elif path == "/api/test/progress":
+            self._handle_test_clear()
         elif path == "/api/firmware/delete":
             self._handle_firmware_delete()
         else:
@@ -3876,9 +3879,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         with _test_lock:
-            # End session
+            # End session but keep it visible until explicitly cleared
             if body.get("end"):
-                _test_session = None
+                if _test_session is None:
+                    self._send_json({"ok": False, "error": "no active session"}, 400)
+                    return
+                _test_session["current"] = None
+                _test_session["ended"] = True
+                _test_session["ended_at"] = datetime.now(timezone.utc).isoformat()
                 self._send_json({"ok": True})
                 return
 
@@ -3890,11 +3898,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "total": body.get("total", 0),
                     "completed": [],
                     "current": None,
+                    "ended": False,
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "ended_at": None,
                 }
 
             if _test_session is None:
                 self._send_json({"ok": False, "error": "no active session"}, 400)
                 return
+
+            # Any regular update re-opens the session if it was previously ended
+            if _test_session.get("ended"):
+                _test_session["ended"] = False
+                _test_session["ended_at"] = None
 
             # Update phase if provided
             if "phase" in body and "spec" not in body:
@@ -3913,6 +3929,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 _test_session["completed"].append(body["result"])
                 _test_session["current"] = None
 
+        self._send_json({"ok": True})
+
+    def _handle_test_clear(self):
+        """DELETE /api/test/progress — clear the stored test report."""
+        global _test_session
+        with _test_lock:
+            if _test_session and not _test_session.get("ended"):
+                self._send_json({"ok": False, "error": "session still active"}, 400)
+                return
+            _test_session = None
         self._send_json({"ok": True})
 
     # -- GPIO handlers --
@@ -5056,16 +5082,20 @@ _UI_HTML = """\
         .log-entry.cat-step { color: #00d4ff; }
         .log-entry.cat-ok { color: #2ecc71; }
         .log-entry.cat-error { color: #ff6b6b; }
-        .log-actions { margin-top: 10px; display: flex; gap: 8px; }
-        .log-actions button {
+        /* Panel actions sit at the bottom left of their box. Shared with the
+           test panel's Clear: same widget in the same role, so one rule. */
+        .log-actions, .test-actions { margin-top: 10px; display: flex; gap: 8px; }
+        .log-actions button, .test-actions button {
             background: #0f3460; color: #aaa; border: 1px solid #333;
             padding: 6px 14px; border-radius: 6px; cursor: pointer;
             font-size: 0.85em; transition: all 0.2s;
         }
-        .log-actions button:hover { background: #1a4a7a; color: #eee; }
+        .log-actions button:hover, .test-actions button:hover { background: #1a4a7a; color: #eee; }
         .log-actions button.primary { background: #00d4ff; color: #1a1a2e; border-color: #00d4ff; font-weight: bold; }
         .log-actions button.primary:hover { background: #00b8d9; }
-        .log-actions button:disabled { background: #333; color: #555; cursor: not-allowed; }
+        .log-actions button:disabled, .test-actions button:disabled {
+            background: #333; color: #555; cursor: not-allowed;
+        }
         /* Human interaction request overlay */
         .human-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -5122,6 +5152,10 @@ _UI_HTML = """\
         .test-result .badge.pass { color: #28a745; }
         .test-result .badge.fail { color: #dc3545; }
         .test-result .badge.skip { color: #ffc107; }
+        .test-ended {
+            color: #f0a030; font-weight: bold; margin-bottom: 12px;
+            padding: 10px 12px; background: #3a2a00; border-left: 4px solid #f0a030; border-radius: 6px;
+        }
         /* Signal generator panel */
         .siggen-section { margin: 20px 0 0; }
         .siggen-box { background: #16213e; border-radius: 12px; padding: 20px; border: 2px solid #0f3460; }
@@ -5182,8 +5216,12 @@ _UI_HTML = """\
                 <div class="test-bar-label" id="test-bar-label"></div>
             </div>
             <div class="test-counter" id="test-counter"></div>
+            <div class="test-ended" id="test-ended" style="display:none"></div>
             <div class="test-current" id="test-current"></div>
             <div class="test-results" id="test-results"></div>
+            <div class="test-actions">
+                <button id="btn-test-clear" onclick="clearTestProgress()" disabled>Clear</button>
+            </div>
         </div>
     </div>
     <div class="siggen-section" id="siggen-section">
@@ -5629,10 +5667,28 @@ document.getElementById('btn-human-cancel').addEventListener('click', async func
     btn.disabled = false;
 });
 
+async function clearTestProgress() {
+    try {
+        const btn = document.getElementById('btn-test-clear');
+        btn.disabled = true;
+        const resp = await fetch('/api/test/progress', { method: 'DELETE' });
+        const data = await resp.json();
+        if (!data.ok) {
+            alert('Clear failed: ' + (data.error || 'unknown error'));
+        }
+        await fetchTestProgress();
+    } catch (e) {
+        alert('Error: ' + e);
+    }
+}
+
 async function fetchTestProgress() {
     try {
         const resp = await fetch('/api/test/progress');
         const data = await resp.json();
+
+        const clearBtn = document.getElementById('btn-test-clear');
+        const endedEl = document.getElementById('test-ended');
 
         if (!data.active) {
             document.getElementById('test-header').textContent = 'No test session active';
@@ -5641,9 +5697,13 @@ async function fetchTestProgress() {
             document.getElementById('test-counter').textContent = '';
             document.getElementById('test-current').style.display = 'none';
             document.getElementById('test-results').innerHTML = '';
+            endedEl.style.display = 'none';
+            endedEl.textContent = '';
+            clearBtn.disabled = true;
             return;
         }
 
+        clearBtn.disabled = false;
         document.getElementById('test-header').textContent = data.spec + ' — ' + data.phase;
         const done = data.completed.length;
         const pct = data.total > 0 ? Math.round(done / data.total * 100) : 0;
@@ -5662,6 +5722,17 @@ async function fetchTestProgress() {
             bar.style.background = 'linear-gradient(90deg, #8b1a1a, #dc3545)';
         } else {
             bar.style.background = 'linear-gradient(90deg, #1a6b2a, #28a745)';
+        }
+
+        if (data.ended) {
+            endedEl.style.display = '';
+            endedEl.textContent = 'Completed — report stays visible until you press Clear.'
+                + (data.ended_at ? ' Ended at: ' + data.ended_at : '');
+            clearBtn.disabled = false;
+        } else {
+            endedEl.style.display = 'none';
+            endedEl.textContent = '';
+            clearBtn.disabled = true;
         }
 
         const cur = document.getElementById('test-current');

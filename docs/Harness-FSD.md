@@ -1741,6 +1741,7 @@ operators can monitor test execution without a terminal.
 |--------|----------|-------------|
 | POST | /api/test/update | Push session start, step updates, results, or end |
 | GET | /api/test/progress | Poll current test session state |
+| DELETE | /api/test/progress | Clear the stored test report |
 
 **Session lifecycle:**
 
@@ -1749,12 +1750,34 @@ operators can monitor test execution without a terminal.
 3. `POST /api/test/update` with `{result: {id, name, result, details}}` — record result (PASS/FAIL/SKIP)
 4. `POST /api/test/update` with `{end: true}` — end session
 
+**Report Persistence:**
+When a session ends, it is not immediately cleared. Instead, it is marked
+as `ended: true` and remains visible in the web UI until explicitly cleared
+via `DELETE /api/test/progress` (or the "Clear" button in the UI). Any
+subsequent regular update will re-open the session if it was ended.
+
+**Session State Fields (`GET /api/test/progress`):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| active | bool | True if a session exists (even if ended) |
+| spec | string | Test specification name |
+| phase | string | Current test phase |
+| total | int | Total number of tests |
+| completed | list | List of result objects |
+| current | object/null | Current test object |
+| ended | bool | True if the test script has finished |
+| started_at | string | ISO timestamp of session start |
+| ended_at | string | ISO timestamp of session end (if ended) |
+
 **Driver methods:**
 ```python
 wt.test_start("Modbus Proxy v1.4", "Integration", total=58)
 wt.test_step("TC-001", "WiFi Connect", "Joining AP...", manual=False)
 wt.test_result("TC-001", "WiFi Connect", "PASS")
 wt.test_end()
+report = wt.test_progress()   # poll the session, ended or not
+wt.test_clear()               # discard the report once it has been read
 ```
 
 ### FR-020 — UDP Log Receiver
