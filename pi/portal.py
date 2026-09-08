@@ -5062,14 +5062,22 @@ _UI_HTML = """\
         .btn-recover:hover { background: #d35400; }
         .info { text-align: center; color: #666; margin-top: 30px; font-size: 0.85em; }
         /* Activity log */
+        /* Heading above the box, box styled like .siggen-box — every panel on
+           the page is built this way, so the log follows the same shape. The
+           flex chain runs section -> box -> entries so the log still takes the
+           height left over on the page. */
         .log-section {
             margin: 20px 0 0;
+            display: flex; flex-direction: column;
+            flex: 1; min-height: 0;
+        }
+        .log-box {
             background: #16213e; border-radius: 12px; padding: 20px;
             border: 2px solid #0f3460;
             display: flex; flex-direction: column;
             flex: 1; min-height: 0;
         }
-        .log-section h2 { margin: 0 0 10px; font-size: 1.1em; color: #eee; flex-shrink: 0; }
+        .log-section h2 { flex-shrink: 0; }
         .log-entries {
             background: #0a0a1a; border-radius: 8px; padding: 10px;
             flex: 1; overflow-y: auto; font-family: monospace;
@@ -5326,9 +5334,11 @@ _UI_HTML = """\
     </div>
     <div class="log-section">
         <h2>Activity Log</h2>
-        <div class="log-entries" id="log-entries"></div>
-        <div class="log-actions">
-            <button onclick="clearLog()">Clear</button>
+        <div class="log-box">
+            <div class="log-entries" id="log-entries"></div>
+            <div class="log-actions">
+                <button onclick="clearLog()">Clear</button>
+            </div>
         </div>
     </div>
     <div class="info" id="info">Auto-refresh every 5 seconds</div>
