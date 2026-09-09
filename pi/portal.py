@@ -2772,6 +2772,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._send_json({"ok": True, **_sdr.get_log()})
         elif path == "/api/mqtt/status":
             self._send_json({"ok": True, **mqtt_controller.status()})
+        elif path == "/api/mqtt/messages":
+            self._handle_mqtt_get_messages(parse_qs(parsed.query))
         elif path == "/api/udplog":
             qs = parse_qs(parsed.query)
             self._handle_get_udplog(qs)
@@ -2903,6 +2905,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/mqtt/stop":
             mqtt_controller.stop()
             self._send_json({"ok": True})
+        elif path == "/api/mqtt/publish":
+            self._handle_mqtt_publish()
+        elif path == "/api/mqtt/subscribe":
+            self._handle_mqtt_subscribe()
+        elif path == "/api/mqtt/messages/clear":
+            self._handle_mqtt_clear_messages()
         elif path == "/api/firmware/upload":
             self._handle_firmware_upload()
         elif path == "/api/flash":
@@ -4563,6 +4571,66 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         result = ble_controller.write(characteristic, data, response=response)
         self._send_json(result, 200 if result.get("ok") else 500)
+
+    # -- MQTT pub/sub handlers --
+
+    def _handle_mqtt_publish(self):
+        body = self._read_json() or {}
+        topic = body.get("topic")
+        if not topic or "payload" not in body:
+            self._send_json({"ok": False, "error": "need 'topic' and 'payload'"}, 400)
+            return
+        log_activity(f"mqtt.publish({topic})", "step")
+        try:
+            result = mqtt_controller.publish(
+                topic, body["payload"],
+                qos=body.get("qos", 0),
+                retain=body.get("retain", False))
+        except Exception as e:
+            log_activity(f"mqtt.publish({topic}) — {e}", "error")
+            self._send_json({"ok": False, "error": str(e)}, 503)
+            return
+        log_activity(f"mqtt.publish({topic}) — sent", "ok")
+        self._send_json(result)
+
+    def _handle_mqtt_subscribe(self):
+        body = self._read_json() or {}
+        topic = body.get("topic")
+        if not topic:
+            self._send_json({"ok": False, "error": "need 'topic'"}, 400)
+            return
+        log_activity(f"mqtt.subscribe({topic})", "step")
+        try:
+            result = mqtt_controller.subscribe(topic)
+        except Exception as e:
+            log_activity(f"mqtt.subscribe({topic}) — {e}", "error")
+            self._send_json({"ok": False, "error": str(e)}, 503)
+            return
+        self._send_json(result)
+
+    def _handle_mqtt_get_messages(self, qs):
+        try:
+            limit = int(qs.get("limit", ["100"])[0])
+        except ValueError:
+            self._send_json({"ok": False, "error": "'limit' must be a number"}, 400)
+            return
+        use_regex = qs.get("regex", ["false"])[0].lower() == "true"
+        try:
+            messages = mqtt_controller.get_messages(
+                qs.get("topic", [None])[0],
+                qs.get("payload", [None])[0],
+                limit, use_regex)
+        except re.error as e:
+            # A malformed pattern must not fall through to the unfiltered
+            # buffer: an assertion would then pass on messages it never
+            # matched, which is worse than no filter at all.
+            self._send_json({"ok": False, "error": f"bad regex: {e}"}, 400)
+            return
+        self._send_json({"ok": True, "count": len(messages), "messages": messages})
+
+    def _handle_mqtt_clear_messages(self):
+        log_activity("mqtt.clear_messages()", "step")
+        self._send_json(mqtt_controller.clear_messages())
 
     # -- GDB debug handlers --
 

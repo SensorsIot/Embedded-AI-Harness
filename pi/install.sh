@@ -34,7 +34,7 @@ if [ "$UPDATE_ONLY" = false ]; then
 
     # Python packages not available via apt
     # esptool >= 5: the portal uses the hyphenated subcommands and flags.
-    pip3 install 'esptool>=5' bleak smbus2 --break-system-packages 2>/dev/null || true
+    pip3 install 'esptool>=5' bleak smbus2 paho-mqtt --break-system-packages 2>/dev/null || true
 
     # Enable I2C for Si5351 signal generator
     if command -v raspi-config >/dev/null 2>&1; then

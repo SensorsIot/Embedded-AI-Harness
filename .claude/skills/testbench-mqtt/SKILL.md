@@ -40,6 +40,20 @@ curl $TESTBENCH_URL/api/mqtt/status
 
 # Stop the MQTT broker
 curl -X POST $TESTBENCH_URL/api/mqtt/stop
+
+# Record a topic, then make the DUT talk, then read what arrived.
+# Subscribe first — nothing is recorded until something is subscribed.
+curl -X POST $TESTBENCH_URL/api/mqtt/subscribe \
+  -H 'Content-Type: application/json' -d '{"topic": "bench/dut/#"}'
+
+curl -X POST $TESTBENCH_URL/api/mqtt/publish \
+  -H 'Content-Type: application/json' \
+  -d '{"topic": "bench/cmd", "payload": "report", "qos": 1}'
+
+curl "$TESTBENCH_URL/api/mqtt/messages?topic=bench/dut&limit=20"
+curl "$TESTBENCH_URL/api/mqtt/messages?payload=temp:%20[0-9]%2B&regex=true"
+
+curl -X POST $TESTBENCH_URL/api/mqtt/messages/clear
 ```
 
 ## MQTT Broker Details

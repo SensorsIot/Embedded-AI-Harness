@@ -787,6 +787,64 @@ class TestMqttBroker:
             testbench.mqtt_start()      # shared infrastructure; put it back
         assert refused, f"{host}:1883 still accepts connections after stop"
 
+    def test_wt2005_the_bench_records_what_it_subscribed_to(self, testbench):
+        """WT-2005: publish through the bench and read it back out of its buffer.
+
+        WT-2003 runs its own paho client inside pytest, so it proves the broker
+        carries traffic to *this host*. That is not the same question. A test
+        asserting on a DUT's messages needs the bench to have heard them, and
+        until now nothing checked that it could.
+        """
+        testbench.mqtt_start()
+        st = testbench.mqtt_status()
+        if not st.get("internal_client", {}).get("library_available"):
+            pytest.skip("precondition unmet: paho-mqtt is not installed on the bench")
+
+        tag = uuid.uuid4().hex[:8]
+        topic = f"testbench/selftest/{tag}"
+        payload = f"hello-{tag}"
+
+        testbench.mqtt_subscribe(topic)
+        testbench.mqtt_clear_messages()
+        testbench.mqtt_publish(topic, payload, qos=1)
+
+        deadline = time.time() + 10
+        got = []
+        while time.time() < deadline and not got:
+            got = testbench.mqtt_get_messages(topic=topic)
+            if not got:
+                time.sleep(0.2)
+
+        assert got, f"the bench recorded nothing on {topic} within 10s"
+        assert got[-1]["payload"] == payload, got[-1]
+        assert got[-1]["timestamp"].endswith("+00:00"), (
+            f"timestamps must be UTC so a report is readable off the bench, "
+            f"got {got[-1]['timestamp']!r}"
+        )
+        assert testbench.mqtt_get_messages(payload=payload), (
+            "the payload filter found nothing the topic filter had already found"
+        )
+
+        testbench.mqtt_clear_messages()
+        assert testbench.mqtt_get_messages(topic=topic) == [], (
+            "clear left messages in the buffer"
+        )
+
+    def test_wt2006_a_bad_regex_is_refused_not_ignored(self, testbench):
+        """WT-2006: a malformed filter must not answer with the whole buffer.
+
+        Logging the `re.error` and returning everything is worse than having
+        no filter: the caller asked a question the bench could not answer and
+        gets back rows matching nothing it asked about, so the assertion over
+        them passes for the wrong reason.
+        """
+        testbench.mqtt_start()
+        with pytest.raises(TestbenchError) as excinfo:
+            testbench.mqtt_get_messages(topic="([unclosed", regex=True)
+        assert "regex" in str(excinfo.value).lower(), (
+            f"the refusal did not say the pattern was the problem: {excinfo.value}"
+        )
+
     @staticmethod
     def _roundtrip(host, topic, payload, timeout):
         """Publish and subscribe against the bench broker; return what came

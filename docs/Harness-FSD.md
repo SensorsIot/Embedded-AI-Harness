@@ -1407,6 +1407,10 @@ serial-interface mode.
 | GET | /api/mqtt/status | Broker running state + port (FR-029) |
 | POST | /api/mqtt/start | Start the mosquitto test broker (FR-029) |
 | POST | /api/mqtt/stop | Stop the broker (FR-029) |
+| POST | /api/mqtt/publish | Send one message from the bench (FR-029) |
+| POST | /api/mqtt/subscribe | Record a topic into the message buffer (FR-029) |
+| GET | /api/mqtt/messages | Read the buffer, filtered by topic/payload (FR-029) |
+| POST | /api/mqtt/messages/clear | Empty the message buffer (FR-029) |
 | **Composite** | | |
 | GET | /api/log | Activity log (timestamped entries, filterable with `?since=`) |
 | POST | /api/enter-portal | Ensure device is connected to testbench AP — provision via captive portal if needed |
@@ -2115,6 +2119,67 @@ restart, matching only processes launched with this service's own config path.
 It does not kill brokers it did not start: if port 1883 is held by anything
 else — a system `mosquitto.service`, another user's broker — start fails and
 names the listener rather than taking down infrastructure it does not own.
+
+#### 29.1 The bench as a participant
+
+Hosting a broker is not the same as being able to see what crosses it. A test
+that makes the DUT publish could only ever check that the DUT *thought* it had
+published; confirming the message arrived meant standing up a paho client in
+the pytest process and reaching the bench over the LAN. That works only while
+the test host shares a network with the broker, and it proves nothing about
+what any other consumer would have seen.
+
+The portal therefore keeps its own client on its own broker, and a test drives
+it through the API like any other instrument.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/mqtt/publish | Send one message: `{topic, payload, qos?, retain?}` |
+| POST | /api/mqtt/subscribe | Record everything matching `{topic}` from now on |
+| GET | /api/mqtt/messages | What has been heard: `?topic=&payload=&limit=&regex=` |
+| POST | /api/mqtt/messages/clear | Empty the buffer, keeping the subscriptions |
+
+**Recorded message:**
+
+```json
+{"topic": "bench/dut/state", "payload": "ready",
+ "timestamp": "2026-09-05T11:04:17.882913+00:00"}
+```
+
+**Buffer.** A bounded deque of 1000 entries, oldest dropped first, the same
+shape as the activity log and the UDP log. It is emptied when the broker is
+started fresh, and by `messages/clear`; a repeated `start` on a broker that is
+already running leaves both the buffer and the subscriptions alone.
+
+**Nothing is subscribed by default.** A bench-wide `#` would fill the buffer
+with every other consumer's traffic and bury the messages a test is actually
+looking for, so `subscribe` is an explicit step and belongs *before* whatever
+is meant to produce the traffic. Subscriptions are replayed automatically when
+paho reconnects after a dropped link — a client that came back subscribed to
+nothing would let every later assertion read as "the device published nothing".
+
+**Filters.** `topic` and `payload` are substring matches, or regular
+expressions when `regex=true`. A malformed expression is refused with 400: an
+unfiltered answer would let an assertion pass on messages it never matched,
+which is worse than having no filter at all.
+
+**Availability.** `publish` and `subscribe` need `paho-mqtt` on the Pi and a
+running broker; without either they answer 503 saying which is missing.
+`/api/mqtt/status` reports both under `internal_client`:
+
+```json
+{"running": true, "port": 1883,
+ "internal_client": {"running": true, "library_available": true}}
+```
+
+**Driver methods:**
+```python
+wt.mqtt_start()
+wt.mqtt_subscribe("bench/dut/#")
+wt.mqtt_publish("bench/cmd", "report", qos=1)
+msgs = wt.mqtt_get_messages(topic=r"bench/dut/\w+", regex=True, limit=20)
+wt.mqtt_clear_messages()
+```
 
 ---
 
@@ -3550,6 +3615,10 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | WT-2000 | MQTT broker start reports running + port 1883 | MQTT Broker | No |
 | WT-2001 | MQTT broker status when stopped | MQTT Broker | No |
 | WT-2002 | MQTT broker start is idempotent | MQTT Broker | No |
+| WT-2003 | Broker carries a message between a publisher and a subscriber | MQTT Broker | No |
+| WT-2004 | A stopped broker actually closes port 1883 | MQTT Broker | No |
+| WT-2005 | The bench records what it subscribed to; filters and clear work | MQTT Broker | No |
+| WT-2006 | A malformed regex filter is refused, not answered unfiltered | MQTT Broker | No |
 | WT-2100 | Captive-portal provisioning of a WiFiManager DUT | Captive Portal | Yes |
 | WT-2101 | Provisioned DUT joins the testbench AP (appears as station) | Captive Portal | Yes |
 | WT-2102 | NAT-bridged AP: DUT reaches the LAN broker (192.168.0.x MQTT) | Captive Portal | Yes |
@@ -3623,6 +3692,7 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | 9.4 | 2026-07-05 | Claude | SDR (FR-028) gains: fixed-gain (`-g`) + `peak_freq_hz`/`notch_hz` on power; phased `acquire` (locate→level→decode→classify) with `tools/sdr_acquire.py` CLI and live activity-log prompts; the interactive **live console** (persistent `rtl_433`, ring-buffer fast-poll `/api/sdr/live*`, RSSI meter, presets, `-A` in every mode so the signal meter is decode-independent); **AI Sherlock** session log (`/api/sdr/log*`) for AI reverse-engineering of unknown remotes; USB self-heal + `/api/sdr/reset`; and an `rtl_433` device database (`pi/config/rtl_433.conf`) shipping one worked-example decoder. New skill `sdr-receiver`. |
 | 9.5 | 2026-08-03 | Claude | MCP surface completed to 70 tools — added `firmware_upload/delete`, `udplog_get/clear`, `debug_group`, `test_update`, `wifi_events`, `human_interaction/done/cancel`; `DELETE` added as a transport method. Only the two udev callbacks (`/api/hotplug`, `/api/wifi/lease_event`) remain unexposed. |
 | 10.0 | 2026-08-03 | Claude | Documentation consolidated to two documents: this FSD (WHAT) and the User Manual (HOW). The separate user manual, WiFi HTTP manual, skill-testing guide, and the `pi/` and `mcp/` READMEs merged into `Harness-User-Manual.md`; root `README.md` reduced to a landing page. FSD sections regrouped by subsystem — FR-017–FR-021 out of "WiFi Service" into §5, BLE + MQTT into §6, the three GDB specs into §7, signal generator + SDR into §8, and the MCP interface promoted out of FR-006 into §9. FR numbers and clause text unchanged. |
+| 10.1 | 2026-09-05 | Claude | The bench takes part in MQTT rather than only hosting it (FR-029 §29.1): `publish`/`subscribe`, a bounded message buffer with substring and regex filters over topic and payload, and `messages/clear`. Subscriptions are replayed on reconnect; a malformed regex is refused rather than answered with the unfiltered buffer. Test cases WT-2005–2006; WT-2003–2004 catalogued (implemented earlier, never listed). |
 
 ---
 

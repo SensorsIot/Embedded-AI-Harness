@@ -10,6 +10,7 @@ import logging
 import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
@@ -245,6 +246,48 @@ class TestbenchDriver:
 
     def mqtt_status(self) -> dict:
         return self._api_get("/api/mqtt/status")
+
+    def mqtt_publish(self, topic: str, payload: str, qos: int = 0,
+                     retain: bool = False) -> dict:
+        """POST /api/mqtt/publish — send one message from the bench."""
+        return self._api_post("/api/mqtt/publish", {
+            "topic": topic,
+            "payload": payload,
+            "qos": qos,
+            "retain": retain,
+        })
+
+    def mqtt_subscribe(self, topic: str) -> dict:
+        """POST /api/mqtt/subscribe — tell the bench what to record.
+
+        Nothing is recorded until something is subscribed, so this comes
+        before the step that is meant to produce the traffic.
+        """
+        return self._api_post("/api/mqtt/subscribe", {"topic": topic})
+
+    def mqtt_get_messages(self, topic: Optional[str] = None,
+                          payload: Optional[str] = None,
+                          limit: int = 100,
+                          regex: bool = False) -> list[dict]:
+        """GET /api/mqtt/messages — what the bench has heard, newest last.
+
+        `topic` and `payload` are substring filters, or regular expressions
+        when *regex* is set. A malformed expression is refused rather than
+        answered with the unfiltered buffer.
+        """
+        params: dict = {"limit": limit}
+        if topic:
+            params["topic"] = topic
+        if payload:
+            params["payload"] = payload
+        if regex:
+            params["regex"] = "true"
+        qs = urllib.parse.urlencode(params)
+        return self._api_get(f"/api/mqtt/messages?{qs}").get("messages", [])
+
+    def mqtt_clear_messages(self) -> dict:
+        """POST /api/mqtt/messages/clear — empty the buffer, keep the subs."""
+        return self._api_post("/api/mqtt/messages/clear")
 
     # ── Captive-portal provisioning (FR-012 composite) ────────────────
 
