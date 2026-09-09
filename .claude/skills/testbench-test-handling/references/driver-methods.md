@@ -65,4 +65,6 @@ wt.test_start(spec, phase, total)          # Start session — spec name, phase 
 wt.test_step(test_id, name, step)          # Update panel — "Preconditions: ...", "Step N: ...", etc.
 wt.test_result(test_id, name, result, details="")  # Record PASS/FAIL/SKIP
 wt.test_end()                              # End session
+wt.test_progress()                         # Poll the session state — ended or not
+wt.test_clear()                            # Discard the finished report (refused while running)
 ```
