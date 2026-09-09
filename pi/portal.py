@@ -5290,7 +5290,10 @@ _UI_HTML = """\
         <h2>Activity Log</h2>
         <div class="log-entries" id="log-entries"></div>
         <div class="log-actions">
-            <button onclick="clearLog()">Clear</button>
+            <button onclick="clearLog()"
+                    title="Hide everything logged so far. Stays hidden across reloads (this browser only); the bench keeps the entries.">Clear</button>
+            <button onclick="showLogHistory()"
+                    title="Show every entry the bench still holds (the last 200).">Show History</button>
         </div>
     </div>
     <div class="info" id="info">Auto-refresh every 5 seconds</div>
@@ -5460,7 +5463,27 @@ function copyUrl(url, el) {
     setTimeout(() => { el.classList.remove('copied'); el.textContent = url; }, 1000);
 }
 
-let lastLogTs = '';
+// Activity log cursor. /api/log without ?since= returns the whole server-side
+// ring buffer, so the cursor doubles as a "hide everything older" watermark:
+// Clear parks it on the newest rendered entry and persists it, Show History
+// drops it. Resetting it to '' is what used to make Clear undo itself on
+// the next poll. The bench keeps the entries either way — display state only.
+const LOG_WATERMARK_KEY = 'wt.log.hideBefore';
+
+function loadLogWatermark() {
+    try { return localStorage.getItem(LOG_WATERMARK_KEY) || ''; } catch (e) { return ''; }
+}
+
+function saveLogWatermark(ts) {
+    // Storage can be unavailable (private mode, blocked site data). A clear
+    // then holds for this page load only, which still beats not clearing.
+    try {
+        if (ts) localStorage.setItem(LOG_WATERMARK_KEY, ts);
+        else localStorage.removeItem(LOG_WATERMARK_KEY);
+    } catch (e) { /* ignore */ }
+}
+
+let lastLogTs = loadLogWatermark();
 
 async function fetchLog() {
     try {
@@ -5510,9 +5533,19 @@ async function enterPortal() {
     setTimeout(() => { btn.disabled = false; btn.textContent = 'Enter Captive Portal'; }, 30000);
 }
 
-function clearLog() {
+async function clearLog() {
+    // No cursor yet (first poll still in flight) — get one, or the watermark
+    // would be empty and the next poll would refetch everything.
+    if (!lastLogTs) await fetchLog();
+    saveLogWatermark(lastLogTs);
     document.getElementById('log-entries').innerHTML = '';
+}
+
+async function showLogHistory() {
+    saveLogWatermark('');
     lastLogTs = '';
+    document.getElementById('log-entries').innerHTML = '';
+    await fetchLog();
 }
 
 async function releaseSlot(label) {

@@ -3240,8 +3240,9 @@ The portal serves a single-page HTML UI at `GET /` (port 8080):
   relay), and enter-portal sequence steps.  Entries are categorised (info,
   ok, error, step) with colour coding.  "Enter Captive Portal" button
   triggers `POST /api/enter-portal` to connect to a DUT's captive portal
-  SoftAP and submit WiFi credentials.  "Clear" button resets the display.  Log is polled every
-  2 seconds via `GET /api/log?since=<last_ts>`.
+  SoftAP and submit WiFi credentials.  "Clear" button hides every entry
+  shown so far: it parks the poll cursor on the newest rendered entry and
+  persists that timestamp as a watermark in `localStorage`.
 - **Human interaction modal** — full-screen dark overlay with pulsing orange
   border, shown when a test script posts a human interaction request.
   Displays the operator instruction text with Done and Cancel buttons.
@@ -3623,6 +3624,7 @@ Add `--run-dut` to include tests that require a WiFi device under test.
 | 9.4 | 2026-07-05 | Claude | SDR (FR-028) gains: fixed-gain (`-g`) + `peak_freq_hz`/`notch_hz` on power; phased `acquire` (locate→level→decode→classify) with `tools/sdr_acquire.py` CLI and live activity-log prompts; the interactive **live console** (persistent `rtl_433`, ring-buffer fast-poll `/api/sdr/live*`, RSSI meter, presets, `-A` in every mode so the signal meter is decode-independent); **AI Sherlock** session log (`/api/sdr/log*`) for AI reverse-engineering of unknown remotes; USB self-heal + `/api/sdr/reset`; and an `rtl_433` device database (`pi/config/rtl_433.conf`) shipping one worked-example decoder. New skill `sdr-receiver`. |
 | 9.5 | 2026-08-03 | Claude | MCP surface completed to 70 tools — added `firmware_upload/delete`, `udplog_get/clear`, `debug_group`, `test_update`, `wifi_events`, `human_interaction/done/cancel`; `DELETE` added as a transport method. Only the two udev callbacks (`/api/hotplug`, `/api/wifi/lease_event`) remain unexposed. |
 | 10.0 | 2026-08-03 | Claude | Documentation consolidated to two documents: this FSD (WHAT) and the User Manual (HOW). The separate user manual, WiFi HTTP manual, skill-testing guide, and the `pi/` and `mcp/` READMEs merged into `Harness-User-Manual.md`; root `README.md` reduced to a landing page. FSD sections regrouped by subsystem — FR-017–FR-021 out of "WiFi Service" into §5, BLE + MQTT into §6, the three GDB specs into §7, signal generator + SDR into §8, and the MCP interface promoted out of FR-006 into §9. FR numbers and clause text unchanged. |
+| 10.1 | 2026-09-09 | Claude | Activity Log "Clear" fixed: it used to reset the poll cursor, so the full server-side ring buffer (deque, maxlen 200) reappeared via `GET /api/log` on the next poll. Clear now parks the cursor on the newest shown entry and persists it as a `localStorage` watermark (`wt.log.hideBefore`), hiding entries across page reloads per browser without touching the server-side buffer; falls back to current-page-load-only when `localStorage` is unavailable. New "Show History" button drops the watermark. Server-side buffer and `GET /api/log` unchanged — tests, MCP, and other clients still see full history. |
 
 ---
 
