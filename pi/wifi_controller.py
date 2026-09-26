@@ -286,6 +286,20 @@ def _enable_nat():
                            capture_output=True, check=False)
 
 
+
+def _unblock_wlan():
+    """Clear an rfkill soft block on the WLAN radio.
+
+    Debian 13 (trixie) soft-blocks WLAN after a reboot until the regulatory
+    country is applied, and hostapd then fails with "rfkill: WLAN soft
+    blocked"; wpa_supplicant fails the same way. Unblocking is idempotent.
+    """
+    try:
+        subprocess.run(["rfkill", "unblock", "wlan"], capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning("rfkill unblock wlan failed: %s", e)
+
+
 def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
     """Start SoftAP on wlan0. Returns dict with ip.
 
@@ -298,6 +312,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
     global _ap_hostapd_proc, _ap_dnsmasq_proc
 
     _check_wifi_testing_mode()
+    _unblock_wlan()
     with _lock:
         # Stop anything running first
         _stop_all_unlocked()
@@ -559,6 +574,7 @@ def sta_join(ssid, password="", timeout=15, _internal=False):
 
     if not _internal:
         _check_wifi_testing_mode()
+    _unblock_wlan()
     with _lock:
         # Save AP config so sta_leave can restore it
         if _ap_active:
