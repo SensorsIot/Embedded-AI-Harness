@@ -11,6 +11,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # The radio the portal owns. Must match WIFI_WLAN_IF in wifi_controller.py.
 WLAN_IF="${WIFI_WLAN_IF:-wlan0}"
+# Regulatory country for the WLAN radio. Raspberry Pi OS keeps WLAN rfkill
+# soft-blocked while no country is set — and re-blocks it after a manual
+# unblock — so hostapd fails with "rfkill: WLAN soft blocked". Must match the
+# country_code the portal writes into hostapd.conf (WIFI_COUNTRY there too).
+WIFI_COUNTRY="${WIFI_COUNTRY:-CH}"
 UPDATE_ONLY=false
 if [ "$1" = "--update" ]; then
     UPDATE_ONLY=true
@@ -39,6 +44,7 @@ if [ "$UPDATE_ONLY" = false ]; then
     # Enable I2C for Si5351 signal generator
     if command -v raspi-config >/dev/null 2>&1; then
         raspi-config nonint do_i2c 0 2>/dev/null || true
+        raspi-config nonint do_wifi_country "$WIFI_COUNTRY" 2>/dev/null || true
     fi
 
     # Debian 13 (trixie) soft-blocks bluetooth and WLAN via rfkill on a fresh

@@ -36,6 +36,9 @@ WLAN_IF = os.environ.get("WIFI_WLAN_IF", "wlan0")
 # bench still hears at -36 dBm). Kept because a bench with a radio that does
 # support it should use it.
 AP_TXPOWER_MBM = int(os.environ.get("WIFI_AP_TXPOWER_MBM", "500"))
+# Regulatory country for hostapd; install.sh sets the same value as the OS
+# WLAN country (without one, Raspberry Pi OS keeps WLAN rfkill-blocked).
+WIFI_COUNTRY = os.environ.get("WIFI_COUNTRY", "CH")
 
 # A scan while another is in flight fails with "Device or resource busy",
 # and so does one issued while the radio is still settling into AP mode.
@@ -334,7 +337,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
             # 11n-capable station negotiating EAPOL on this driver.
             "ieee80211n=1",
             "wmm_enabled=1",
-            "country_code=CH",
+            f"country_code={WIFI_COUNTRY}",
             "ieee80211d=1",
             # Notice a station that vanished, in seconds rather than in five
             # minutes. A DUT that reboots or is reflashed does not send a
