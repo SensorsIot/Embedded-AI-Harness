@@ -726,9 +726,16 @@ def sta_join(ssid, password="", timeout=15, _internal=False):
 
 
 def sta_leave():
-    """Disconnect from a WiFi network. Restores AP if one was active before sta_join."""
+    """Disconnect from a WiFi network. Restores AP if one was active before sta_join.
+
+    A no-op when no station is joined: the station teardown releases DHCP and
+    flushes wlan0, and run against a running AP it removed the AP's own address —
+    the AP kept beaconing and accepting associations but handed out no leases."""
     global _saved_ap
     with _lock:
+        if not _sta_active and _sta_wpa_proc is None:
+            logger.info("sta_leave: no station joined — nothing to do")
+            return
         _sta_stop_unlocked()
         saved = _saved_ap
         _saved_ap = None
