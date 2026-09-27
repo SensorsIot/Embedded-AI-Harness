@@ -3915,7 +3915,7 @@ AP and STA modes are mutually exclusive.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET · POST | `/api/wifi/mode` | Get / switch mode `{"mode"}` |
-| POST | `/api/wifi/ap_start` | Start SoftAP `{"ssid", "password?", "channel?", "internet?"}` → `{"ok", "ip"}` |
+| POST | `/api/wifi/ap_start` | Start SoftAP `{"ssid", "pass?", "channel?", "internet?"}` → `{"ok", "ip"}`. An empty or absent `pass` starts an **open** network; `password` is accepted as an alias |
 | POST | `/api/wifi/ap_stop` | Stop SoftAP |
 | GET | `/api/wifi/ap_status` | `{"active", "ssid", "channel", "stations": [{"mac", "ip"}, ...]}` |
 | POST | `/api/wifi/sta_join` · `sta_leave` | Join / leave a network `{"ssid", "pass?"}` |

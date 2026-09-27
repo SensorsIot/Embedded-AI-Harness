@@ -36,6 +36,9 @@ WLAN_IF = os.environ.get("WIFI_WLAN_IF", "wlan0")
 # bench still hears at -36 dBm). Kept because a bench with a radio that does
 # support it should use it.
 AP_TXPOWER_MBM = int(os.environ.get("WIFI_AP_TXPOWER_MBM", "500"))
+# Regulatory country for hostapd; install.sh sets the same value as the OS
+# WLAN country (without one, Raspberry Pi OS keeps WLAN rfkill-blocked).
+WIFI_COUNTRY = os.environ.get("WIFI_COUNTRY", "CH")
 
 # A scan while another is in flight fails with "Device or resource busy",
 # and so does one issued while the radio is still settling into AP mode.
@@ -70,6 +73,7 @@ _ap_active = False
 _ap_ssid = ""
 _ap_password = ""
 _ap_channel = 0
+_ap_options = {}      # dns_logging / internet of the running AP, restored by sta_leave
 _ap_hostapd_proc = None
 _ap_dnsmasq_proc = None
 
@@ -286,6 +290,20 @@ def _enable_nat():
                            capture_output=True, check=False)
 
 
+
+def _unblock_wlan():
+    """Clear an rfkill soft block on the WLAN radio.
+
+    Debian 13 (trixie) soft-blocks WLAN after a reboot until the regulatory
+    country is applied, and hostapd then fails with "rfkill: WLAN soft
+    blocked"; wpa_supplicant fails the same way. Unblocking is idempotent.
+    """
+    try:
+        subprocess.run(["rfkill", "unblock", "wlan"], capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning("rfkill unblock wlan failed: %s", e)
+
+
 def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
     """Start SoftAP on wlan0. Returns dict with ip.
 
@@ -294,10 +312,11 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
     If internet=True, DNS forwarding is enabled and wlan0 is NAT-bridged to
     eth0 so AP clients reach the LAN/internet.
     """
-    global _ap_active, _ap_ssid, _ap_password, _ap_channel
+    global _ap_active, _ap_ssid, _ap_password, _ap_channel, _ap_options
     global _ap_hostapd_proc, _ap_dnsmasq_proc
 
     _check_wifi_testing_mode()
+    _unblock_wlan()
     with _lock:
         # Stop anything running first
         _stop_all_unlocked()
@@ -319,7 +338,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
             # 11n-capable station negotiating EAPOL on this driver.
             "ieee80211n=1",
             "wmm_enabled=1",
-            "country_code=CH",
+            f"country_code={WIFI_COUNTRY}",
             "ieee80211d=1",
             # Notice a station that vanished, in seconds rather than in five
             # minutes. A DUT that reboots or is reflashed does not send a
@@ -445,6 +464,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         _ap_ssid = ssid
         _ap_password = password
         _ap_channel = channel
+        _ap_options = {"dns_logging": dns_logging, "internet": internet}
         _stations.clear()
 
         logger.info("AP started: ssid=%s channel=%d ip=%s internet=%s",
@@ -559,10 +579,11 @@ def sta_join(ssid, password="", timeout=15, _internal=False):
 
     if not _internal:
         _check_wifi_testing_mode()
+    _unblock_wlan()
     with _lock:
         # Save AP config so sta_leave can restore it
         if _ap_active:
-            _saved_ap = {"ssid": _ap_ssid, "password": _ap_password, "channel": _ap_channel}
+            _saved_ap = {"ssid": _ap_ssid, "password": _ap_password, "channel": _ap_channel, **_ap_options}
             logger.info("Saved AP config for restore: ssid=%s channel=%d", _ap_ssid, _ap_channel)
         else:
             _saved_ap = None
@@ -707,16 +728,24 @@ def sta_join(ssid, password="", timeout=15, _internal=False):
 
 
 def sta_leave():
-    """Disconnect from a WiFi network. Restores AP if one was active before sta_join."""
+    """Disconnect from a WiFi network. Restores AP if one was active before sta_join.
+
+    A no-op when no station is joined: the station teardown releases DHCP and
+    flushes wlan0, and run against a running AP it removed the AP's own address —
+    the AP kept beaconing and accepting associations but handed out no leases."""
     global _saved_ap
     with _lock:
+        if not _sta_active and _sta_wpa_proc is None:
+            logger.info("sta_leave: no station joined — nothing to do")
+            return
         _sta_stop_unlocked()
         saved = _saved_ap
         _saved_ap = None
     # Restore AP outside lock (ap_start acquires lock)
     if saved:
         logger.info("Restoring AP after sta_leave: ssid=%s channel=%d", saved["ssid"], saved["channel"])
-        ap_start(saved["ssid"], password=saved["password"], channel=saved["channel"])
+        ap_start(saved["ssid"], password=saved["password"], channel=saved["channel"],
+                 dns_logging=saved.get("dns_logging", False), internet=saved.get("internet", False))
 
 
 def _sta_stop_unlocked():

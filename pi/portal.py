@@ -2685,6 +2685,20 @@ def _do_enter_portal(portal_ssid: str, wifi_ssid: str, wifi_password: str,
 # HTTP Handler
 # ---------------------------------------------------------------------------
 
+
+def _wifi_password(body):
+    """The Wi-Fi passphrase from a request body.
+
+    The API documents `pass`; `password` is accepted as well, because Appendix D
+    listed it for ap_start and a caller who followed it got an OPEN network with
+    no error — hostapd writes no WPA section when the passphrase is empty.
+    """
+    for key in ("pass", "password"):
+        value = body.get(key)
+        if value:
+            return value
+    return ""
+
 class Handler(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
@@ -3289,7 +3303,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "mode must be 'wifi-testing' or 'serial-interface'"}, 400)
             return
         ssid = body.get("ssid", "")
-        password = body.get("pass", "")
+        password = _wifi_password(body)
         try:
             result = wifi_controller.set_mode(mode, ssid, password)
             self._send_json({"ok": True, **result})
@@ -3305,7 +3319,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not ssid:
             self._send_json({"ok": False, "error": "missing ssid"}, 400)
             return
-        password = body.get("pass", "")
+        password = _wifi_password(body)
         channel = body.get("channel", 6)
         internet = bool(body.get("internet", False))
         try:
@@ -3334,7 +3348,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not ssid:
             self._send_json({"ok": False, "error": "missing ssid"}, 400)
             return
-        password = body.get("pass", "")
+        password = _wifi_password(body)
         timeout = body.get("timeout", 15)
         log_activity(f"WiFi STA joining '{ssid}'...", "step")
         try:
