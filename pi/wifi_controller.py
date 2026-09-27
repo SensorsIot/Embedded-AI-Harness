@@ -73,6 +73,7 @@ _ap_active = False
 _ap_ssid = ""
 _ap_password = ""
 _ap_channel = 0
+_ap_options = {}      # dns_logging / internet of the running AP, restored by sta_leave
 _ap_hostapd_proc = None
 _ap_dnsmasq_proc = None
 
@@ -311,7 +312,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
     If internet=True, DNS forwarding is enabled and wlan0 is NAT-bridged to
     eth0 so AP clients reach the LAN/internet.
     """
-    global _ap_active, _ap_ssid, _ap_password, _ap_channel
+    global _ap_active, _ap_ssid, _ap_password, _ap_channel, _ap_options
     global _ap_hostapd_proc, _ap_dnsmasq_proc
 
     _check_wifi_testing_mode()
@@ -463,6 +464,7 @@ def ap_start(ssid, password="", channel=6, dns_logging=False, internet=False):
         _ap_ssid = ssid
         _ap_password = password
         _ap_channel = channel
+        _ap_options = {"dns_logging": dns_logging, "internet": internet}
         _stations.clear()
 
         logger.info("AP started: ssid=%s channel=%d ip=%s internet=%s",
@@ -581,7 +583,7 @@ def sta_join(ssid, password="", timeout=15, _internal=False):
     with _lock:
         # Save AP config so sta_leave can restore it
         if _ap_active:
-            _saved_ap = {"ssid": _ap_ssid, "password": _ap_password, "channel": _ap_channel}
+            _saved_ap = {"ssid": _ap_ssid, "password": _ap_password, "channel": _ap_channel, **_ap_options}
             logger.info("Saved AP config for restore: ssid=%s channel=%d", _ap_ssid, _ap_channel)
         else:
             _saved_ap = None
@@ -742,7 +744,8 @@ def sta_leave():
     # Restore AP outside lock (ap_start acquires lock)
     if saved:
         logger.info("Restoring AP after sta_leave: ssid=%s channel=%d", saved["ssid"], saved["channel"])
-        ap_start(saved["ssid"], password=saved["password"], channel=saved["channel"])
+        ap_start(saved["ssid"], password=saved["password"], channel=saved["channel"],
+                 dns_logging=saved.get("dns_logging", False), internet=saved.get("internet", False))
 
 
 def _sta_stop_unlocked():
