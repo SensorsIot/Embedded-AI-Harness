@@ -8,7 +8,7 @@
 | 2 | [Definitions](#2-definitions) | Terms and the slot-based identity principle |
 | 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery · FR-030 serial write · FR-031 – FR-035 access manager · FR-036 bench reset |
 | 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
-| 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository |
+| 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository · FR-038 untrusted HTTPS mirror · FR-039 AP port scan |
 | 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
 | 7 | [Debug Services](#7-debug-services) | FR-024 – FR-026, FR-037: USB JTAG, dual-USB, ESP-Prog, per-slot isolation |
 | 8 | [RF Instruments](#8-rf-instruments) | FR-027, FR-028: signal generator, SDR receiver |
@@ -1300,6 +1300,7 @@ Initial state, per subsystem:
 | Operator prompt | none pending |
 | Test session | ended |
 | MQTT broker | **running** — shared infrastructure, so it is ensured, never stopped |
+| Untrusted HTTPS mirror (FR-038) | stopped |
 
 Every step is attempted even if an earlier one fails: a reset that gives up
 halfway leaves the bench dirtier than one never run, and the caller cannot
@@ -1931,6 +1932,111 @@ client on the LAN.
 - install.sh creates `/var/lib/rfc2217/firmware` with appropriate permissions
 - Binary serving uses chunked reads (8 KB blocks) to avoid loading large
   files into memory
+
+### FR-038 — Untrusted HTTPS Firmware Mirror
+
+The firmware repository (FR-021) can also be served over HTTPS with a
+**self-signed certificate**, so a DUT's TLS client can be shown to *refuse* a
+server it has no reason to trust. A device whose certificate check is
+disabled or broken downloads from this mirror; a correct one fails the
+handshake. Nothing else on the bench offers a TLS peer whose certificate is
+deliberately untrusted, and a test that never meets one cannot fail.
+
+The mirror is a test fixture, started and stopped on demand like the MQTT
+broker (FR-029), and stopped by bench reset (FR-036).
+
+**Configuration:**
+
+| Constant | Value |
+|----------|-------|
+| Port | 8443 (all interfaces, so DUTs on the AP reach it at `https://192.168.4.1:8443`) |
+| Certificate | Self-signed RSA-2048, CN `testbench-untrusted`, 10-year validity; generated with `openssl` on first start into `/var/lib/rfc2217/tls/` and reused afterwards |
+| Content | `GET /firmware/<project>/<filename>` from `FIRMWARE_DIR`, the same files and path rules as FR-021; every other path 404 |
+
+**Endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/tls-mirror/start | Start the mirror (idempotent) |
+| POST | /api/tls-mirror/stop | Stop the mirror (idempotent) |
+| GET | /api/tls-mirror/status | Running state, port, certificate fingerprint |
+
+**Response** of start and status:
+```json
+{"ok": true, "running": true, "port": 8443, "sha256": "AB:CD:…"}
+```
+`sha256` is the certificate's SHA-256 fingerprint, so a test can prove which
+certificate the DUT was shown. Stop answers `{"ok": true, "running": false}`.
+A start that cannot generate the certificate or bind the port answers
+`{"ok": false, "error": "..."}` with status 500.
+
+**Driver methods:**
+```python
+wt.tls_mirror_start()    # -> {"running": True, "port": 8443, "sha256": "..."}
+wt.tls_mirror_status()
+wt.tls_mirror_stop()
+```
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-038 | No certificate on disk · decide whether to generate | Generate | Serving without a certificate |
+| FR-038 | Certificate and key present · decide whether to generate | Reuse | A new certificate on every start (fingerprint changes between runs) |
+| FR-038 | Path `/firmware/p/f.bin`, `/firmware/../x`, `/firmware/p/../x`, `/api/info` · resolve | First resolves under `FIRMWARE_DIR`; the others are rejected | Any path resolving outside `FIRMWARE_DIR` |
+| FR-038 | Upload a file (FR-021), start the mirror, fetch it over HTTPS without verification | Same bytes as over HTTP; `sha256` equals the served certificate's fingerprint | Plain HTTP answered on 8443 |
+| FR-038 | Mirror running · fetch with certificate verification on | TLS handshake fails (certificate not trusted) | A verified download |
+| FR-038 | Mirror running · `POST /api/bench/reset` | `changed` names the mirror; status `running: false` | The mirror still listening after a reset |
+
+### FR-039 — AP Network Port Scan
+
+Report which TCP ports of a device **on the bench AP network** accept a
+connection. It verifies a DUT's claim that it exposes no listening service, or
+only the ones its specification names — a property no other endpoint can
+observe.
+
+**Endpoint:** `POST /api/net/portscan`
+
+**Request:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| host | string | required | A single IPv4 address inside the AP subnet (`192.168.4.0/24`), not the Pi's own AP address |
+| ports | string | `"1-65535"` | Comma-separated ports and ranges, e.g. `"22,80,1000-2000"`; each 1–65535 |
+| timeout_s | number | 120 | Total time budget, 1–600 s |
+
+**Response:**
+```json
+{"ok": true, "host": "192.168.4.15", "open": [80], "scanned": 65535, "complete": true, "elapsed_s": 41.2}
+```
+`complete` is false when the time budget ran out before every port was tried;
+`scanned` then counts the ports actually tried, and `open` is a lower bound.
+
+**Limits — enforced before any connection is made:**
+
+- The target is one IPv4 address inside the AP subnet and is not the Pi
+  itself. Anything else — a LAN address, a hostname, a network range, the
+  broadcast or network address — is refused with 400 and no connection
+  attempt. The bench cannot be used to probe the owner's LAN.
+- Each port is checked with a plain TCP connect (connect, then close). No
+  data is sent, no service is identified, no other protocol is used.
+- At most 128 connection attempts are in flight at once, each with a 1 s
+  connect timeout.
+
+**Driver method:**
+```python
+wt.net_portscan("192.168.4.15", ports="1-65535", timeout_s=120)
+```
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-039 | Targets `192.168.4.15`, `192.168.4.1`, `192.168.0.10`, `192.168.4.0`, `192.168.4.255`, `192.168.4.0/24`, `example.com` · validate | Only the first is accepted | Any other target accepted |
+| FR-039 | Port specs `"80"`, `"1-3,7"`, `"0"`, `"65536"`, `"5-3"`, `"a"` · parse | `[80]`, `[1,2,3,7]`; the rest rejected | A port outside 1–65535 accepted; duplicates counted twice |
+| FR-039 | A refused target · request | 400, and no connection attempted | A connection attempt before validation |
+| FR-039 | A host listening on known ports · scan those ports plus closed ones | `open` lists exactly the listening ports | A closed port reported open |
+| FR-039 | Budget shorter than the scan needs | `complete: false`, answer within budget + 2 s | The request running past its budget |
 
 ## 6. Peripheral Bridges
 
@@ -3958,6 +4064,14 @@ Allowlist `{16,17,18,19,20,21,22,23,24,25,26,27}` (others reserved for I²C/GPCL
 | GET | `/api/firmware/list` | List firmware files |
 | POST | `/api/firmware/upload` | Upload (multipart: `project` + `file`) |
 | DELETE | `/api/firmware/delete` | Delete `{"project", "filename"}` |
+| POST | `/api/tls-mirror/start` · `/stop` | Start / stop the untrusted HTTPS mirror on 8443 (FR-038) |
+| GET | `/api/tls-mirror/status` | Running state, port, certificate SHA-256 |
+
+### D.8a AP Network Port Scan
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/net/portscan` | TCP connect scan of one AP-network host `{"host", "ports"?, "timeout_s"?}` (FR-039) |
 
 ### D.9 Flashing (USB + OTA)
 
@@ -4119,3 +4233,17 @@ its first guard.
 - a failed attempt releases BOOT instead of leaving the board unable to boot
 - `/api/serial/release` is no longer gated on `download_mode`: lifting a pin
   is cleanup, and refusing it stranded the board that most needed it
+
+---
+
+### 2026-10-09 — two security test fixtures: an untrusted TLS peer and an AP port scan
+
+Requested by a consumer project (issue #41) whose requirements could not be
+verified on the bench: a DUT must refuse a server certificate it cannot trust,
+and must expose no listening TCP port.
+
+- FR-038: the firmware repository is also served over HTTPS on 8443 with a
+  self-signed certificate, on demand (`/api/tls-mirror/*`); bench reset stops it
+- FR-039: `POST /api/net/portscan` reports the TCP ports of one AP-network host
+  that accept a connection; targets outside the AP subnet, and the Pi itself,
+  are refused before any connection is made
