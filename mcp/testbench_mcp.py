@@ -173,6 +173,15 @@ SPECS = [
     dict(name="mqtt_start", method="POST", path="/api/mqtt/start", desc="Start the mosquitto test broker."),
     dict(name="mqtt_stop", method="POST", path="/api/mqtt/stop", desc="Stop the test broker."),
 
+    dict(name="tls_mirror_status", method="GET", path="/api/tls-mirror/status", desc="Untrusted HTTPS mirror state and certificate SHA-256."),
+    dict(name="tls_mirror_start", method="POST", path="/api/tls-mirror/start",
+         desc="Serve the firmware repository on 8443 with a self-signed certificate (a TLS peer a DUT must refuse).", timeout=90),
+    dict(name="tls_mirror_stop", method="POST", path="/api/tls-mirror/stop", desc="Stop the untrusted HTTPS mirror."),
+    dict(name="net_portscan", method="POST", path="/api/net/portscan",
+         desc="TCP connect check of one host on the AP subnet (not the Pi); returns ports that accept a connection.",
+         props=p(host=S_STR, ports=dict(**S_STR, default="1-65535"), timeout_s=dict(**S_NUM, default=120)),
+         required=["host"], timeout=620),
+
     dict(name="ble_status", method="GET", path="/api/ble/status", desc="BLE bridge state."),
     dict(name="ble_scan", method="POST", path="/api/ble/scan", desc="Scan for BLE peripherals.",
          props=p(timeout=dict(**S_INT, default=5), name_filter=S_STR), timeout=40),

@@ -29,6 +29,8 @@ from urllib.parse import parse_qs, urlparse
 import debug_controller
 import gpiod
 import mqtt_controller
+import netscan_controller
+import tls_mirror_controller
 import wifi_controller
 try:
     import ble_controller
@@ -1752,6 +1754,7 @@ def bench_reset() -> dict:
             _test_session = None
             changed.append("ended test session")
 
+    attempt("stopped untrusted HTTPS mirror", tls_mirror_controller.stop)
     attempt("started MQTT broker", lambda: mqtt_controller.start().get("ok"))
 
     log_activity(f"bench.reset — {len(changed)} change(s)", "ok")
@@ -2772,6 +2775,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._send_json({"ok": True, **_sdr.get_log()})
         elif path == "/api/mqtt/status":
             self._send_json({"ok": True, **mqtt_controller.status()})
+        elif path == "/api/tls-mirror/status":
+            self._send_json({"ok": True, **tls_mirror_controller.status()})
         elif path == "/api/udplog":
             qs = parse_qs(parsed.query)
             self._handle_get_udplog(qs)
@@ -2903,6 +2908,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/mqtt/stop":
             mqtt_controller.stop()
             self._send_json({"ok": True})
+        elif path == "/api/tls-mirror/start":
+            try:
+                res = tls_mirror_controller.start(FIRMWARE_DIR)
+                log_activity(f"tls-mirror started on {res['port']}", "ok")
+                self._send_json({"ok": True, **res})
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 500)
+        elif path == "/api/tls-mirror/stop":
+            if tls_mirror_controller.stop():
+                log_activity("tls-mirror stopped", "ok")
+            self._send_json({"ok": True, "running": False})
+        elif path == "/api/net/portscan":
+            self._handle_net_portscan()
         elif path == "/api/firmware/upload":
             self._handle_firmware_upload()
         elif path == "/api/flash":
@@ -3969,6 +3987,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if len(lines) >= limit:
                 break
         self._send_json({"ok": True, "lines": lines})
+
+    # -- AP network port scan (FR-039) --
+
+    def _handle_net_portscan(self):
+        try:
+            body = self._read_json() or {}
+            host = netscan_controller.validate_target(
+                body.get("host"), wifi_controller.AP_SUBNET, wifi_controller.AP_IP)
+            ports = netscan_controller.parse_ports(
+                body.get("ports", netscan_controller.DEFAULT_PORTS))
+            timeout_s = netscan_controller.clamp_timeout(body.get("timeout_s"))
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, 400)
+            return
+        log_activity(f"portscan {host}: {len(ports)} port(s), budget {timeout_s:g} s", "step")
+        res = netscan_controller.scan(host, ports, timeout_s)
+        log_activity(f"portscan {host}: open={res['open']} complete={res['complete']}", "ok")
+        self._send_json({"ok": True, **res})
 
     # -- firmware handlers --
 

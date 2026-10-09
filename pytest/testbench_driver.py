@@ -246,6 +246,26 @@ class TestbenchDriver:
     def mqtt_status(self) -> dict:
         return self._api_get("/api/mqtt/status")
 
+    # ── Untrusted HTTPS mirror (FR-038) ───────────────────────────────
+
+    def tls_mirror_start(self) -> dict:
+        """Serve the firmware repository on 8443 with a self-signed certificate."""
+        return self._api_post("/api/tls-mirror/start", {}, timeout=90)
+
+    def tls_mirror_stop(self) -> None:
+        self._api_post("/api/tls-mirror/stop", {}, timeout=10)
+
+    def tls_mirror_status(self) -> dict:
+        return self._api_get("/api/tls-mirror/status")
+
+    # ── AP network port scan (FR-039) ─────────────────────────────────
+
+    def net_portscan(self, host: str, ports: str = "1-65535", timeout_s: float = 120) -> dict:
+        """TCP connect check of one AP-network host; returns open ports."""
+        return self._api_post("/api/net/portscan",
+                              {"host": host, "ports": ports, "timeout_s": timeout_s},
+                              timeout=timeout_s + 15)
+
     # ── Captive-portal provisioning (FR-012 composite) ────────────────
 
     def provision_wifimanager(self, portal_ssid: str, ssid: str, password: str,
