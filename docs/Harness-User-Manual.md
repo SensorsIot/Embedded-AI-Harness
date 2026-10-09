@@ -284,6 +284,7 @@ dedicated to WiFi testing. They never overlap.
 | 4444+ | TCP/telnet | Clients → Pi | OpenOCD telnet (`4443 + slot index`) |
 | 5555 | UDP | ESP32 → Pi | Debug log receiver |
 | 1883 | TCP/MQTT | DUTs → Pi | Test broker (when started) |
+| 8443 | TCP/HTTPS | DUTs → Pi | Untrusted HTTPS firmware mirror (when started) |
 | 192.168.4.x | — | WiFi devices → Pi | WiFi AP subnet (when the AP is active) |
 
 ### GPIO wiring (optional)
@@ -676,6 +677,35 @@ tests without internet.
 curl -X POST http://$BENCH:8080/api/mqtt/start
 curl http://$BENCH:8080/api/mqtt/status
 curl -X POST http://$BENCH:8080/api/mqtt/stop
+```
+
+### 10.1 Security test fixtures
+
+Two fixtures for proving what a DUT refuses or hides (FSD FR-038, FR-039).
+
+**Untrusted HTTPS mirror.** Serves the firmware repository (§13) at
+`https://192.168.4.1:8443/firmware/<project>/<file>` with a self-signed
+certificate. Point a DUT's HTTPS download at it: a correct TLS client fails
+the handshake; one that downloads has its certificate check off. The
+`sha256` in the reply is the certificate the DUT was shown. Bench reset stops
+it.
+
+```bash
+curl -X POST http://$BENCH:8080/api/tls-mirror/start
+curl http://$BENCH:8080/api/tls-mirror/status
+curl -X POST http://$BENCH:8080/api/tls-mirror/stop
+```
+
+**AP port scan.** Lists the TCP ports of one device on the WiFi AP that
+accept a connection. Only addresses in `192.168.4.0/24` other than the Pi are
+accepted; everything else is refused before any connection is made. A full
+scan of an ESP32 takes well under the default 120 s budget; `complete: false`
+means the budget ran out first.
+
+```bash
+curl -X POST http://$BENCH:8080/api/net/portscan \
+     -H 'Content-Type: application/json' \
+     -d '{"host": "192.168.4.15", "ports": "1-65535", "timeout_s": 120}'
 ```
 
 ---

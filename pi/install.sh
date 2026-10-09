@@ -28,7 +28,7 @@ if [ "$UPDATE_ONLY" = false ]; then
         python3-serial python3-pip python3-libgpiod \
         hostapd dnsmasq-base \
         mosquitto mosquitto-clients \
-        curl iptables \
+        curl iptables openssl \
         bluetooth bluez \
         rtl-sdr rtl-433
 
@@ -118,6 +118,7 @@ fi
 echo "Creating directories..."
 mkdir -p /etc/rfc2217
 mkdir -p /var/lib/rfc2217/firmware
+mkdir -p /var/lib/rfc2217/tls
 mkdir -p /tmp/wifi-tester
 
 # ---------------------------------------------------------------------------
@@ -137,6 +138,8 @@ cp "$SCRIPT_DIR/signal_generator.py"        /usr/local/bin/signal_generator.py
 cp "$SCRIPT_DIR/sdr_controller.py"          /usr/local/bin/sdr_controller.py
 cp "$SCRIPT_DIR/debug_controller.py"       /usr/local/bin/debug_controller.py
 cp "$SCRIPT_DIR/mqtt_controller.py"         /usr/local/bin/mqtt_controller.py
+cp "$SCRIPT_DIR/netscan_controller.py"      /usr/local/bin/netscan_controller.py
+cp "$SCRIPT_DIR/tls_mirror_controller.py"   /usr/local/bin/tls_mirror_controller.py
 cp "$SCRIPT_DIR/sniffer.py"                 /usr/local/bin/sniffer.py
 cp "$SCRIPT_DIR/rfc2217-learn-slots"        /usr/local/bin/rfc2217-learn-slots
 
