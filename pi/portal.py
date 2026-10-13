@@ -1641,6 +1641,10 @@ def serial_write(slot: dict, data: bytes, timeout: float = 5.0) -> dict:
         # reports success because the local write did succeed. Hold the
         # connection while the device is given a chance to answer, which both
         # drains the write and proves it went out.
+        # Short read timeout: read(256) waits for 256 bytes or the timeout,
+        # and a console reply is a few bytes — with the open timeout (5 s)
+        # every write took ~5.7 s instead of the 0.6 s intended here.
+        ser.timeout = 0.1
         deadline = time.monotonic() + 0.6
         while time.monotonic() < deadline:
             try:
