@@ -2952,6 +2952,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _handle_get_devices(self):
         _refresh_host_ip()
+        # usb_devices was only rescanned at start-up and on serial hotplug, so
+        # a non-serial device (logic analyzer, HID) stayed listed on the port
+        # it was unplugged from. A sysfs glob per slot is cheap: do it here.
+        _refresh_all_usb_devices()
         infos = []
         for slot in slots.values():
             _refresh_slot_health(slot)
