@@ -3855,7 +3855,9 @@ The udev notify script posts a JSON payload to the portal:
 # /usr/local/bin/rfc2217-udev-notify.sh
 # Args: ACTION DEVNAME ID_PATH DEVPATH
 
-curl -m 10 -s -X POST http://127.0.0.1:8080/api/hotplug \
+[ -r /etc/default/rfc2217-portal ] && . /etc/default/rfc2217-portal
+
+curl -m 10 -s -X POST "http://127.0.0.1:${PORTAL_PORT:-8080}/api/hotplug" \
   -H 'Content-Type: application/json' \
   -d "{\"action\":\"$1\",\"devnode\":\"$2\",\"id_path\":\"${3:-}\",\"devpath\":\"$4\"}" \
   || true
@@ -3870,9 +3872,11 @@ dnsmasq calls this script on DHCP lease events (add/old/del):
 # /usr/local/bin/wifi-lease-notify.sh
 # Args: ACTION MAC IP HOSTNAME
 
+[ -r /etc/default/rfc2217-portal ] && . /etc/default/rfc2217-portal
+
 curl -s -X POST -H "Content-Type: application/json" \
      -d "{\"action\":\"${1}\",\"mac\":\"${2}\",\"ip\":\"${3}\",\"hostname\":\"${4:-}\"}" \
-     --max-time 2 "http://127.0.0.1:8080/api/wifi/lease_event" >/dev/null 2>&1 || true
+     --max-time 2 "http://127.0.0.1:${PORTAL_PORT:-8080}/api/wifi/lease_event" >/dev/null 2>&1 || true
 ```
 
 ### A.8 systemd Service
@@ -3887,6 +3891,7 @@ Description=RFC2217 Portal
 After=network.target
 
 [Service]
+EnvironmentFile=-/etc/default/rfc2217-portal
 ExecStart=/usr/bin/python3 /usr/local/bin/rfc2217-portal
 Restart=on-failure
 StandardOutput=journal
@@ -3896,11 +3901,19 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
+**Portal port.** The HTTP port defaults to 8080 and is overridden by
+`PORTAL_PORT` in `/etc/default/rfc2217-portal` (e.g. `PORTAL_PORT=8081` on a
+host where something else already holds 8080). The unit loads that file, and
+the udev and dnsmasq hooks (A.6, A.7) source it themselves, because they post
+back to the portal and inherit none of the service's environment. The file is
+operator-owned: `install.sh` never creates or overwrites it, so the override
+survives `--update`. The discovery beacon reports the effective port.
+
 ### A.9 Network Ports
 
 | Port | Protocol | Service |
 |------|----------|---------|
-| 8080 | TCP/HTTP | Web portal, REST API, firmware downloads |
+| 8080 | TCP/HTTP | Web portal, REST API, firmware downloads (`PORTAL_PORT`, see A.8) |
 | 4001 | TCP/RFC2217 | SLOT1 serial proxy |
 | 4002 | TCP/RFC2217 | SLOT2 serial proxy |
 | 4003 | TCP/RFC2217 | SLOT3 serial proxy |

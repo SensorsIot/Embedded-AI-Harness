@@ -37,7 +37,10 @@ try:
 except ImportError:
     ble_controller = None
 
-PORT = 8080
+# PORTAL_PORT comes from /etc/default/rfc2217-portal via the unit's
+# EnvironmentFile, which the udev and dnsmasq hooks also source -- they post
+# back to this port and see none of the service's environment.
+PORT = int(os.environ.get("PORTAL_PORT", "8080"))
 def _config_path() -> str:
     """Where the hardware config lives, tolerating the pre-rename name.
 

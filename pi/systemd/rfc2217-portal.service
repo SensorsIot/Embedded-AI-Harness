@@ -3,6 +3,8 @@ Description=RFC2217 Serial Portal
 After=network.target
 
 [Service]
+# Operator-owned and optional; install.sh never writes it, so it survives --update.
+EnvironmentFile=-/etc/default/rfc2217-portal
 ExecStart=/usr/bin/python3 /usr/local/bin/rfc2217-portal
 Restart=on-failure
 User=root

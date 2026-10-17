@@ -305,7 +305,8 @@ systemctl restart rfc2217-portal
 echo ""
 echo "=== Installation complete ==="
 echo ""
-echo "Portal running at: http://$(hostname -I | awk '{print $1}'):8080"
+[ -r /etc/default/rfc2217-portal ] && . /etc/default/rfc2217-portal
+echo "Portal running at: http://$(hostname -I | awk '{print $1}'):${PORTAL_PORT:-8080}"
 echo ""
 echo "Next steps:"
 echo "  Slots auto-detect on boot. Plug in ESP32s and browse the portal."

@@ -287,6 +287,17 @@ dedicated to WiFi testing. They never overlap.
 | 8443 | TCP/HTTPS | DUTs → Pi | Untrusted HTTPS firmware mirror (when started) |
 | 192.168.4.x | — | WiFi devices → Pi | WiFi AP subnet (when the AP is active) |
 
+If something else on the host already holds 8080, move the portal rather than
+the other service — the setting survives `install.sh --update`:
+
+```bash
+echo PORTAL_PORT=8081 | sudo tee /etc/default/rfc2217-portal
+sudo systemctl restart rfc2217-portal
+```
+
+The hotplug and WiFi-lease hooks read the same file, so they follow. Use the
+new port everywhere this manual says 8080.
+
 ### GPIO wiring (optional)
 
 | Pi GPIO (BCM) | Function | DUT pin |

@@ -14,7 +14,9 @@ MAC="$2"
 IP="$3"
 HOSTNAME="${4:-}"
 
-PORTAL_URL="http://127.0.0.1:8080/api/wifi/lease_event"
+# Same port override the portal's unit reads; dnsmasq gives us none of its environment.
+[ -r /etc/default/rfc2217-portal ] && . /etc/default/rfc2217-portal
+PORTAL_URL="http://127.0.0.1:${PORTAL_PORT:-8080}/api/wifi/lease_event"
 
 PAYLOAD="{\"action\":\"${ACTION}\",\"mac\":\"${MAC}\",\"ip\":\"${IP}\",\"hostname\":\"${HOSTNAME}\"}"
 
