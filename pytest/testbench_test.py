@@ -2345,6 +2345,33 @@ class TestApiSurface:
         p = testbench._api_get("/api/test/progress")
         assert p.get("ok") is not False
 
+    def test_test_report_survives_its_own_end(self, testbench):
+        """FR-019. A report that vanishes the moment the run finishes is a
+        report nobody reads: the operator turns to the panel after the suite
+        exits and finds "No test session active", with no way to see what
+        failed. The session now stays, marked ended, until it is cleared.
+        """
+        before = testbench.test_progress()
+        if before.get("active") and not before.get("ended"):
+            pytest.skip("precondition unmet: a test session is in progress")
+
+        testbench.test_start("report-persistence probe", "Self-test", total=1)
+        testbench.test_result("TC-000", "probe", "PASS")
+        testbench.test_end()
+
+        after = testbench.test_progress()
+        assert after.get("active") is True, (
+            "the report was discarded at end — the operator has nothing to read"
+        )
+        assert after.get("ended") is True
+        assert after.get("ended_at"), "ended without recording when"
+        assert len(after.get("completed") or []) == 1
+
+        testbench.test_clear()
+        assert testbench.test_progress().get("active") is False, (
+            "Clear left the report in place"
+        )
+
     def test_sdr_endpoints_answer_or_declare_absence(self, testbench):
         """FR-0xx SDR. `live_stop` and `log_stop` had no test at all."""
         st = testbench.sdr_status()
