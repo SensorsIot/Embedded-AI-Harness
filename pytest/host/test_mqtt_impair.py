@@ -26,7 +26,15 @@ class FakeIptables:
                 return 1
             self.chains[chain] = []
         elif op == "-F":
+            if chain not in self.chains:
+                return 1
             self.chains[chain] = []
+        elif op == "-X":
+            # Real iptables refuses to delete a chain that is referenced or not empty.
+            if (chain not in self.chains or self.chains[chain]
+                    or any(["-j", chain] == r for r in self.chains["INPUT"])):
+                return 1
+            del self.chains[chain]
         elif op == "-C":
             return 0 if rule in self.chains[chain] else 1
         elif op == "-A":
@@ -133,12 +141,34 @@ def test_fr040_clear_one_client_leaves_the_other(fw, impairer):
     assert fw.rules_for(OTHER) != []
 
 
-def test_fr040_clear_all_empties_the_chain(fw, impairer):
+def assert_no_trace(fw):
+    assert CHAIN not in fw.chains
+    assert ["-j", CHAIN] not in fw.chains["INPUT"]
+
+
+def test_fr040_clear_all_removes_the_chain_and_jump(fw, impairer):
     impairer.impair(DUT, "cut", None)
     impairer.impair(OTHER, "drop-large", 300)
     assert sorted(impairer.clear()) == [DUT, OTHER]
-    assert fw.chains[CHAIN] == []
+    assert_no_trace(fw)
     assert impairer.status() == []
+
+
+def test_fr040_clearing_the_last_client_removes_the_chain(fw, impairer):
+    impairer.impair(DUT, "cut", None)
+    impairer.impair(OTHER, "cut", None)
+    impairer.clear(DUT)
+    assert CHAIN in fw.chains
+    impairer.clear(OTHER)
+    assert_no_trace(fw)
+
+
+def test_fr040_chain_comes_back_after_removal(fw, impairer):
+    impairer.impair(DUT, "cut", None)
+    impairer.clear()
+    impairer.impair(DUT, "drop-large", 300)
+    assert fw.rules_for(DUT) == [imp.rule_args(IF, DUT, "drop-large", 300)]
+    assert fw.chains["INPUT"].count(["-j", CHAIN]) == 1
 
 
 def test_fr040_clearing_an_unimpaired_client_is_not_an_error(impairer):
@@ -149,7 +179,7 @@ def test_fr040_duration_lifts_the_impairment(fw, impairer):
     impairer.impair(DUT, "cut", None, duration_s=0.1)
     assert impairer.status()[0]["remaining_s"] is not None
     time.sleep(0.3)
-    assert fw.rules_for(DUT) == []
+    assert_no_trace(fw)
     assert impairer.status() == []
 
 
@@ -166,10 +196,16 @@ def test_fr040_no_duration_reports_null_remaining(impairer):
         {"client_ip": DUT, "mode": "cut", "bytes": None, "remaining_s": None}]
 
 
-def test_fr040_reset_empties_a_chain_left_by_a_previous_process(fw):
+def test_fr040_reset_removes_a_chain_left_by_a_previous_process(fw):
     fw.chains[CHAIN] = [imp.rule_args(IF, DUT, "cut", None)]
+    fw.chains["INPUT"] = [["-j", CHAIN], ["-j", CHAIN]]
     imp.Impairer(run=fw, iface=IF).reset()
-    assert fw.chains[CHAIN] == []
+    assert_no_trace(fw)
+
+
+def test_fr040_reset_on_a_clean_firewall_creates_nothing(fw):
+    imp.Impairer(run=fw, iface=IF).reset()
+    assert fw.chains == {"INPUT": []}
 
 
 def test_fr040_a_failed_install_raises_and_records_nothing(impairer):

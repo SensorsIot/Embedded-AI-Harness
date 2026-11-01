@@ -4,8 +4,9 @@ MQTT Impair Controller — impairs one AP client's TCP traffic to the test broke
 
 Verifies a DUT's MQTT recovery under a dead link (`cut`) and under links that
 stall part-way (`drop-large`, `drop-after`). Every rule lives in one
-bench-owned chain, jumped to from the top of INPUT, so clear, timeout, portal
-start and bench reset can each guarantee that nothing is left behind.
+bench-owned chain, jumped to from the top of INPUT. The chain and its jump
+exist only while an impairment does: the last clear or timeout removes both,
+and portal start and bench reset remove any left by an earlier process.
 
 The client address is validated by the caller (the portal, as composition
 root), which owns the AP subnet rules; this module validates its own
@@ -100,6 +101,13 @@ class Impairer:
         if self._run(["iptables", "-C", "INPUT"] + jump) != 0:
             self._run(["iptables", "-I", "INPUT", "1"] + jump)
 
+    def _drop_chain(self):
+        # Every jump goes, including duplicates left by an earlier process.
+        while self._run(["iptables", "-D", "INPUT", "-j", CHAIN]) == 0:
+            pass
+        self._run(["iptables", "-F", CHAIN])
+        self._run(["iptables", "-X", CHAIN])
+
     def _remove_unlocked(self, client_ip: str) -> bool:
         entry = self._active.pop(client_ip, None)
         if entry is None:
@@ -107,6 +115,8 @@ class Impairer:
         if entry["timer"] is not None:
             entry["timer"].cancel()
         self._run(["iptables", "-D", CHAIN] + entry["rule"])
+        if not self._active:
+            self._drop_chain()
         return True
 
     def impair(self, client_ip: str, mode: str, nbytes, duration_s=None) -> None:
@@ -151,14 +161,13 @@ class Impairer:
         return cleared
 
     def reset(self) -> None:
-        """Empty the chain, including rules left by a previous process."""
+        """Remove the chain and its jump, including any left by a previous process."""
         with self._lock:
             for entry in self._active.values():
                 if entry["timer"] is not None:
                     entry["timer"].cancel()
             self._active.clear()
-            self._run(["iptables", "-N", CHAIN])
-            self._run(["iptables", "-F", CHAIN])
+            self._drop_chain()
 
     def status(self) -> list:
         now = time.monotonic()

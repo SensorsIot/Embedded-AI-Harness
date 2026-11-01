@@ -1333,7 +1333,7 @@ known-good bench-DUT image at session start and after its flash tests.
 | FR-036 | Reset an already-clean bench | `ok: true` with an empty or near-empty `changed` | Spurious changes reported, which would make "was it dirty?" unanswerable |
 | FR-036 | Reset while one subsystem errors | The remaining subsystems are still reset, and the error is reported in `errors` | Aborting on the first failure |
 | FR-036 | Reset | The MQTT broker is running afterwards | The broker stopped — other work depends on it |
-| FR-036 | Impair a client (FR-040), then reset | `changed` names the cleared impairment; the impairment chain is empty | A DUT still impaired after a reset |
+| FR-036 | Impair a client (FR-040), then reset | `changed` names the cleared impairment; the impairment chain and its jump are gone | A DUT still impaired after a reset |
 
 ## 4. WiFi Service
 
@@ -2279,11 +2279,13 @@ with no impairment is not an error and answers an empty list. Status answers
   it: the old rule and the old timer are gone before the call returns.
 
 **Nothing is left behind.** Every impairment rule lives in one bench-owned
-iptables chain, jumped to from the top of `INPUT`. The chain is emptied when
-the last impairment is cleared or times out, when the portal starts (a rule
-from before a crash or restart must not outlive the process that tracked it)
-and on bench reset (FR-036). The bench never edits a rule outside that chain
-except its own jump.
+iptables chain, `TB_MQTT_IMPAIR`, jumped to from the top of `INPUT`. The chain
+and its jump exist only while an impairment does: they are removed when the
+last impairment is cleared or times out, when the portal starts (a rule from
+before a crash or restart must not outlive the process that tracked it) and on
+bench reset (FR-036). With no impairment active, iptables is exactly as it was
+before the first one. The bench never edits a rule outside that chain except
+its own jump.
 
 **Driver methods:**
 ```python
@@ -2302,9 +2304,9 @@ wt.mqtt_impair_status()
 | FR-040 | DUT connected to the broker · `cut` | The broker receives nothing more from the DUT, and its session ends on the keepalive timeout | Another client's session affected |
 | FR-040 | DUT connected · `drop-large` | The broker still logs the DUT's small packets (PINGREQ) but no packet at or over `bytes` | Small packets dropped |
 | FR-040 | DUT reconnecting · `drop-after` | Each new connection gets its CONNECT through, then the broker receives nothing more on it | The first `bytes` of a connection dropped |
-| FR-040 | Any mode · clear, or let `duration_s` run out | The DUT's traffic reaches the broker again; status lists no impairment for it | A rule left in the chain |
+| FR-040 | Any mode · clear, or let `duration_s` run out | The DUT's traffic reaches the broker again; status lists no impairment for it; with no other impairment, neither the chain nor its jump exists | A rule, the chain or the jump left behind |
 | FR-040 | An impairment active · impair the same client again | Exactly one rule for the client, of the new mode | Both rules present |
-| FR-040 | An impairment active · restart the portal, or bench reset | The chain is empty afterwards | A rule surviving the restart or reset |
+| FR-040 | An impairment active · restart the portal, or bench reset | Neither the chain nor its jump exists afterwards | A rule, the chain or the jump surviving the restart or reset |
 
 ---
 

@@ -729,8 +729,9 @@ curl http://$BENCH:8080/api/mqtt/impair/status
 curl -X POST http://$BENCH:8080/api/mqtt/impair/clear -d '{}'
 ```
 
-To check nothing is left behind, on the Pi: `sudo iptables -S TB_MQTT_IMPAIR`
-lists only `-N TB_MQTT_IMPAIR` once every impairment is gone.
+To check nothing is left behind, on the Pi: once every impairment is gone,
+`sudo iptables -S TB_MQTT_IMPAIR` reports that the chain does not exist, and
+`sudo iptables -S INPUT` has no jump to it.
 
 ## 11. RF signal generator
 
