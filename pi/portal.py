@@ -682,6 +682,7 @@ def _make_slot(slot_key: str, label: str = None, tcp_port: int = None,
         "_recovering": False,
         "_recover_retries": 0,
         "_auto_debug_chip": None,
+        "_probed_usb_serial": None,
         "_jtag_slot": None,  # slot label providing JTAG (own or probe)
         "_serial_buf": collections.deque(maxlen=SERIAL_BUF_MAXLEN),
         "_lock": threading.Lock(),
@@ -1098,6 +1099,8 @@ def scan_existing_devices():
                             # resting state of a slot.
                             s["_auto_debug_chip"] = chip
                             s["_jtag_slot"] = jtag_slot
+                            s["_probed_usb_serial"] = _usb_serial_from_devnode(
+                                s.get("devnode"))
                             log_activity(
                                 f"Detected {s['label']}: {chip} "
                                 f"(JTAG:{jtag_slot}) — chip released, no "
@@ -1182,6 +1185,18 @@ def _is_probe_slot(slot: dict) -> bool:
             probe_devs.append(d)
     return bool(probe_devs) and not any(
         d for d in usb_devs if d not in probe_devs)
+
+
+def _usb_serial_from_devnode(devnode: str) -> str | None:
+    """The USB serial number of the device behind *devnode*, or None."""
+    usb_device = _usb_device_from_devnode(devnode)
+    if not usb_device:
+        return None
+    try:
+        with open(f"/sys/bus/usb/devices/{usb_device}/serial") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
 
 
 def _scan_usb_devices(slot: dict) -> list[dict]:
@@ -1276,9 +1291,12 @@ def _slot_info(slot: dict) -> dict:
     else:
         info["debugging"] = False
     # Always expose detected chip and JTAG source (persist after debug stop)
-    info["detected_chip"] = slot.get("_auto_debug_chip")
+    # An absent slot reports neither: they are kept only to recognise the board
+    # when it comes back (FR-040).
+    present = slot.get("present")
+    info["detected_chip"] = slot.get("_auto_debug_chip") if present else None
     info["monitor_port"] = slot.get("monitor_port")
-    info["jtag_slot"] = slot.get("_jtag_slot")
+    info["jtag_slot"] = slot.get("_jtag_slot") if present else None
     # Cached USB device info (updated on hotplug and boot)
     usb_devs = slot.get("_usb_devices", [])
     info["usb_devices"] = usb_devs
@@ -3141,6 +3159,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         _tel = s.get("openocd_telnet_port")
                         _lbl = s.get("label")
                         _usb = list(s.get("_usb_devices", []))
+                    # FR-040: read before the wait, while a board that wakes
+                    # only briefly is still on the bus. OpenOCD resets the
+                    # chip, so a board that merely came back from deep sleep
+                    # is not probed again.
+                    _serial = _usb_serial_from_devnode(dn) if _should_debug else None
+                    if _should_debug and not debug_controller.probe_needed(
+                            s.get("_probed_usb_serial"), _serial,
+                            s.get("_auto_debug_chip")):
+                        _should_debug = False
+                    elif _should_debug:
+                        s["_auto_debug_chip"] = None
+                        s["_jtag_slot"] = None
+                        s["_probed_usb_serial"] = None
                     # Auto-start OpenOCD (outside lock — detection is slow)
                     if _should_debug:
                         time.sleep(3)
@@ -3164,6 +3195,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 # target and blocks every other use of it.
                                 s["_auto_debug_chip"] = chip
                                 s["_jtag_slot"] = jtag_slot
+                                s["_probed_usb_serial"] = _serial
                                 log_activity(
                                     f"Detected {_lbl}: {chip} "
                                     f"(JTAG:{jtag_slot}) — chip released, "
@@ -3196,8 +3228,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not slot["_devnodes"]:
                 slot["present"] = False
                 slot["devnode"] = None
-                slot["_auto_debug_chip"] = None
-                slot["_jtag_slot"] = None
+                # _auto_debug_chip and _jtag_slot stay: deep sleep looks like
+                # this too, and the next add decides (FR-040).
                 if not slot["flapping"]:
                     slot["state"] = STATE_ABSENT
             else:

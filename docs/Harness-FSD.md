@@ -2038,6 +2038,26 @@ wt.net_portscan("192.168.4.15", ports="1-65535", timeout_s=120)
 | FR-039 | A host listening on known ports · scan those ports plus closed ones | `open` lists exactly the listening ports | A closed port reported open |
 | FR-039 | Budget shorter than the scan needs | `complete: false`, answer within budget + 2 s | The request running past its budget |
 
+### FR-040 — Identity Probe Once Per Board
+
+The hotplug identity probe (§24.13) runs OpenOCD `init`/`shutdown`, which resets
+the chip. A native-USB board re-enumerates on every deep-sleep wake, so a board
+that stays awake longer than the probe delay was reset 3 s into each such wake.
+
+- A USB add shall not probe when the slot already knows the chip and the device
+  has the USB serial number recorded at the last successful probe.
+- A different serial number, or none, shall clear the stored identity and probe.
+- A USB remove shall keep the stored identity; `GET /api/devices` shall report
+  `detected_chip` and `jtag_slot` as null while the slot is absent.
+- A portal restart forgets the serial numbers, so the next add probes once.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-040 | Recorded serial, chip and current serial · decide | Probe unless chip known and serials equal | A probe of the same board; no probe of a new or unnamed one | host |
+| FR-040 | Identified native-USB board wakes from deep sleep and stays awake over 3 s | `detected_chip` filled; no `boot reason=USB`, no new `Detected` log | A reset 3 s after the wake | bench |
+
 ## 6. Peripheral Bridges
 
 Radios and services the Pi lends to a DUT that cannot reach them itself.
@@ -4247,3 +4267,5 @@ and must expose no listening TCP port.
 - FR-039: `POST /api/net/portscan` reports the TCP ports of one AP-network host
   that accept a connection; targets outside the AP subnet, and the Pi itself,
   are refused before any connection is made
+- FR-040: the hotplug identity probe runs once per board, recognised by USB
+  serial number, so a board waking from deep sleep is no longer reset by it

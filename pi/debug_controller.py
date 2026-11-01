@@ -205,6 +205,17 @@ def _slot_has_builtin_jtag(usb_devices: list[dict]) -> bool:
     return False
 
 
+def probe_needed(probed_serial: str | None, serial: str | None,
+                 chip: str | None) -> bool:
+    """Should a USB add run the OpenOCD identity probe? (FR-040)
+
+    Not when the board already identified is the one that came back: the probe
+    resets the chip, and a board leaving deep sleep re-enumerates on every wake.
+    A board without a USB serial number cannot be recognised, so it is probed.
+    """
+    return not (chip and serial and serial == probed_serial)
+
+
 def detect_slot_jtag(
     slot_label: str,
     usb_devices: list[dict],
