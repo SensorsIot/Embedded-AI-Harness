@@ -29,6 +29,38 @@ import serial
 import serial.rfc2217
 
 
+
+# On a native-USB ESP32 (USB-Serial/JTAG) the control lines are not modem
+# lines: RTS=1 with DTR=0 holds the chip in reset, DTR=1 with RTS=0 only
+# selects download mode, which is latched at reset and so harmless to a
+# running chip, and (1,1) and (0,0) are both idle. The kernel's CDC ACM driver
+# raises both lines on open, so the port starts at (1,1). Dropping DTR first
+# passes through (RTS=1, DTR=0) -- a reset -- which restarted every board
+# that woke from deep sleep, since the portal reopens the port each time the
+# board re-enumerates. Always drop RTS first: (1,1) -> (DTR=1, RTS=0) -> (0,0)
+# never enters the reset state. esptool walks the same path for the same
+# reason ("go through (1,1) instead of (0,0)").
+
+
+def release_control_lines(ser) -> None:
+    """Drop RTS, then DTR, so the port never passes through reset."""
+    ser.rts = False
+    ser.dtr = False
+
+
+def quiet_open_settings(ser) -> None:
+    """Prepare *ser* so that open() leaves DTR alone and only drops RTS.
+
+    pyserial's open() writes DTR before RTS. With dsrdtr set it skips DTR
+    (on POSIX the flag does nothing else), so open() moves (1,1) only to
+    (DTR=1, RTS=0); release_control_lines() then drops DTR. The caller clears
+    dsrdtr after that.
+    """
+    ser.dsrdtr = True
+    ser.rts = False
+    ser.dtr = False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plain RFC2217 server (direct DTR/RTS passthrough)")
@@ -68,8 +100,7 @@ def main():
     # observer on the fan-out, would read an ESP32 console at the wrong rate
     # and see only noise. Default to the rate these devices actually use.
     ser.baudrate = args.baud
-    ser.dtr = False
-    ser.rts = False
+    quiet_open_settings(ser)
     try:
         ser.open()
     except Exception as exc:
@@ -81,24 +112,14 @@ def main():
         ser.timeout = 3
         ser.write_timeout = 10
         ser.baudrate = args.baud
-        ser.dtr = False
-        ser.rts = False
+        quiet_open_settings(ser)
         ser.open()
-    # Linux CDC ACM driver asserts DTR+RTS on open.  On ESP32-C3 native USB,
-    # the USB-Serial/JTAG controller interprets DTR/RTS as reset + boot-mode
-    # signals.  DTR=1 → GPIO9 LOW (download mode), RTS=1 → chip in reset.
-    #
-    # Controlled boot sequence to ensure SPI boot (not download mode):
-    #   1. Clear DTR first  → GPIO9 HIGH (SPI boot selected)
-    #   2. Brief delay      → let the USB-JTAG controller see DTR=0
-    #   3. Clear RTS        → release reset → chip boots in SPI mode
     if hasattr(ser, 'fd'):
         attrs = termios.tcgetattr(ser.fd)
         attrs[2] &= ~termios.HUPCL  # cflag: clear HUPCL
         termios.tcsetattr(ser.fd, termios.TCSANOW, attrs)
-    ser.dtr = False          # GPIO9 HIGH — select SPI boot
-    time.sleep(0.1)          # Let USB-JTAG controller latch DTR=0
-    ser.rts = False          # Release reset — chip boots normally
+    release_control_lines(ser)
+    ser.dsrdtr = False
     time.sleep(0.1)
     settings = ser.get_settings()
 
@@ -262,8 +283,7 @@ def main():
             control["conn"], control["pm"] = None, None
         conn.close()
         logging.info("Client disconnected")
-        ser.dtr = False
-        ser.rts = False
+        release_control_lines(ser)
         ser.apply_settings(settings)
 
 
