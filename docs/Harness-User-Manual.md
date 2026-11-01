@@ -679,6 +679,9 @@ curl http://$BENCH:8080/api/mqtt/status
 curl -X POST http://$BENCH:8080/api/mqtt/stop
 ```
 
+On the Pi, the broker logs every connection and packet (`log_type all`) to
+`/tmp/mqtt-tester/mosquitto.log`, replaced on each start.
+
 ### 10.1 Security test fixtures
 
 Two fixtures for proving what a DUT refuses or hides (FSD FR-038, FR-039).

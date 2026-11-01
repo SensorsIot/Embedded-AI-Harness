@@ -90,6 +90,30 @@ def _port_owner() -> str:
     return lines[0].strip() if lines else ""
 
 
+def broker_config(port: int) -> str:
+    """The test broker's config: open, no auth, all interfaces.
+
+    It logs to stdout, which `start` sends to MOSQUITTO_LOG. `log_dest file`
+    does not work here: started as root, mosquitto drops to user `mosquitto`,
+    which cannot create a file in the root-owned WORK_DIR, so it logged
+    nothing and reported that only on its own stdout.
+    """
+    return "\n".join([
+        f"listener {port}",
+        "allow_anonymous true",
+        "log_dest stdout",
+        "log_type all",
+    ]) + "\n"
+
+
+def _log_tail(limit: int = 500) -> str:
+    try:
+        with open(MOSQUITTO_LOG, "rb") as f:
+            return f.read()[-limit:].decode(errors="replace")
+    except OSError:
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -114,28 +138,22 @@ def start():
                 f"port {MQTT_PORT} is already in use by a broker this service did "
                 f"not start; stop it first. Listener: {owner}")
 
-        # Write mosquitto config — open broker, no auth, listen on all interfaces
-        conf_lines = [
-            f"listener {MQTT_PORT}",
-            "allow_anonymous true",
-            f"log_dest file {MOSQUITTO_LOG}",
-            "log_type all",
-        ]
         with open(MOSQUITTO_CONF, "w") as f:
-            f.write("\n".join(conf_lines) + "\n")
+            f.write(broker_config(MQTT_PORT))
 
-        # Start mosquitto
-        _proc = subprocess.Popen(
-            ["mosquitto", "-c", MOSQUITTO_CONF],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        # The log file is opened here, as root, and handed over as stdout. A
+        # pipe nobody reads would also stall the broker once it filled.
+        with open(MOSQUITTO_LOG, "wb") as log:
+            _proc = subprocess.Popen(
+                ["mosquitto", "-c", MOSQUITTO_CONF],
+                stdout=log, stderr=subprocess.STDOUT,
+            )
 
         # Wait for it to initialise
         time.sleep(1.0)
         if _proc.poll() is not None:
-            out = _proc.stdout.read().decode(errors="replace")
             _active = False
-            raise RuntimeError(f"mosquitto failed to start: {out[:500]}")
+            raise RuntimeError(f"mosquitto failed to start: {_log_tail()}")
 
         _active = True
         logger.info("MQTT broker started on port %d", MQTT_PORT)
