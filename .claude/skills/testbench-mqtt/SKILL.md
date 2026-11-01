@@ -65,23 +65,31 @@ curl -X POST $TESTBENCH_URL/api/mqtt/stop
    - Monitor device's reconnection behavior
    - `POST /api/mqtt/start` — device should reconnect
 
-   **On a *shared* broker, don't stop it — isolate the one device.** If the
-   broker also carries other devices (or the device under test uses a
-   production broker over a tunnel rather than the bench mosquitto), stopping it
-   is collateral damage. Cut MQTT for a single device with a source-scoped
-   firewall rule on the broker host instead (needs root there):
+   **On a *shared* broker, don't stop it — impair the one device.** Stopping
+   the broker is collateral damage for every other client. Impair a single
+   DUT's link instead with `POST /api/mqtt/impair` (FSD FR-040, shapes in
+   [Appendix D.12](../../../docs/Harness-FSD.md#d12-mqtt-test-broker)). Pass
+   `duration_s` so a test that dies mid-way cannot leave the DUT cut off, and
+   clear it in teardown anyway; bench reset clears every impairment.
 
-   ```bash
-   # black hole (timeout): device sees silence, its keepalive eventually fires the will
-   iptables -I INPUT -s <device-ip> -p tcp --dport 1883 -j DROP
-   # connection refused (TCP reset): device sees an immediate refusal
-   iptables -I INPUT -s <device-ip> -p tcp --dport 1883 -j REJECT --reject-with tcp-reset
-   ```
+   Pick the mode by the fault you are after:
 
-   The two are different tests: `DROP` is the "broker went away" black hole that
-   exercises the last-will keepalive timeout; `REJECT` is the "broker actively
-   refuses" path. Delete the rule (`-D` instead of `-I`) to restore. Prefer this
-   over `/api/mqtt/stop` whenever the broker is not exclusively the DUT's.
+   | Mode | Exercises |
+   |------|-----------|
+   | `cut` | Broker gone: keepalive timeout, last will, reconnect loop |
+   | `drop-large` | Link up, big packets lost: keepalives keep the session "alive" while publishes stall and retransmit — the case a full cut never reaches |
+   | `drop-after` | Connection carries a few KB, then goes silent: CONNECT succeeds, the session stalls mid-stream, every reconnect repeats it |
+
+   `bytes` for `drop-large` is the **IP** packet length, headers included:
+   an MQTT PINGREQ and bare TCP ACKs are well under 100 bytes on the wire, so
+   the default 300 lets keepalives through and drops any publish carrying a
+   real payload. For `drop-after`, `bytes` counts the whole connection from
+   the SYN, headers included — keep it well above the handshake plus CONNECT,
+   or the DUT never connects and you are back to a cut.
+
+   Recovery is observed on the DUT, not the bench: its serial or UDP log
+   (see testbench-logging) and its publishes resuming after the clear.
+   A refusal (TCP reset) is not offered; stopping the broker gives that.
 
 3. **Test MQTT + WiFi together:**
    - Start AP + broker

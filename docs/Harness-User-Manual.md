@@ -242,6 +242,7 @@ match the wiring documented in sections [11](#11-rf-signal-generator) and
 | `wifi_controller.py` | `/usr/local/bin/wifi_controller.py` | WiFi test instrument (AP/STA/scan/relay) |
 | `ble_controller.py` | `/usr/local/bin/ble_controller.py` | BLE scan/connect/write proxy |
 | `mqtt_controller.py` | `/usr/local/bin/mqtt_controller.py` | MQTT broker management |
+| `mqtt_impair_controller.py` | `/usr/local/bin/mqtt_impair_controller.py` | MQTT broker link impairment (FR-040) |
 | `debug_controller.py` | `/usr/local/bin/debug_controller.py` | OpenOCD lifecycle, probe allocation |
 | `sniffer.py` | `/usr/local/bin/sniffer.py` | DNS + TLS SNI traffic capture |
 | `rfc2217-learn-slots` | `/usr/local/bin/rfc2217-learn-slots` | USB hub slot discovery |
@@ -709,6 +710,27 @@ curl -X POST http://$BENCH:8080/api/net/portscan \
 ```
 
 ---
+
+### 10.2 Broker link impairment
+
+Impair one DUT's TCP traffic to the test broker without touching any other
+client (FSD FR-040): drop all of it (`cut`), drop packets of at least `bytes`
+IP length (`drop-large`, default 300), or drop everything after a
+connection's first `bytes` bytes (`drop-after`, default 2000). Only the
+DUT's packets to port 1883 are dropped; its DNS, UDP log and HTTP traffic
+pass. `duration_s` lifts it automatically; clear, bench reset and a portal
+restart remove every rule.
+
+```bash
+curl -X POST http://$BENCH:8080/api/mqtt/impair \
+     -H 'Content-Type: application/json' \
+     -d '{"client_ip": "192.168.4.15", "mode": "drop-large", "duration_s": 60}'
+curl http://$BENCH:8080/api/mqtt/impair/status
+curl -X POST http://$BENCH:8080/api/mqtt/impair/clear -d '{}'
+```
+
+To check nothing is left behind, on the Pi: `sudo iptables -S TB_MQTT_IMPAIR`
+lists only `-N TB_MQTT_IMPAIR` once every impairment is gone.
 
 ## 11. RF signal generator
 

@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 import debug_controller
 import gpiod
 import mqtt_controller
+import mqtt_impair_controller
 import netscan_controller
 import tls_mirror_controller
 import wifi_controller
@@ -152,6 +153,9 @@ _beacon_shutdown = threading.Event()
 
 # OTA firmware repository — serve .bin files for ESP32 OTA updates
 FIRMWARE_DIR = os.environ.get("FIRMWARE_DIR", "/var/lib/rfc2217/firmware")
+
+# FR-040: one owner of the broker-link impairment rules.
+_mqtt_impair = mqtt_impair_controller.Impairer(iface=wifi_controller.WLAN_IF)
 ESPOTA_PATH = os.environ.get("ESPOTA_PATH", "/usr/local/bin/espota.py")
 
 # Serial buffer size — how many lines each slot's ring buffer keeps
@@ -1674,6 +1678,7 @@ def bench_reset() -> dict:
       * test session      — ended
       * MQTT broker       — running (shared infrastructure: ensured, never
                             stopped, because other work may depend on it)
+      * MQTT impairments  — none (FR-040)
 
     Every step is attempted even if an earlier one fails: a reset that gives
     up halfway leaves a bench dirtier than one that was never reset, and the
@@ -1755,6 +1760,7 @@ def bench_reset() -> dict:
             changed.append("ended test session")
 
     attempt("stopped untrusted HTTPS mirror", tls_mirror_controller.stop)
+    attempt("cleared MQTT link impairments", _mqtt_impair.clear)
     attempt("started MQTT broker", lambda: mqtt_controller.start().get("ok"))
 
     log_activity(f"bench.reset — {len(changed)} change(s)", "ok")
@@ -2777,6 +2783,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": True, **mqtt_controller.status()})
         elif path == "/api/tls-mirror/status":
             self._send_json({"ok": True, **tls_mirror_controller.status()})
+        elif path == "/api/mqtt/impair/status":
+            self._send_json({"ok": True, "impairments": _mqtt_impair.status()})
         elif path == "/api/udplog":
             qs = parse_qs(parsed.query)
             self._handle_get_udplog(qs)
@@ -2921,6 +2929,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": True, "running": False})
         elif path == "/api/net/portscan":
             self._handle_net_portscan()
+        elif path == "/api/mqtt/impair":
+            self._handle_mqtt_impair()
+        elif path == "/api/mqtt/impair/clear":
+            self._handle_mqtt_impair_clear()
         elif path == "/api/firmware/upload":
             self._handle_firmware_upload()
         elif path == "/api/flash":
@@ -4005,6 +4017,50 @@ class Handler(http.server.BaseHTTPRequestHandler):
         res = netscan_controller.scan(host, ports, timeout_s)
         log_activity(f"portscan {host}: open={res['open']} complete={res['complete']}", "ok")
         self._send_json({"ok": True, **res})
+
+    # -- MQTT broker link impairment (FR-040) --
+
+    def _impair_client(self, value) -> str:
+        try:
+            return netscan_controller.validate_target(
+                value, wifi_controller.AP_SUBNET, wifi_controller.AP_IP)
+        except ValueError as exc:
+            raise ValueError(f"client_ip: {exc}") from None
+
+    def _handle_mqtt_impair(self):
+        try:
+            body = self._read_json() or {}
+            client_ip = self._impair_client(body.get("client_ip"))
+            mode, nbytes, duration_s = mqtt_impair_controller.validate_params(
+                body.get("mode"), body.get("bytes"), body.get("duration_s"))
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, 400)
+            return
+        try:
+            _mqtt_impair.impair(client_ip, mode, nbytes, duration_s)
+        except Exception as exc:
+            log_activity(f"mqtt impair {client_ip}: {exc}", "error")
+            self._send_json({"ok": False, "error": str(exc)}, 500)
+            return
+        detail = mode if nbytes is None else f"{mode} {nbytes} B"
+        until = "until cleared" if duration_s is None else f"for {duration_s:g} s"
+        log_activity(f"mqtt impair {client_ip}: {detail} {until}", "ok")
+        self._send_json({"ok": True, "client_ip": client_ip, "mode": mode,
+                         "bytes": nbytes, "duration_s": duration_s})
+
+    def _handle_mqtt_impair_clear(self):
+        try:
+            body = self._read_json() or {}
+            client_ip = body.get("client_ip")
+            if client_ip is not None:
+                client_ip = self._impair_client(client_ip)
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, 400)
+            return
+        cleared = _mqtt_impair.clear(client_ip)
+        if cleared:
+            log_activity(f"mqtt impair cleared: {', '.join(cleared)}", "ok")
+        self._send_json({"ok": True, "cleared": cleared})
 
     # -- firmware handlers --
 
@@ -6062,6 +6118,9 @@ def main():
 
     # Ensure firmware directory exists
     os.makedirs(FIRMWARE_DIR, exist_ok=True)
+
+    # An impairment rule must not outlive the process that tracked it (FR-040).
+    _mqtt_impair.reset()
 
     addr = ("", PORT)
     http.server.ThreadingHTTPServer.allow_reuse_address = True

@@ -138,6 +138,7 @@ cp "$SCRIPT_DIR/signal_generator.py"        /usr/local/bin/signal_generator.py
 cp "$SCRIPT_DIR/sdr_controller.py"          /usr/local/bin/sdr_controller.py
 cp "$SCRIPT_DIR/debug_controller.py"       /usr/local/bin/debug_controller.py
 cp "$SCRIPT_DIR/mqtt_controller.py"         /usr/local/bin/mqtt_controller.py
+cp "$SCRIPT_DIR/mqtt_impair_controller.py"  /usr/local/bin/mqtt_impair_controller.py
 cp "$SCRIPT_DIR/netscan_controller.py"      /usr/local/bin/netscan_controller.py
 cp "$SCRIPT_DIR/tls_mirror_controller.py"   /usr/local/bin/tls_mirror_controller.py
 cp "$SCRIPT_DIR/sniffer.py"                 /usr/local/bin/sniffer.py

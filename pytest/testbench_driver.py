@@ -246,6 +246,26 @@ class TestbenchDriver:
     def mqtt_status(self) -> dict:
         return self._api_get("/api/mqtt/status")
 
+    # ── MQTT broker link impairment (FR-040) ──────────────────────────
+
+    def mqtt_impair(self, client_ip: str, mode: str, bytes: Optional[int] = None,
+                    duration_s: Optional[float] = None) -> dict:
+        """Impair one AP client's traffic to the broker: cut, drop-large or drop-after."""
+        body = {"client_ip": client_ip, "mode": mode}
+        if bytes is not None:
+            body["bytes"] = bytes
+        if duration_s is not None:
+            body["duration_s"] = duration_s
+        return self._api_post("/api/mqtt/impair", body, timeout=15)
+
+    def mqtt_impair_clear(self, client_ip: Optional[str] = None) -> list:
+        """Lift one client's impairment, or every one; returns those lifted."""
+        body = {} if client_ip is None else {"client_ip": client_ip}
+        return self._api_post("/api/mqtt/impair/clear", body, timeout=15)["cleared"]
+
+    def mqtt_impair_status(self) -> list:
+        return self._api_get("/api/mqtt/impair/status")["impairments"]
+
     # ── Untrusted HTTPS mirror (FR-038) ───────────────────────────────
 
     def tls_mirror_start(self) -> dict:
