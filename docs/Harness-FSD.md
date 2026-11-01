@@ -9,7 +9,7 @@
 | 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery · FR-030 serial write · FR-031 – FR-035 access manager · FR-036 bench reset |
 | 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
 | 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository · FR-038 untrusted HTTPS mirror · FR-039 AP port scan |
-| 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
+| 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker · FR-040 broker link impairment |
 | 7 | [Debug Services](#7-debug-services) | FR-024 – FR-026, FR-037: USB JTAG, dual-USB, ESP-Prog, per-slot isolation |
 | 8 | [RF Instruments](#8-rf-instruments) | FR-027, FR-028: signal generator, SDR receiver |
 | 9 | [Client Interfaces](#9-client-interfaces) | MCP server |
@@ -1301,6 +1301,7 @@ Initial state, per subsystem:
 | Test session | ended |
 | MQTT broker | **running** — shared infrastructure, so it is ensured, never stopped |
 | Untrusted HTTPS mirror (FR-038) | stopped |
+| MQTT link impairments (FR-040) | none — every one cleared |
 
 Every step is attempted even if an earlier one fails: a reset that gives up
 halfway leaves the bench dirtier than one never run, and the caller cannot
@@ -1332,6 +1333,7 @@ known-good bench-DUT image at session start and after its flash tests.
 | FR-036 | Reset an already-clean bench | `ok: true` with an empty or near-empty `changed` | Spurious changes reported, which would make "was it dirty?" unanswerable |
 | FR-036 | Reset while one subsystem errors | The remaining subsystems are still reset, and the error is reported in `errors` | Aborting on the first failure |
 | FR-036 | Reset | The MQTT broker is running afterwards | The broker stopped — other work depends on it |
+| FR-036 | Impair a client (FR-040), then reset | `changed` names the cleared impairment; the impairment chain is empty | A DUT still impaired after a reset |
 
 ## 4. WiFi Service
 
@@ -2221,6 +2223,88 @@ restart, matching only processes launched with this service's own config path.
 It does not kill brokers it did not start: if port 1883 is held by anything
 else — a system `mosquitto.service`, another user's broker — start fails and
 names the listener rather than taking down infrastructure it does not own.
+
+### FR-040 — MQTT Broker Link Impairment
+
+Impair the TCP traffic **from one AP client to the test broker** (FR-029), and
+lift it again. It verifies a DUT's MQTT recovery: what it does when its broker
+link goes away entirely, and — the harder case — when the link stays up but
+stalls part-way. A full cut is not enough on its own: a client whose small
+packets (keepalives) still pass while its large ones vanish, or whose
+connection carries a few kilobytes and then nothing, takes code paths that a
+dead link never reaches.
+
+**Endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/mqtt/impair` | Impair one client `{"client_ip", "mode", "bytes"?, "duration_s"?}` |
+| POST | `/api/mqtt/impair/clear` | Lift the impairment of one client `{"client_ip"}`, or of every client `{}` |
+| GET | `/api/mqtt/impair/status` | Active impairments |
+
+**Request (`/api/mqtt/impair`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| client_ip | string | required | A single IPv4 address inside the AP subnet (`192.168.4.0/24`), not the Pi's own AP address, not the network or broadcast address |
+| mode | string | required | `cut`, `drop-large` or `drop-after` (below) |
+| bytes | integer | 300 (`drop-large`), 2000 (`drop-after`) | The mode's threshold, 1–65535; not accepted with `cut` |
+| duration_s | number | none | 1–3600. The impairment lifts itself when it runs out; without it, it lasts until cleared |
+
+| Mode | Effect on the client's packets to the broker |
+|------|-----------------------------------------------|
+| `cut` | Every packet is dropped |
+| `drop-large` | Packets whose IP length is at least `bytes` are dropped; smaller ones pass |
+| `drop-after` | Each TCP connection passes its first `bytes` bytes (client to broker, counted by connection tracking); every later packet of that connection is dropped. A new connection gets its own `bytes` |
+
+**Response:**
+```json
+{"ok": true, "client_ip": "192.168.4.15", "mode": "drop-large", "bytes": 300, "duration_s": 60}
+```
+Clear answers `{"ok": true, "cleared": ["192.168.4.15"]}`; clearing a client
+with no impairment is not an error and answers an empty list. Status answers
+`{"ok": true, "impairments": [{"client_ip", "mode", "bytes", "remaining_s"}]}`,
+`remaining_s` null when no duration was given.
+
+**Scope — enforced before any rule is installed:**
+
+- Only TCP packets **from** `client_ip` **to** port 1883 on the Pi, arriving on
+  the AP interface, are matched. The broker's packets to the client, the
+  client's other traffic (DNS, UDP log, HTTP, OTA) and every other client are
+  untouched. A refused `client_ip`, mode, `bytes` or `duration_s` answers 400
+  and installs nothing.
+- Matching is per packet, so a connection already open when the impairment
+  starts is affected from its next packet.
+- One impairment per client. Impairing a client that already has one replaces
+  it: the old rule and the old timer are gone before the call returns.
+
+**Nothing is left behind.** Every impairment rule lives in one bench-owned
+iptables chain, jumped to from the top of `INPUT`. The chain is emptied when
+the last impairment is cleared or times out, when the portal starts (a rule
+from before a crash or restart must not outlive the process that tracked it)
+and on bench reset (FR-036). The bench never edits a rule outside that chain
+except its own jump.
+
+**Driver methods:**
+```python
+wt.mqtt_impair("192.168.4.15", "drop-large", bytes=300, duration_s=60)
+wt.mqtt_impair_clear("192.168.4.15")   # or wt.mqtt_impair_clear() for all
+wt.mqtt_impair_status()
+```
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-040 | Client addresses `192.168.4.15`, `192.168.4.1`, `192.168.0.10`, `192.168.4.0`, `192.168.4.255`, `192.168.4.0/24`, `example.com` · validate | Only the first is accepted | Any other address accepted |
+| FR-040 | Mode `bogus`; `bytes` 0, 65536, `"a"`; `bytes` with `cut`; `duration_s` 0, 3601 · validate | Each refused | A rule installed for a refused request |
+| FR-040 | Each mode · build its rule | One rule matching `-i <AP if> -s <client> -p tcp --dport 1883`, plus nothing for `cut`, `-m length --length <bytes>:65535` for `drop-large`, `-m connbytes --connbytes <bytes>: --connbytes-dir original --connbytes-mode bytes` for `drop-after`; target `DROP` | A rule without the client, protocol or port scope |
+| FR-040 | DUT connected to the broker · `cut` | The broker receives nothing more from the DUT, and its session ends on the keepalive timeout | Another client's session affected |
+| FR-040 | DUT connected · `drop-large` | The broker still logs the DUT's small packets (PINGREQ) but no packet at or over `bytes` | Small packets dropped |
+| FR-040 | DUT reconnecting · `drop-after` | Each new connection gets its CONNECT through, then the broker receives nothing more on it | The first `bytes` of a connection dropped |
+| FR-040 | Any mode · clear, or let `duration_s` run out | The DUT's traffic reaches the broker again; status lists no impairment for it | A rule left in the chain |
+| FR-040 | An impairment active · impair the same client again | Exactly one rule for the client, of the new mode | Both rules present |
+| FR-040 | An impairment active · restart the portal, or bench reset | The chain is empty afterwards | A rule surviving the restart or reset |
 
 ---
 
@@ -4115,6 +4199,9 @@ RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 |--------|----------|-------------|
 | POST | `/api/mqtt/start` · `/stop` | Start / stop the mosquitto test broker |
 | GET | `/api/mqtt/status` | Running state + port |
+| POST | `/api/mqtt/impair` | Impair one AP client's traffic to the broker `{"client_ip", "mode", "bytes"?, "duration_s"?}` (FR-040) |
+| POST | `/api/mqtt/impair/clear` | Lift one client's impairment `{"client_ip"}`, or all `{}` |
+| GET | `/api/mqtt/impair/status` | Active impairments |
 
 ### D.13 Test Progress & Human Interaction
 
@@ -4247,3 +4334,15 @@ and must expose no listening TCP port.
 - FR-039: `POST /api/net/portscan` reports the TCP ports of one AP-network host
   that accept a connection; targets outside the AP subnet, and the Pi itself,
   are refused before any connection is made
+
+---
+
+### 2026-11-01 — MQTT broker link impairment
+
+Requested by consumer projects that cannot verify MQTT recovery on the bench
+(issue #24, and a project whose faults needed a partial stall, not a cut).
+
+- FR-040: `POST /api/mqtt/impair` drops one AP client's packets to the broker —
+  all of them (`cut`), the large ones (`drop-large`), or everything after a
+  connection's first N bytes (`drop-after`) — until cleared or timed out;
+  portal start and bench reset clear every impairment
