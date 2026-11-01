@@ -85,7 +85,11 @@ curl -X POST $TESTBENCH_URL/api/mqtt/stop
    the default 300 lets keepalives through and drops any publish carrying a
    real payload. For `drop-after`, `bytes` counts the whole connection from
    the SYN, headers included — keep it well above the handshake plus CONNECT,
-   or the DUT never connects and you are back to a cut.
+   or the DUT never connects and you are back to a cut. A connection that
+   was already open may get up to `bytes` **more** before it stalls, because
+   connection tracking can start counting it only when the impairment starts.
+   At a 10 s publish cadence that can take minutes, so pick a small `bytes`
+   or a watch window that covers it.
 
    Recovery is observed on the DUT, not the bench: its serial or UDP log
    (see testbench-logging) and its publishes resuming after the clear.

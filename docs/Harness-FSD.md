@@ -2255,7 +2255,7 @@ dead link never reaches.
 |------|-----------------------------------------------|
 | `cut` | Every packet is dropped |
 | `drop-large` | Packets whose IP length is at least `bytes` are dropped; smaller ones pass |
-| `drop-after` | Each TCP connection passes its first `bytes` bytes (client to broker, counted by connection tracking); every later packet of that connection is dropped. A new connection gets its own `bytes` |
+| `drop-after` | Each TCP connection passes `bytes` bytes (client to broker, headers included, counted by connection tracking); every later packet of that connection is dropped. A connection opened after the impairment starts is counted from its SYN, so each new connection gets its own `bytes`. A connection already open is counted from when connection tracking first saw it, which can be the impairment's own start: it is dropped at once if already past `bytes`, otherwise after at most `bytes` more |
 
 **Response:**
 ```json
@@ -2274,7 +2274,8 @@ with no impairment is not an error and answers an empty list. Status answers
   untouched. A refused `client_ip`, mode, `bytes` or `duration_s` answers 400
   and installs nothing.
 - Matching is per packet, so a connection already open when the impairment
-  starts is affected from its next packet.
+  starts is affected from its next packet that matches — for `drop-after`,
+  within at most `bytes` more bytes (above).
 - One impairment per client. Impairing a client that already has one replaces
   it: the old rule and the old timer are gone before the call returns.
 
@@ -2304,6 +2305,7 @@ wt.mqtt_impair_status()
 | FR-040 | DUT connected to the broker · `cut` | The broker receives nothing more from the DUT, and its session ends on the keepalive timeout | Another client's session affected |
 | FR-040 | DUT connected · `drop-large` | The broker still logs the DUT's small packets (PINGREQ) but no packet at or over `bytes` | Small packets dropped |
 | FR-040 | DUT reconnecting · `drop-after` | Each new connection gets its CONNECT through, then the broker receives nothing more on it | The first `bytes` of a connection dropped |
+| FR-040 | DUT connected before the impairment · `drop-after` | The open connection stops reaching the broker after at most `bytes` more bytes | The open connection never impaired |
 | FR-040 | Any mode · clear, or let `duration_s` run out | The DUT's traffic reaches the broker again; status lists no impairment for it; with no other impairment, neither the chain nor its jump exists | A rule, the chain or the jump left behind |
 | FR-040 | An impairment active · impair the same client again | Exactly one rule for the client, of the new mode | Both rules present |
 | FR-040 | An impairment active · restart the portal, or bench reset | Neither the chain nor its jump exists afterwards | A rule, the chain or the jump surviving the restart or reset |
