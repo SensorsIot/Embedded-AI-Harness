@@ -30,6 +30,7 @@ import debug_controller
 import gpiod
 import mqtt_controller
 import netscan_controller
+import slot_meta
 import tls_mirror_controller
 import wifi_controller
 try:
@@ -228,6 +229,18 @@ def _slot_key_to_usb_device(slot_key: str) -> str | None:
     except ValueError:
         return None
     return f"{bus_num}-{port_path}"
+
+
+def _usb_serial_from_devnode(devnode: str) -> str | None:
+    """The USB serial number of the device behind *devnode*, or None."""
+    usb_device = _usb_device_from_devnode(devnode)
+    if not usb_device:
+        return None
+    try:
+        with open(f"/sys/bus/usb/devices/{usb_device}/serial") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
 
 
 def _usb_device_from_devnode(devnode: str) -> str | None:
@@ -592,6 +605,13 @@ def load_config(path: str) -> dict[str, dict]:
                 openocd_telnet_port=sdef.get("openocd_telnet_port"),
             )
             slot["_usb_prefix"] = prefix
+            # FR-041: a default name may sit in testbench.json; the one an
+            # operator sets in the portal (slot-names.json) replaces it.
+            try:
+                slot["board_name"] = slot_meta.clean_board_name(
+                    sdef.get("board_name"))
+            except ValueError as exc:
+                print(f"[portal] {label}: board_name ignored: {exc}", flush=True)
             result[placeholder_key] = slot
             _global_config["slot_prefixes"].append(
                 {"label": label, "prefix": prefix,
@@ -664,6 +684,7 @@ def _make_slot(slot_key: str, label: str = None, tcp_port: int = None,
         "openocd_telnet_port": openocd_telnet_port,
         "group": group,
         "role": role,
+        "board_name": None,   # FR-041: operator-set, e.g. "T-SIM7080G"
         "gpio_boot": _global_config.get("gpio_boot"),
         "gpio_en": _global_config.get("gpio_en"),
         "present": False,
@@ -682,6 +703,7 @@ def _make_slot(slot_key: str, label: str = None, tcp_port: int = None,
         "_recovering": False,
         "_recover_retries": 0,
         "_auto_debug_chip": None,
+        "_gpio_wiring": None,  # last BOOT/EN measurement record (FR-042)
         "_jtag_slot": None,  # slot label providing JTAG (own or probe)
         "_serial_buf": collections.deque(maxlen=SERIAL_BUF_MAXLEN),
         "_lock": threading.Lock(),
@@ -1263,8 +1285,17 @@ def _slot_info(slot: dict) -> dict:
     # this board. Collapsing them is what let recovery claim a capability
     # nothing had checked.
     info["has_gpio"] = slot.get("gpio_boot") is not None
-    info["gpio_wired"] = slot.get("gpio_wired")          # True/False/None
-    info["gpio_wired_detail"] = slot.get("gpio_wired_detail")
+    # FR-042: a measurement is of one board at one time. `gpio_wired` is
+    # True/False only for a current measurement of the board in the slot,
+    # and `gpio_wiring_show` hides the result while the slot is empty.
+    wv = _gpio_wiring_verdict(slot)
+    rec = slot.get("_gpio_wiring") or {}
+    info["gpio_wired"] = wv["wired"]                      # True/False/None
+    info["gpio_wiring"] = wv["status"]
+    info["gpio_wiring_show"] = wv["show"]
+    info["gpio_wiring_reason"] = wv["reason"]
+    info["gpio_checked_at"] = wv["checked_at"]
+    info["gpio_wired_detail"] = rec.get("detail") if wv["status"] != "other_board" else None
     # Debug status
     label = slot.get("label") or slot.get("slot_key", "")[-20:]
     if label and debug_controller.is_debugging(label):
@@ -2256,13 +2287,13 @@ def _start_flap_recovery(slot: dict):
     # the wiring has actually been measured (POST /api/serial/gpio-test);
     # otherwise fall back to the unbind/rebind cycle, which needs no wires
     # and, unlike the GPIO path, has always been honest about its outcome.
-    if slot.get("gpio_boot") is not None and not slot.get("gpio_wired"):
+    gpio_wired = _gpio_wiring_verdict(slot)["wired"]
+    if slot.get("gpio_boot") is not None and not gpio_wired:
         log_activity(
             f"{label}: BOOT/EN wiring unconfirmed — using the no-GPIO "
             f"recovery. Run POST /api/serial/gpio-test to measure it.",
             "warn")
-    has_gpio = (slot.get("gpio_boot") is not None
-                and bool(slot.get("gpio_wired")))
+    has_gpio = (slot.get("gpio_boot") is not None and bool(gpio_wired))
     if has_gpio:
         t = threading.Thread(
             target=_recover_with_gpio, args=(slot, usb_device),
@@ -2325,6 +2356,27 @@ def _download_mode_reached(devnode: str, timeout_s: float = 25.0) -> tuple:
 # confirm. Both are answerable in about fifteen seconds.
 GPIO_WIRING_FILE = os.environ.get(
     "GPIO_WIRING_FILE", "/var/lib/rfc2217/gpio-wiring.json")
+# FR-042: a measurement older than this is shown as out of date and no longer
+# lets recovery take the GPIO path. Hours; default one week.
+GPIO_WIRING_MAX_AGE_S = float(
+    os.environ.get("GPIO_WIRING_MAX_AGE_H", "168")) * 3600
+
+
+def _gpio_wiring_verdict(slot: dict) -> dict:
+    """FR-042: the slot's stored measurement, judged against its board now."""
+    present = bool(slot.get("present"))
+    serial = None
+    if present:
+        # /api/devices is polled; ask udev once per hotplug event, not per poll.
+        key = (slot.get("devnode"), slot.get("seq"))
+        cached = slot.get("_board_serial_cache")
+        if cached and cached[0] == key:
+            serial = cached[1]
+        else:
+            serial = _usb_serial_from_devnode(slot.get("devnode"))
+            slot["_board_serial_cache"] = (key, serial)
+    return slot_meta.wiring_verdict(slot.get("_gpio_wiring"), present,
+                                    serial, time.time(), GPIO_WIRING_MAX_AGE_S)
 
 _ROM_BANNER = re.compile(r"ESP-ROM:|rst:0x[0-9a-fA-F]+|boot:0x[0-9a-fA-F]+")
 
@@ -2346,6 +2398,35 @@ def _save_gpio_wiring(label: str, record: dict):
             json.dump(data, fh, indent=1)
     except OSError as exc:
         print(f"[portal] could not persist GPIO wiring: {exc}", flush=True)
+
+
+# FR-041: board names set from the portal, keyed by slot label.
+SLOT_NAMES_FILE = os.environ.get(
+    "SLOT_NAMES_FILE", "/var/lib/rfc2217/slot-names.json")
+
+
+def _load_slot_names() -> dict:
+    try:
+        with open(SLOT_NAMES_FILE) as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_slot_name(label: str, name: str | None) -> bool:
+    data = _load_slot_names()
+    data[label] = name   # null kept: clears a testbench.json default too
+    try:
+        os.makedirs(os.path.dirname(SLOT_NAMES_FILE), exist_ok=True)
+        tmp = SLOT_NAMES_FILE + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(data, fh, indent=1)
+        os.replace(tmp, SLOT_NAMES_FILE)
+        return True
+    except OSError as exc:
+        print(f"[portal] could not persist slot names: {exc}", flush=True)
+        return False
 
 
 def _saw_rom_banner(slot: dict, since: float, timeout: float) -> bool:
@@ -2428,15 +2509,20 @@ def test_gpio_wiring(slot: dict) -> dict:
         result["detail"] += "no gpio_boot configured, so BOOT was not tested."
 
     wired = bool(result["en_wired"] and result["boot_wired"])
-    slot["gpio_wired"] = wired
-    slot["gpio_wired_detail"] = result["detail"]
-    _save_gpio_wiring(label, {
+    now = time.time()
+    # FR-042: name the board and the moment, so the verdict is not shown
+    # for a later board or trusted forever.
+    record = {
         "en_wired": result["en_wired"],
         "boot_wired": result["boot_wired"],
         "gpio_wired": wired,
         "detail": result["detail"],
-        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-    })
+        "board_serial": _usb_serial_from_devnode(slot.get("devnode")),
+        "checked_ts": now,
+        "checked_at": slot_meta.bench_iso(now),
+    }
+    slot["_gpio_wiring"] = record
+    _save_gpio_wiring(label, record)
     log_activity(f"gpio-test({label}): EN={result['en_wired']} "
                  f"BOOT={result['boot_wired']} — {result['detail']}",
                  "ok" if wired else "warn")
@@ -2817,6 +2903,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_slot_acquire()
         elif path == "/api/slot/renew":
             self._handle_slot_renew()
+        elif path == "/api/slot/name":
+            self._handle_slot_name()
         elif path == "/api/slot/release":
             self._handle_slot_release()
         elif path == "/api/serial/reset":
@@ -3487,6 +3575,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = self._read_json() or {}
         result, status = slot_release(body.get("token", ""))
         self._send_json(result, status)
+
+    def _handle_slot_name(self):
+        """POST /api/slot/name {"slot": "SLOT1", "name": "T-SIM7080G"} (FR-041).
+
+        An empty or null name clears it.
+        """
+        body = self._read_json() or {}
+        slot_label = body.get("slot")
+        slot = _find_slot_by_label(slot_label) if slot_label else None
+        if not slot:
+            self._send_json({"ok": False,
+                             "error": f"slot '{slot_label}' not found"}, 404)
+            return
+        try:
+            name = slot_meta.clean_board_name(body.get("name"))
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, 400)
+            return
+        if not _save_slot_name(slot["label"], name):
+            self._send_json({"ok": False,
+                             "error": "could not store the name"}, 500)
+            return
+        slot["board_name"] = name
+        log_activity(f"{slot['label']}: board name "
+                     + (f"set to '{name}'" if name else "cleared"), "info")
+        self._send_json({"ok": True, "slot": slot["label"],
+                         "board_name": name})
 
     def _handle_slot_mode(self, qs):
         slot_label = (qs.get("slot") or [None])[0]
@@ -5015,6 +5130,11 @@ _UI_HTML = """\
             align-items: center; margin-bottom: 15px;
         }
         .slot-label { font-size: 1.4em; font-weight: bold; }
+        .board-name { color: #00d4ff; font-size: 0.95em; margin-top: 2px; cursor: pointer; }
+        .board-name.unset { color: #666; font-style: italic; font-size: 0.85em; }
+        .board-name:hover { text-decoration: underline; }
+        .wiring-stale { color: #999; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-top: 8px; font-size: 0.9em; }
+        .wiring-when { font-weight: normal; font-size: 0.85em; opacity: 0.8; margin-top: 2px; }
         .status {
             padding: 4px 12px; border-radius: 20px;
             font-size: 0.85em; font-weight: bold;
@@ -5419,6 +5539,32 @@ function identifyUsbDevice(usb_devices) {
     return usb_devices[0].product || 'unknown device';
 }
 
+function esc(t) {
+    return String(t).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;',
+        '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+// When a BOOT/EN result was measured, in bench (US Eastern) time.
+function wiringWhen(s) {
+    return s.gpio_checked_at
+        ? '<div class="wiring-when">tested ' + esc(s.gpio_checked_at) + '</div>' : '';
+}
+async function nameSlot(label, el) {
+    const cur = el && el.classList.contains('unset') ? '' :
+        (el ? el.textContent.replace(/\\s*\\u270e\\s*$/, '').trim() : '');
+    const name = prompt('Board name for ' + label + ' (empty to clear):', cur);
+    if (name === null) return;
+    try {
+        const resp = await fetch('/api/slot/name', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({slot: label, name: name})
+        });
+        const d = await resp.json();
+        if (!d.ok) alert('Could not set the name: ' + (d.error || 'unknown'));
+    } catch (e) { alert('Error: ' + e); }
+    refresh();
+}
+
 function renderSlots(slots) {
     const el = document.getElementById('slots');
     el.innerHTML = slots.map(s => {
@@ -5437,11 +5583,17 @@ function renderSlots(slots) {
             actionBtns = '<div class="slot-actions">' +
                 '<button class="btn-release" onclick="releaseSlot(\\'' + label + '\\')">Release &amp; Reboot</button>' +
                 '</div>';
-        } else if (s.has_gpio && s.gpio_wired === true) {
-            statusMsg = '<div class="probe-info">&#10003; BOOT/EN wiring verified</div>';
-        } else if (s.has_gpio && s.gpio_wired === false) {
+        } else if (s.has_gpio && s.gpio_wiring_show && s.gpio_wiring === 'wired') {
+            statusMsg = '<div class="probe-info">&#10003; BOOT/EN wiring verified' +
+                wiringWhen(s) + '</div>';
+        } else if (s.has_gpio && s.gpio_wiring_show && s.gpio_wiring === 'not_wired') {
             statusMsg = '<div class="flap-warning">&#9888; BOOT/EN pins configured but NOT wired to this board — ' +
-                'GPIO recovery is unavailable for this slot</div>';
+                'GPIO recovery is unavailable for this slot' + wiringWhen(s) + '</div>';
+        } else if (s.has_gpio && s.gpio_wiring_show && s.gpio_wiring === 'stale') {
+            statusMsg = '<div class="wiring-stale">BOOT/EN test' +
+                (s.gpio_checked_at ? ' of ' + esc(s.gpio_checked_at) : '') +
+                ' is out of date (' + esc(s.gpio_wiring_reason || 'too old') +
+                ') — re-test to use GPIO recovery</div>';
         } else if (s.is_probe) {
             statusMsg = '<div class="probe-info">&#10003; ESP-Prog debug probe</div>';
         } else if (s.usb_warning) {
@@ -5455,8 +5607,9 @@ function renderSlots(slots) {
                 '</div>';
         }
         if (s.has_gpio && s.present && st !== 'download_mode' && st !== 'recovering') {
-            const verb = (s.gpio_wired === null || s.gpio_wired === undefined)
-                ? 'Test BOOT/EN wiring' : 'Re-test BOOT/EN wiring';
+            const verb = (s.gpio_wiring === 'wired' || s.gpio_wiring === 'not_wired'
+                          || s.gpio_wiring === 'stale')
+                ? 'Re-test BOOT/EN wiring' : 'Test BOOT/EN wiring';
             actionBtns += '<div class="slot-actions">' +
                 '<button class="btn-recover" onclick="testGpio(\\'' + label + '\\')">' +
                 verb + '</button></div>';
@@ -5464,7 +5617,12 @@ function renderSlots(slots) {
         return `
         <div class="slot ${st}">
             <div class="slot-header">
-                <div class="slot-label">${label}</div>
+                <div class="slot-title">
+                    <div class="slot-label">${label}</div>
+                    <div class="board-name ${s.board_name ? '' : 'unset'}"
+                         title="Set the name of the board in this slot"
+                         onclick="nameSlot('${label}', this)">${s.board_name ? esc(s.board_name) : 'name this board'} &#9998;</div>
+                </div>
                 <div class="status ${st}">${statusLabel(s)}</div>
             </div>
             <div class="slot-info">
@@ -6031,13 +6189,20 @@ def main():
 
     # A measurement that does not survive a restart is an assumption again by
     # morning. Reload what was measured, keyed by slot label.
+    # FR-042 judges each record against the board in the slot when it is
+    # read, so an old or foreign one is kept on file but not trusted.
     _wiring = _load_gpio_wiring()
+    _names = _load_slot_names()
     for _s in slots.values():
-        _rec = _wiring.get(_s.get("label") or "")
+        _lbl = _s.get("label") or ""
+        _rec = _wiring.get(_lbl)
         if _rec:
-            _s["gpio_wired"] = _rec.get("gpio_wired")
-            _s["gpio_wired_detail"] = (
-                f"{_rec.get('detail', '')} (measured {_rec.get('checked_at')})")
+            _s["_gpio_wiring"] = _rec
+        if _lbl in _names:
+            try:
+                _s["board_name"] = slot_meta.clean_board_name(_names[_lbl])
+            except ValueError:
+                pass
 
     host_ip = get_host_ip()
     hostname = get_hostname()

@@ -1291,6 +1291,23 @@ portal UI.
 Until a slot is measured, GPIO recovery is not used on it: the wire-free
 unbind/rebind cycle runs instead, and the log says why.
 
+A result is about the board that was tested, at that time (FR-042). The card
+shows it only while a board is in the slot, with the time it was measured in
+US Eastern time. Plug in a different board and the old result is dropped; after
+a week (`GPIO_WIRING_MAX_AGE_H`, default 168) it shows greyed out as out of date
+until re-tested, and in both cases recovery treats the slot as unmeasured.
+
+**9c. Name the boards.** Click *name this board* under a slot's label, or:
+
+```bash
+curl -s -X POST http://$BENCH:8080/api/slot/name \
+     -H 'Content-Type: application/json' -d '{"slot":"SLOT2","name":"T-SIM7080G"}'
+```
+
+The name (40 characters at most; empty clears it) is kept in
+`/var/lib/rfc2217/slot-names.json` and appears as `board_name` in
+`/api/devices` (FR-041).
+
 **10. Manual recovery.** `POST /api/serial/recover` starts a fresh recovery cycle
 even when the slot isn't flapping, resetting the retry counter. Expect
 `{"ok": true, ...}`.
