@@ -3360,6 +3360,63 @@ The portal serves a single-page HTML UI at `GET /` (port 8080):
   `/api/human/status`, and `/api/test/progress`
 - **Title** — `RFC2217 Embedded Testbench`
 
+### FR-041 — Board Name per Slot
+
+With several boards on one bench, a slot number alone does not say which board
+is where.
+
+- Each slot shall carry an optional board name of at most 40 characters, set
+  with `POST /api/slot/name {"slot", "name"}`; an empty or null name clears it.
+  Control characters and runs of whitespace are collapsed; a longer name or a
+  non-string is refused with 400.
+- The name shall survive a portal restart (`/var/lib/rfc2217/slot-names.json`,
+  keyed by slot label). A `board_name` in a `testbench.json` slot definition is
+  the default until one is set in the portal.
+- `GET /api/devices` shall report it as `board_name`, and the slot card shall
+  show it under the slot label, where clicking it edits it.
+
+### FR-042 — A BOOT/EN Result Belongs to One Board at One Time
+
+A wiring measurement (`POST /api/serial/gpio-test`) is a fact about the board
+that was in the slot when it ran. Shown forever, it warns about a board that has
+left, or vouches for one that has been replaced.
+
+- A measurement shall record the board's USB serial number (`board_serial`) and
+  its time (`checked_ts`, and `checked_at` in US Eastern time).
+- The slot card shall show a result only while a board is present, with the
+  time it was measured in US Eastern time (EST/EDT).
+- A result whose `board_serial` differs from the board now present is not shown
+  and not trusted (`gpio_wiring: "other_board"`).
+- A result older than `GPIO_WIRING_MAX_AGE_H` (default 168 h), or recorded
+  without a board and time, is shown muted as out of date (`"stale"`) and is not
+  trusted.
+- `gpio_wired` in `GET /api/devices` shall be true or false only for a current
+  result for this board, and null otherwise; recovery takes the GPIO path only
+  when it is true. A board with no USB serial number is judged by age alone.
+
+### FR-043 — No BOOT/EN Test for a Board That Is Not an ESP32
+
+BOOT and EN are ESP32 pins. A Notecard or other non-ESP board can only fail
+the wiring test, and its warning is noise.
+
+- A slot's board can have BOOT/EN pins when its detected chip is an ESP, or
+  one of its USB devices is from Espressif (303a) or a USB-UART bridge maker
+  (Silicon Labs 10c4, WCH 1a86, FTDI 0403, Prolific 067b). A slot with no
+  known USB devices is given the benefit of the doubt.
+- `GET /api/devices` shall report this as `boot_pins_apply`. Where it is false,
+  the slot card shows no BOOT/EN test button and no BOOT/EN result, and
+  `POST /api/serial/gpio-test` is refused with an error naming the reason.
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-043 | Detected chip and USB devices (ESP native, CP2102, Notecard, none) · decide | True except for a Notecard with no ESP chip | A bridge board or an unprobed native-USB ESP32 losing the test | host |
+| FR-041 | Names with padding, control characters, empty, null, too long, non-string · clean | Tidied name; empty and null clear; the last two refused | A name over 40 characters stored | host |
+| FR-041 | Set a name on a slot · restart the portal | `board_name` in `/api/devices` and on the card | The name lost on restart | bench |
+| FR-042 | Stored result · board absent, same board, other board, older than the limit, legacy record | Hidden; shown; `other_board`; `stale`; `stale` | A result shown for an empty slot or another board; `gpio_wired` true from a stale result | host |
+| FR-042 | Measurement time · format | Ends in `EST` or `EDT` per the date | A UTC or naive time on the card | host |
+
 ---
 
 ## 11. Non-Functional Requirements
@@ -3995,6 +4052,7 @@ suites alike. A conflicting request is refused, never pre-empted.
 | POST | `/api/slot/renew` | Extend a grant `{"token"}` → `{"ok", "expires_in"}`. Hold by renewing; `ttl` defaults to 60 s |
 | POST | `/api/slot/release` | Give the slot back `{"token"}` |
 | GET | `/api/slot/mode` | Current mode `?slot=` → `{"ok", "mode", "owner", "since", "expires_in"}` |
+| POST | `/api/slot/name` | Set or clear the board name `{"slot", "name"}` → `{"ok", "slot", "board_name"}` (FR-041) |
 
 **Bench reset (FR-036).** The first call of every test run.
 
@@ -4247,3 +4305,16 @@ and must expose no listening TCP port.
 - FR-039: `POST /api/net/portscan` reports the TCP ports of one AP-network host
   that accept a connection; targets outside the AP subnet, and the Pi itself,
   are refused before any connection is made
+
+### 2026-11-06 — slot board names, and BOOT/EN results that expire
+
+Asked for by the bench's operator: the "NOT wired" warning stayed on a slot
+after its board was unplugged, and several boards on one bench were known only
+by slot number.
+
+- FR-041: each slot carries an operator-set board name (`POST /api/slot/name`),
+  kept across restarts and shown on the slot card
+- FR-042: a BOOT/EN result names its board and time, is shown only while that
+  board is present, and is out of date after a week; times are US Eastern
+- FR-043: slots whose board is not an ESP32 (a Notecard, say) show no BOOT/EN
+  test or result
