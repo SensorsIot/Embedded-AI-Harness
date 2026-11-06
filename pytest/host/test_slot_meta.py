@@ -35,6 +35,25 @@ def test_fr041_board_name_refused(raw):
         sm.clean_board_name(raw)
 
 
+# ── FR-043 ────────────────────────────────────────────────────────────────
+
+NOTECARD = [{"product": "Notecard", "vid_pid": "30a4:0001"}]
+ESP_USB = [{"product": "USB JTAG/serial debug unit", "vid_pid": "303a:1001"}]
+CP2102 = [{"product": "CP2102 USB to UART", "vid_pid": "10c4:ea60"}]
+
+
+@pytest.mark.parametrize("chip,devs,want", [
+    ("esp32s3", ESP_USB, True),
+    (None, ESP_USB, True),       # native USB before the chip is probed
+    (None, CP2102, True),        # bridge board: chip never auto-detected
+    (None, NOTECARD, False),
+    ("esp32", NOTECARD, True),   # a detected ESP chip always wins
+    (None, [], True),            # nothing known: keep the test
+])
+def test_fr043_boot_pins_apply(chip, devs, want):
+    assert sm.boot_pins_apply(chip, devs) is want
+
+
 # ── FR-042 ────────────────────────────────────────────────────────────────
 
 def test_fr042_untested():

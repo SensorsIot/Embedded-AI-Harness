@@ -1326,6 +1326,9 @@ def _slot_info(slot: dict) -> dict:
             usb_warning = f"Not flashable — USB in HID mode: {names}"
     info["usb_warning"] = usb_warning
     info["is_probe"] = is_probe
+    # FR-043: no BOOT/EN test or result for a board that is not an ESP32.
+    info["boot_pins_apply"] = slot_meta.boot_pins_apply(
+        info["detected_chip"], usb_devs if slot.get("present") else [])
     return info
 
 
@@ -3800,6 +3803,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": False,
                              "error": f"{slot_label}: no device present"})
             return
+        if not slot_meta.boot_pins_apply(slot.get("_auto_debug_chip"),
+                                         slot.get("_usb_devices") or []):
+            self._send_json({"ok": False,
+                             "error": f"{slot_label}: the board is not an "
+                                      f"ESP32, so it has no BOOT/EN pins"})
+            return
         self._send_json(test_gpio_wiring(slot))
 
     def _handle_serial_recover(self):
@@ -5570,6 +5579,8 @@ function renderSlots(slots) {
     el.innerHTML = slots.map(s => {
         const st = slotStatus(s);
         const label = s.label || s.slot_key.slice(-20);
+        // FR-043: BOOT/EN only for a board that can be an ESP32.
+        const bootPins = s.has_gpio && s.boot_pins_apply !== false;
         const ipUrl = s.url || '';
         const copyTarget = ipUrl;
         let statusMsg = '';
@@ -5583,13 +5594,13 @@ function renderSlots(slots) {
             actionBtns = '<div class="slot-actions">' +
                 '<button class="btn-release" onclick="releaseSlot(\\'' + label + '\\')">Release &amp; Reboot</button>' +
                 '</div>';
-        } else if (s.has_gpio && s.gpio_wiring_show && s.gpio_wiring === 'wired') {
+        } else if (bootPins && s.gpio_wiring_show && s.gpio_wiring === 'wired') {
             statusMsg = '<div class="probe-info">&#10003; BOOT/EN wiring verified' +
                 wiringWhen(s) + '</div>';
-        } else if (s.has_gpio && s.gpio_wiring_show && s.gpio_wiring === 'not_wired') {
+        } else if (bootPins && s.gpio_wiring_show && s.gpio_wiring === 'not_wired') {
             statusMsg = '<div class="flap-warning">&#9888; BOOT/EN pins configured but NOT wired to this board — ' +
                 'GPIO recovery is unavailable for this slot' + wiringWhen(s) + '</div>';
-        } else if (s.has_gpio && s.gpio_wiring_show && s.gpio_wiring === 'stale') {
+        } else if (bootPins && s.gpio_wiring_show && s.gpio_wiring === 'stale') {
             statusMsg = '<div class="wiring-stale">BOOT/EN test' +
                 (s.gpio_checked_at ? ' of ' + esc(s.gpio_checked_at) : '') +
                 ' is out of date (' + esc(s.gpio_wiring_reason || 'too old') +
@@ -5606,7 +5617,7 @@ function renderSlots(slots) {
                 '<button class="btn-recover" onclick="recoverSlot(\\'' + label + '\\')">Retry Recovery</button>' +
                 '</div>';
         }
-        if (s.has_gpio && s.present && st !== 'download_mode' && st !== 'recovering') {
+        if (bootPins && s.present && st !== 'download_mode' && st !== 'recovering') {
             const verb = (s.gpio_wiring === 'wired' || s.gpio_wiring === 'not_wired'
                           || s.gpio_wiring === 'stale')
                 ? 'Re-test BOOT/EN wiring' : 'Test BOOT/EN wiring';

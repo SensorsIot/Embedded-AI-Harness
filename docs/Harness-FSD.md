@@ -3394,10 +3394,24 @@ left, or vouches for one that has been replaced.
   result for this board, and null otherwise; recovery takes the GPIO path only
   when it is true. A board with no USB serial number is judged by age alone.
 
+### FR-043 — No BOOT/EN Test for a Board That Is Not an ESP32
+
+BOOT and EN are ESP32 pins. A Notecard or other non-ESP board can only fail
+the wiring test, and its warning is noise.
+
+- A slot's board can have BOOT/EN pins when its detected chip is an ESP, or
+  one of its USB devices is from Espressif (303a) or a USB-UART bridge maker
+  (Silicon Labs 10c4, WCH 1a86, FTDI 0403, Prolific 067b). A slot with no
+  known USB devices is given the benefit of the doubt.
+- `GET /api/devices` shall report this as `boot_pins_apply`. Where it is false,
+  the slot card shows no BOOT/EN test button and no BOOT/EN result, and
+  `POST /api/serial/gpio-test` is refused with an error naming the reason.
+
 **Verification contract**
 
 | ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
 |---|---|---|---|---|
+| FR-043 | Detected chip and USB devices (ESP native, CP2102, Notecard, none) · decide | True except for a Notecard with no ESP chip | A bridge board or an unprobed native-USB ESP32 losing the test | host |
 | FR-041 | Names with padding, control characters, empty, null, too long, non-string · clean | Tidied name; empty and null clear; the last two refused | A name over 40 characters stored | host |
 | FR-041 | Set a name on a slot · restart the portal | `board_name` in `/api/devices` and on the card | The name lost on restart | bench |
 | FR-042 | Stored result · board absent, same board, other board, older than the limit, legacy record | Hidden; shown; `other_board`; `stale`; `stale` | A result shown for an empty slot or another board; `gpio_wired` true from a stale result | host |
@@ -4302,3 +4316,5 @@ by slot number.
   kept across restarts and shown on the slot card
 - FR-042: a BOOT/EN result names its board and time, is shown only while that
   board is present, and is out of date after a week; times are US Eastern
+- FR-043: slots whose board is not an ESP32 (a Notecard, say) show no BOOT/EN
+  test or result

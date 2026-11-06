@@ -5,6 +5,8 @@ the JSON files and passes the records in.
 
 - FR-041: a slot carries an operator-set board name ("T-SIM7080G"), so several
   boards on one bench are told apart by more than their slot number.
+- FR-043: BOOT/EN pins mean something only on an ESP32, so a board the
+  bench can tell is something else (a Notecard, say) is not offered the test.
 - FR-042: a BOOT/EN wiring measurement belongs to one board at one time. It is
   shown only while that board is in the slot, and is not trusted once another
   board is there or the measurement is older than its maximum age.
@@ -50,6 +52,32 @@ def bench_time(ts: float | None) -> str | None:
 def bench_iso(ts: float) -> str:
     """Epoch seconds as ISO 8601 with the Eastern offset, for stored records."""
     return datetime.fromtimestamp(ts, BENCH_TZ).isoformat(timespec="seconds")
+
+
+# USB vendors behind which an ESP32's BOOT/EN can sit: Espressif's own USB
+# (native USB-Serial/JTAG) and the USB-UART bridges ESP32 boards carry.
+ESP_USB_VIDS = frozenset({
+    "303a",   # Espressif
+    "10c4",   # Silicon Labs CP210x
+    "1a86",   # WCH CH340/CH343
+    "0403",   # FTDI
+    "067b",   # Prolific PL2303
+})
+
+
+def boot_pins_apply(detected_chip: str | None, usb_devices: list[dict]) -> bool:
+    """FR-043: could the board in this slot have ESP32 BOOT/EN pins?
+
+    True for a detected ESP chip, or a USB device from Espressif or a
+    USB-UART bridge. False only when the slot's USB devices are known and
+    none of them is either, so an unrecognised slot keeps the test.
+    """
+    if detected_chip and detected_chip.lower().startswith("esp"):
+        return True
+    if not usb_devices:
+        return True
+    return any((d.get("vid_pid") or "").lower().split(":")[0] in ESP_USB_VIDS
+               for d in usb_devices)
 
 
 def wiring_verdict(record: dict | None, present: bool,
