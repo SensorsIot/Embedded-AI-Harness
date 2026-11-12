@@ -285,6 +285,7 @@ dedicated to WiFi testing. They never overlap.
 | 5555 | UDP | ESP32 → Pi | Debug log receiver |
 | 1883 | TCP/MQTT | DUTs → Pi | Test broker (when started) |
 | 8443 | TCP/HTTPS | DUTs → Pi | Untrusted HTTPS firmware mirror (when started) |
+| 123 | UDP/NTP | DUTs → Pi | NTP server (when started) |
 | 192.168.4.x | — | WiFi devices → Pi | WiFi AP subnet (when the AP is active) |
 
 ### GPIO wiring (optional)
@@ -679,7 +680,24 @@ curl http://$BENCH:8080/api/mqtt/status
 curl -X POST http://$BENCH:8080/api/mqtt/stop
 ```
 
-### 10.1 Security test fixtures
+### 10.1 NTP server
+
+The bench AP has no internet uplink, so a DUT cannot sync its clock there.
+The NTP server (FSD FR-040) serves the Pi's clock on UDP 123: point the DUT's
+NTP server at `192.168.4.1`. Every answered request is logged with the
+sender's address, so a test can prove the DUT asked. If the Pi's own clock is
+not synchronised, replies carry the "unsynchronised" alarm and a correct
+client ignores them — `clock_synced` in the status says which. Bench reset
+stops it.
+
+```bash
+curl -X POST http://$BENCH:8080/api/ntp/start
+curl http://$BENCH:8080/api/ntp/status
+curl "http://$BENCH:8080/api/ntp/requests?source=192.168.4.6"
+curl -X POST http://$BENCH:8080/api/ntp/stop
+```
+
+### 10.2 Security test fixtures
 
 Two fixtures for proving what a DUT refuses or hides (FSD FR-038, FR-039).
 

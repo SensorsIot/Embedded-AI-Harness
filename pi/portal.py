@@ -30,6 +30,7 @@ import debug_controller
 import gpiod
 import mqtt_controller
 import netscan_controller
+import ntp_controller
 import tls_mirror_controller
 import wifi_controller
 try:
@@ -1755,6 +1756,7 @@ def bench_reset() -> dict:
             changed.append("ended test session")
 
     attempt("stopped untrusted HTTPS mirror", tls_mirror_controller.stop)
+    attempt("stopped NTP server", ntp_controller.stop)
     attempt("started MQTT broker", lambda: mqtt_controller.start().get("ok"))
 
     log_activity(f"bench.reset — {len(changed)} change(s)", "ok")
@@ -2777,6 +2779,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": True, **mqtt_controller.status()})
         elif path == "/api/tls-mirror/status":
             self._send_json({"ok": True, **tls_mirror_controller.status()})
+        elif path == "/api/ntp/status":
+            self._send_json({"ok": True, **ntp_controller.status()})
+        elif path == "/api/ntp/requests":
+            qs = parse_qs(parsed.query)
+            try:
+                since = float(qs.get("since", ["0"])[0])
+                limit = int(qs.get("limit", ["200"])[0])
+            except ValueError:
+                self._send_json({"ok": False, "error": "since/limit must be numbers"}, 400)
+                return
+            source = qs.get("source", [""])[0]
+            self._send_json({"ok": True, "requests": ntp_controller.requests(since, source, limit)})
         elif path == "/api/udplog":
             qs = parse_qs(parsed.query)
             self._handle_get_udplog(qs)
@@ -2918,6 +2932,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/tls-mirror/stop":
             if tls_mirror_controller.stop():
                 log_activity("tls-mirror stopped", "ok")
+            self._send_json({"ok": True, "running": False})
+        elif path == "/api/ntp/start":
+            try:
+                res = ntp_controller.start()
+                log_activity(f"ntp server started on UDP {res['port']}", "ok")
+                self._send_json({"ok": True, **res})
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 500)
+        elif path == "/api/ntp/stop":
+            if ntp_controller.stop():
+                log_activity("ntp server stopped", "ok")
             self._send_json({"ok": True, "running": False})
         elif path == "/api/net/portscan":
             self._handle_net_portscan()
