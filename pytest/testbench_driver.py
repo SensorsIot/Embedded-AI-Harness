@@ -258,6 +258,25 @@ class TestbenchDriver:
     def tls_mirror_status(self) -> dict:
         return self._api_get("/api/tls-mirror/status")
 
+    # ── NTP server (FR-040) ───────────────────────────────────────────
+
+    def ntp_start(self) -> dict:
+        """Serve SNTP on UDP 123 (DUTs on the AP: 192.168.4.1)."""
+        return self._api_post("/api/ntp/start", {}, timeout=15)
+
+    def ntp_stop(self) -> None:
+        self._api_post("/api/ntp/stop", {}, timeout=10)
+
+    def ntp_status(self) -> dict:
+        return self._api_get("/api/ntp/status")
+
+    def ntp_requests(self, since: float = 0.0, source: str | None = None, limit: int = 200) -> list:
+        """Requests the NTP server answered: [{"ts", "source", "version"}, ...]."""
+        q = f"/api/ntp/requests?since={since}&limit={limit}"
+        if source:
+            q += f"&source={source}"
+        return self._api_get(q)["requests"]
+
     # ── AP network port scan (FR-039) ─────────────────────────────────
 
     def net_portscan(self, host: str, ports: str = "1-65535", timeout_s: float = 120) -> dict:
