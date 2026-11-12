@@ -9,7 +9,7 @@
 | 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery · FR-030 serial write · FR-031 – FR-035 access manager · FR-036 bench reset |
 | 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
 | 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository · FR-038 untrusted HTTPS mirror · FR-039 AP port scan |
-| 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
+| 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029, FR-040: BLE proxy, MQTT test broker, NTP server |
 | 7 | [Debug Services](#7-debug-services) | FR-024 – FR-026, FR-037: USB JTAG, dual-USB, ESP-Prog, per-slot isolation |
 | 8 | [RF Instruments](#8-rf-instruments) | FR-027, FR-028: signal generator, SDR receiver |
 | 9 | [Client Interfaces](#9-client-interfaces) | MCP server |
@@ -1301,6 +1301,7 @@ Initial state, per subsystem:
 | Test session | ended |
 | MQTT broker | **running** — shared infrastructure, so it is ensured, never stopped |
 | Untrusted HTTPS mirror (FR-038) | stopped |
+| NTP server (FR-040) | stopped |
 
 Every step is attempted even if an earlier one fails: a reset that gives up
 halfway leaves the bench dirtier than one never run, and the caller cannot
@@ -2221,6 +2222,68 @@ restart, matching only processes launched with this service's own config path.
 It does not kill brokers it did not start: if port 1883 is held by anything
 else — a system `mosquitto.service`, another user's broker — start fails and
 names the listener rather than taking down infrastructure it does not own.
+
+### FR-040 — NTP Server
+
+An on-demand SNTP server (RFC 4330) that gives DUTs on the AP a time source
+without an internet uplink, and records every request it receives, so a test
+can prove *that* a DUT asked and *which* server it asked — a DUT's time sync
+is otherwise unobservable on an isolated bench. Backed by `ntp_controller.py`.
+
+It is a test fixture, started and stopped on demand like the MQTT broker
+(FR-029), and stopped by bench reset (FR-036).
+
+**Configuration:**
+
+| Constant | Value |
+|----------|-------|
+| Port | UDP 123, all interfaces (DUTs on the AP reach it at `192.168.4.1`) |
+| Time served | The Pi's system clock |
+| Stratum | 2 with leap indicator 0 while the Pi's clock is synchronised (`timedatectl` `NTPSynchronized=yes`); otherwise stratum 16 with leap indicator 3 (alarm), so a DUT is never told an unsynchronised clock is good |
+| Request log | The last 1000 requests, each `{ts, source, version}` |
+
+**Behaviour:**
+
+1. Only a client request is answered: at least 48 bytes, mode 3. Anything
+   else is dropped without a reply and is not logged.
+2. The reply is 48 bytes, mode 4, the request's version number, the request's
+   transmit timestamp as originate timestamp, and receive and transmit
+   timestamps from the Pi's clock.
+3. Each answered request is appended to the request log.
+
+**Endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/ntp/start | Start the server (idempotent) |
+| POST | /api/ntp/stop | Stop the server (idempotent) |
+| GET | /api/ntp/status | `{running, port, clock_synced, requests}` — `requests` counts the log |
+| GET | /api/ntp/requests | `?since=&source=&limit=` — logged requests with `ts` > `since` (default 0), from `source` if given, at most `limit` (default 200) |
+
+Start and status answer `{"ok": true, "running": true, "port": 123,
+"clock_synced": true, "requests": 0}`; stop answers `{"ok": true, "running":
+false}`. A start that cannot bind port 123 answers `{"ok": false, "error":
+"..."}` with status 500 and the error names the port. Requests answer
+`{"ok": true, "requests": [{"ts": 1762960000.1, "source": "192.168.4.6",
+"version": 4}]}`.
+
+**Driver methods:**
+```python
+wt.ntp_start()                         # -> {"running": True, "port": 123, ...}
+wt.ntp_status()
+wt.ntp_requests(since=0, source=None)  # -> [{"ts", "source", "version"}, ...]
+wt.ntp_stop()
+```
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-040 | A 48-byte mode-3 request, a 47-byte packet, a 48-byte mode-4 packet · build the reply | First: a 48-byte mode-4 reply with the request's version and its transmit timestamp as originate; the others: no reply | A reply to anything but a client request | host |
+| FR-040 | Clock synchronised / not synchronised · build the reply | Stratum 2, leap 0 / stratum 16, leap 3 | An unsynchronised clock served with leap 0 | host |
+| FR-040 | Server running · an SNTP query from a LAN client to the Pi | A reply within 1 s whose transmit time is within 1 s of the Pi's clock; `/api/ntp/requests` lists the client's address | No reply; the request not listed | bench |
+| FR-040 | Server stopped · the same query | No reply within 2 s | A reply | bench |
+| FR-040 | Server running · `POST /api/bench/reset` | `changed` names the NTP server; status `running: false` | The server still answering after a reset | bench |
 
 ---
 
@@ -3904,6 +3967,7 @@ WantedBy=multi-user.target
 | 4001 | TCP/RFC2217 | SLOT1 serial proxy |
 | 4002 | TCP/RFC2217 | SLOT2 serial proxy |
 | 4003 | TCP/RFC2217 | SLOT3 serial proxy |
+| 123 | UDP | NTP server (FR-040, when started) |
 | 5555 | UDP | ESP32 debug log receiver |
 | 5888 | UDP | Discovery beacon responder |
 
@@ -4115,6 +4179,14 @@ RFC2217 flashing (esptool from the host) needs no endpoint (§6.7).
 |--------|----------|-------------|
 | POST | `/api/mqtt/start` · `/stop` | Start / stop the mosquitto test broker |
 | GET | `/api/mqtt/status` | Running state + port |
+
+### D.12a NTP Server
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/ntp/start` · `/stop` | Start / stop the SNTP server on UDP 123 (FR-040) |
+| GET | `/api/ntp/status` | Running state, port, Pi clock synchronised, request count |
+| GET | `/api/ntp/requests` | `?since=&source=&limit=` — requests the server answered |
 
 ### D.13 Test Progress & Human Interaction
 
