@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 import debug_controller
 import gpiod
 import mqtt_controller
+import multipart
 import netscan_controller
 import tls_mirror_controller
 import wifi_controller
@@ -3550,18 +3551,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None, None
         body = self.rfile.read(length)
         fields, files = {}, []
-        for part in body.split(b"--" + boundary.encode()):
-            part = part.strip()
-            if not part or part == b"--":
-                continue
-            if b"\r\n\r\n" in part:
-                header_section, content = part.split(b"\r\n\r\n", 1)
-            elif b"\n\n" in part:
-                header_section, content = part.split(b"\n\n", 1)
-            else:
-                continue
-            if content.endswith(b"\r\n"):
-                content = content[:-2]
+        for header_section, content in multipart.split_parts(body, boundary):
             headers_text = header_section.decode("utf-8", errors="replace")
             name = filename = None
             for token in headers_text.replace("\r", "").split("\n"):
@@ -4079,24 +4069,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "empty body"}, 400)
             return
         body = self.rfile.read(length)
-        boundary_bytes = boundary.encode()
-        parts_raw = body.split(b"--" + boundary_bytes)
         project = None
         file_data = None
         file_name = None
-        for part in parts_raw:
-            part = part.strip()
-            if not part or part == b"--":
-                continue
-            if b"\r\n\r\n" in part:
-                header_section, content = part.split(b"\r\n\r\n", 1)
-            elif b"\n\n" in part:
-                header_section, content = part.split(b"\n\n", 1)
-            else:
-                continue
+        for header_section, content in multipart.split_parts(body, boundary):
             headers_text = header_section.decode("utf-8", errors="replace")
-            if content.endswith(b"\r\n"):
-                content = content[:-2]
             if 'name="project"' in headers_text:
                 project = content.decode("utf-8").strip()
             elif 'name="file"' in headers_text:
@@ -4157,27 +4134,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "empty body"}, 400)
             return
         body = self.rfile.read(length)
-        boundary_bytes = boundary.encode()
-        parts_raw = body.split(b"--" + boundary_bytes)
 
         fields: dict[str, str] = {}
         files: dict[str, bytes] = {}
         offset_files: list[tuple[str, str]] = []
         flash_args_text: str | None = None
 
-        for part in parts_raw:
-            part = part.strip()
-            if not part or part == b"--":
-                continue
-            if b"\r\n\r\n" in part:
-                header_section, content = part.split(b"\r\n\r\n", 1)
-            elif b"\n\n" in part:
-                header_section, content = part.split(b"\n\n", 1)
-            else:
-                continue
+        for header_section, content in multipart.split_parts(body, boundary):
             headers_text = header_section.decode("utf-8", errors="replace")
-            if content.endswith(b"\r\n"):
-                content = content[:-2]
             name = None
             filename = None
             for h in headers_text.split("\n"):
@@ -4430,22 +4394,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "empty body"}, 400)
             return
         body = self.rfile.read(length)
-        parts_raw = body.split(b"--" + boundary.encode())
 
         fields: dict[str, str] = {}
         firmware: bytes | None = None
-        for part in parts_raw:
-            part = part.strip()
-            if not part or part == b"--":
-                continue
-            if b"\r\n\r\n" in part:
-                header_section, content = part.split(b"\r\n\r\n", 1)
-            elif b"\n\n" in part:
-                header_section, content = part.split(b"\n\n", 1)
-            else:
-                continue
-            if content.endswith(b"\r\n"):
-                content = content[:-2]
+        for header_section, content in multipart.split_parts(body, boundary):
             headers_text = header_section.decode("utf-8", errors="replace")
             name = None
             is_file = False
