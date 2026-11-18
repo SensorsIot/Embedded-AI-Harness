@@ -3386,9 +3386,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         headers = body.get("headers")
         req_body = body.get("body")  # base64 encoded
         timeout = body.get("timeout", 10)
-        log_activity(f"HTTP relay {method} {url}", "step")
+        follow = body.get("follow_redirects", True)
+        if not isinstance(follow, bool):
+            self._send_json({"ok": False, "error": "follow_redirects must be a boolean"}, 400)
+            return
+        log_activity(f"HTTP relay {method} {url}" + ("" if follow else " (no redirects)"), "step")
         try:
-            result = wifi_controller.http_relay(method, url, headers, req_body, timeout)
+            result = wifi_controller.http_relay(method, url, headers, req_body, timeout,
+                                                follow_redirects=follow)
             log_activity(f"HTTP relay {method} {url} — {result.get('status', '?')}", "ok")
             self._send_json({"ok": True, **result})
         except Exception as e:

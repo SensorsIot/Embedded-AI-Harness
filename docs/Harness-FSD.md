@@ -1561,7 +1561,7 @@ own suite runs, alongside the FR-036 obligation above.
 Proxy HTTP requests through the Pi's radio so tests can reach devices on the
 WiFi side of the network:
 
-- `POST /api/wifi/http` with `{method, url, headers, body, timeout}`
+- `POST /api/wifi/http` with `{method, url, headers, body, timeout, follow_redirects}` — `follow_redirects` (default `true`); `false` returns a 3xx response as received: its status, `Location` and body
 - Request body is base64-encoded; response body is returned base64-encoded
 - Returns `{status, headers, body}`
 - Works in both AP mode (reaching devices at 192.168.4.x) and STA mode
@@ -4026,7 +4026,7 @@ AP and STA modes are mutually exclusive.
 | GET | `/api/wifi/ap_status` | `{"active", "ssid", "channel", "stations": [{"mac", "ip"}, ...]}` |
 | POST | `/api/wifi/sta_join` · `sta_leave` | Join / leave a network `{"ssid", "pass?"}` |
 | GET | `/api/wifi/scan` | Scan nearby WiFi networks |
-| POST | `/api/wifi/http` | HTTP relay through wlan0 `{"method", "url", "headers?", "body?"}` |
+| POST | `/api/wifi/http` | HTTP relay through wlan0 `{"method", "url", "headers?", "body?", "timeout?", "follow_redirects?"}` — `follow_redirects: false` returns a 3xx unfollowed |
 | GET | `/api/wifi/events` | Long-poll station events `?timeout=` |
 | GET | `/api/wifi/ping` | Version and uptime. Answers in either mode, so it is the reachability probe |
 | POST | `/api/wifi/lease_event` | dnsmasq lease hook `{"action", "mac", "ip", "hostname"}` — called by the Pi, not by clients |

@@ -913,8 +913,19 @@ def scan():
 # HTTP Relay
 # ---------------------------------------------------------------------------
 
-def http_relay(method, url, headers=None, body=None, timeout=10):
-    """Perform an HTTP request from the Pi. Returns dict with status, headers, body."""
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Return a 3xx as received: urlopen then raises HTTPError carrying it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def http_relay(method, url, headers=None, body=None, timeout=10,
+               follow_redirects=True):
+    """Perform an HTTP request from the Pi. Returns dict with status, headers, body.
+
+    With follow_redirects=False a 3xx response is returned unchanged (status,
+    Location and body of the first response) instead of being followed."""
     _check_wifi_testing_mode()
     req_headers = headers or {}
     body_bytes = None
@@ -929,7 +940,9 @@ def http_relay(method, url, headers=None, body=None, timeout=10):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        opener = (urllib.request.build_opener() if follow_redirects
+                  else urllib.request.build_opener(_NoRedirect))
+        with opener.open(req, timeout=timeout) as resp:
             resp_body = resp.read()
             resp_headers = dict(resp.getheaders())
             return {
