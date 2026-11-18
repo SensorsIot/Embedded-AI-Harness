@@ -68,7 +68,11 @@ def main():
     # observer on the fan-out, would read an ESP32 console at the wrong rate
     # and see only noise. Default to the rate these devices actually use.
     ser.baudrate = args.baud
-    ser.dtr = False
+    # Open with DTR held high: pyserial applies DTR before RTS inside open(),
+    # and the kernel has just raised both, so "DTR low, RTS still high" — the
+    # USB-Serial/JTAG chip-reset combination — would otherwise appear for a
+    # moment and reboot a running native-USB ESP32 (Embedded-AI-Harness#86).
+    ser.dtr = True
     ser.rts = False
     try:
         ser.open()
@@ -81,24 +85,23 @@ def main():
         ser.timeout = 3
         ser.write_timeout = 10
         ser.baudrate = args.baud
-        ser.dtr = False
+        ser.dtr = True           # see above: RTS clears before DTR (#86)
         ser.rts = False
         ser.open()
-    # Linux CDC ACM driver asserts DTR+RTS on open.  On ESP32-C3 native USB,
-    # the USB-Serial/JTAG controller interprets DTR/RTS as reset + boot-mode
-    # signals.  DTR=1 → GPIO9 LOW (download mode), RTS=1 → chip in reset.
-    #
-    # Controlled boot sequence to ensure SPI boot (not download mode):
-    #   1. Clear DTR first  → GPIO9 HIGH (SPI boot selected)
-    #   2. Brief delay      → let the USB-JTAG controller see DTR=0
-    #   3. Clear RTS        → release reset → chip boots in SPI mode
+    # Linux CDC ACM driver asserts DTR+RTS on open.  The native-USB
+    # USB-Serial/JTAG controller resets the chip while RTS=1 and DTR=0, and
+    # samples the boot strap (DTR=1 → download mode) only at that reset.
+    # Both lines must therefore drop RTS first: (1,1) → (DTR 1, RTS 0) →
+    # (0,0) never forms the reset combination, so opening the port leaves a
+    # running chip running (#86). Dropping DTR first rebooted it every time
+    # (rst:0x15 USB_UART_CHIP_RESET ~2 s after a hotplug add).
     if hasattr(ser, 'fd'):
         attrs = termios.tcgetattr(ser.fd)
         attrs[2] &= ~termios.HUPCL  # cflag: clear HUPCL
         termios.tcsetattr(ser.fd, termios.TCSANOW, attrs)
-    ser.dtr = False          # GPIO9 HIGH — select SPI boot
-    time.sleep(0.1)          # Let USB-JTAG controller latch DTR=0
-    ser.rts = False          # Release reset — chip boots normally
+    ser.rts = False          # no reset: RTS low while DTR is still high
+    time.sleep(0.1)
+    ser.dtr = False          # idle: both low
     time.sleep(0.1)
     settings = ser.get_settings()
 
@@ -262,8 +265,8 @@ def main():
             control["conn"], control["pm"] = None, None
         conn.close()
         logging.info("Client disconnected")
+        ser.rts = False          # RTS first: never DTR 0 with RTS 1 (#86)
         ser.dtr = False
-        ser.rts = False
         ser.apply_settings(settings)
 
 
