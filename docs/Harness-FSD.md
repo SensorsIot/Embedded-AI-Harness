@@ -8,7 +8,7 @@
 | 2 | [Definitions](#2-definitions) | Terms and the slot-based identity principle |
 | 3 | [Serial Interface](#3-serial-interface) | FR-001 – FR-009: hotplug, slots, serial API, RFC2217, reset, monitor, flap recovery · FR-030 serial write · FR-031 – FR-035 access manager · FR-036 bench reset |
 | 4 | [WiFi Service](#4-wifi-service) | FR-010 – FR-016: AP, STA, scan, HTTP relay, events, mode switching |
-| 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository · FR-038 untrusted HTTPS mirror · FR-039 AP port scan |
+| 5 | [Device Control & Test Support](#5-device-control--test-support) | FR-017 – FR-021: operator prompts, GPIO, test progress, UDP logs, OTA repository · FR-038 untrusted HTTPS mirror · FR-039 AP port scan · FR-040 interrupted download |
 | 6 | [Peripheral Bridges](#6-peripheral-bridges) | FR-022, FR-029: BLE proxy, MQTT test broker |
 | 7 | [Debug Services](#7-debug-services) | FR-024 – FR-026, FR-037: USB JTAG, dual-USB, ESP-Prog, per-slot isolation |
 | 8 | [RF Instruments](#8-rf-instruments) | FR-027, FR-028: signal generator, SDR receiver |
@@ -2037,6 +2037,63 @@ wt.net_portscan("192.168.4.15", ports="1-65535", timeout_s=120)
 | FR-039 | A refused target · request | 400, and no connection attempted | A connection attempt before validation |
 | FR-039 | A host listening on known ports · scan those ports plus closed ones | `open` lists exactly the listening ports | A closed port reported open |
 | FR-039 | Budget shorter than the scan needs | `complete: false`, answer within budget + 2 s | The request running past its budget |
+
+### FR-040 — Interrupted Firmware Download
+
+Cut the next download of one firmware file (FR-021) part-way. A DUT that
+updates over the air must keep its running firmware when the download stops —
+the server closes the connection before `Content-Length` is reached, or goes
+silent with the connection open. Only the Pi is on the AP network, so only
+its firmware route can produce either stimulus. The DUT chooses the URL, so a
+cut is armed by file name, never by a query string.
+
+**Endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/firmware/interrupt` | Arm a cut for one file |
+| GET | `/api/firmware/interrupt` | List the armed cuts `{"ok", "armed": [...]}` |
+| DELETE | `/api/firmware/interrupt` | Clear every armed cut `{"ok", "cleared"}` |
+
+**Request (POST):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| project, filename | string | required | A file in the repository (FR-021 path rules); 404 when it does not exist |
+| after_bytes | integer | — | Body bytes sent before the cut, `0 ≤ n < size` |
+| after_fraction | number | — | Alternative to `after_bytes`, `0 ≤ f < 1`; the cut is `floor(size × f)`. Exactly one of the two |
+| mode | string | `close` | `close`: close the TCP connection after the cut. `stall`: send nothing more and hold the connection open for `hold_s`, then close |
+| hold_s | number | 60 | Stall length, `0 < s ≤ 600` |
+| once | bool | true | Cut only the next GET of the file; the GET after it is whole. `false` cuts every GET until cleared |
+
+The response echoes the rule, including `cut_at` (bytes) and `size`.
+Arming a file again replaces its rule. The cut is fixed in bytes when armed.
+
+**Behaviour of the cut GET:** status 200, the full file's `Content-Length`,
+then exactly `cut_at` body bytes, then the mode's ending. The activity log
+records `firmware: <project>/<file> cut after N of M bytes (<mode>)` when the
+last byte has been sent, and for `stall` a second line when the connection is
+closed. The HTTPS mirror (FR-038) never cuts. `POST /api/bench/reset` clears
+every armed cut.
+
+**Driver methods:**
+```python
+wt.firmware_interrupt("proj", "app.bin", after_fraction=0.5, mode="close")
+wt.firmware_interrupt("proj", "app.bin", after_bytes=102400, mode="stall", hold_s=45)
+wt.firmware_interrupt_list(); wt.firmware_interrupt_clear()
+```
+
+**Verification contract**
+
+| ID | Precondition · stimulus | Expected observation | Must NOT happen | Tier |
+|---|---|---|---|---|
+| FR-040 | Arm requests: neither or both of `after_bytes`/`after_fraction`, `after_bytes` = size or < 0, fraction ≥ 1 or < 0, unknown mode, `hold_s` 0 or > 600, non-bool `once`, a name with `..`, `/` or `\`, a missing file · validate | Each refused with a reason; a missing file is `not found` | A refused request armed |
+| FR-040 | 1000-byte file · `after_fraction` 0.5 and 0.3333 | `cut_at` 500 and 333 | A cut rounded up |
+| FR-040 | One-shot cut armed · take it twice; another file · take | First take returns the rule, second none; the other file none | The cut applied to a second request or to another file |
+| FR-040 | `once: false` · take twice, then clear | Both takes cut; after clear none | A persistent cut lost before clear |
+| FR-040 | 64 KiB file, `after_fraction` 0.5, `close` · GET twice | First: `Content-Length` 65536, exactly 32768 body bytes equal to the file's first half, then EOF. Second: the whole file | More or fewer bytes; the second GET cut |
+| FR-040 | `after_bytes` 1000, `stall`, `hold_s` 4 · GET, read for 2 s | 1000 body bytes, connection still open, no further byte | EOF or extra bytes inside the hold |
+| FR-040 | A cut armed with `once: false` · `POST /api/bench/reset` | `changed` names it; list empty | A cut surviving the reset |
 
 ## 6. Peripheral Bridges
 
@@ -4073,6 +4130,14 @@ Allowlist `{16,17,18,19,20,21,22,23,24,25,26,27}` (others reserved for I²C/GPCL
 |--------|----------|-------------|
 | POST | `/api/net/portscan` | TCP connect scan of one AP-network host `{"host", "ports"?, "timeout_s"?}` (FR-039) |
 
+### D.8b Interrupted Firmware Download
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/firmware/interrupt` | Arm a cut for the next GET of one file `{"project", "filename", "after_bytes" \| "after_fraction", "mode"?, "hold_s"?, "once"?}` (FR-040) |
+| GET | `/api/firmware/interrupt` | List armed cuts |
+| DELETE | `/api/firmware/interrupt` | Clear every armed cut |
+
 ### D.9 Flashing (USB + OTA)
 
 | Method | Endpoint | Description |
@@ -4247,3 +4312,15 @@ and must expose no listening TCP port.
 - FR-039: `POST /api/net/portscan` reports the TCP ports of one AP-network host
   that accept a connection; targets outside the AP subnet, and the Pi itself,
   are refused before any connection is made
+
+---
+
+### 2026-11-24 — interrupted firmware download
+
+Requested by consumer projects (issue #55) whose OTA requirements could not be
+verified on the bench: a download that stops part-way must leave the running
+firmware active.
+
+- FR-040: `POST /api/firmware/interrupt` cuts the next GET of one firmware file
+  after N bytes (or a fraction), then closes the connection (`close`) or holds
+  it silent (`stall`); one-shot by default; bench reset clears every armed cut
