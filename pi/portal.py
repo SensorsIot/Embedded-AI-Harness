@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 import debug_controller
+import firmware_interrupt
 import gpiod
 import mqtt_controller
 import netscan_controller
@@ -152,6 +153,7 @@ _beacon_shutdown = threading.Event()
 
 # OTA firmware repository — serve .bin files for ESP32 OTA updates
 FIRMWARE_DIR = os.environ.get("FIRMWARE_DIR", "/var/lib/rfc2217/firmware")
+_fw_interrupts = firmware_interrupt.Registry()   # FR-040: armed download cuts
 ESPOTA_PATH = os.environ.get("ESPOTA_PATH", "/usr/local/bin/espota.py")
 
 # Serial buffer size — how many lines each slot's ring buffer keeps
@@ -1755,6 +1757,7 @@ def bench_reset() -> dict:
             changed.append("ended test session")
 
     attempt("stopped untrusted HTTPS mirror", tls_mirror_controller.stop)
+    attempt("cleared armed firmware download cuts", _fw_interrupts.clear)
     attempt("started MQTT broker", lambda: mqtt_controller.start().get("ok"))
 
     log_activity(f"bench.reset — {len(changed)} change(s)", "ok")
@@ -2787,6 +2790,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_slot_mode(parse_qs(parsed.query))
         elif path == "/api/firmware/list":
             self._handle_firmware_list()
+        elif path == "/api/firmware/interrupt":
+            self._send_json({"ok": True, "armed": _fw_interrupts.list()})
         elif path == "/api/ble/status":
             self._handle_ble_status()
         elif path.startswith("/firmware/"):
@@ -2923,6 +2928,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._handle_net_portscan()
         elif path == "/api/firmware/upload":
             self._handle_firmware_upload()
+        elif path == "/api/firmware/interrupt":
+            self._handle_firmware_interrupt()
         elif path == "/api/flash":
             self._handle_flash()
         elif path == "/api/chip/info":
@@ -2945,6 +2952,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send_json({"ok": True})
         elif path == "/api/firmware/delete":
             self._handle_firmware_delete()
+        elif path == "/api/firmware/interrupt":
+            cleared = _fw_interrupts.clear()
+            if cleared:
+                log_activity("firmware: armed download cuts cleared", "info")
+            self._send_json({"ok": True, "cleared": cleared})
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -4044,21 +4056,63 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not os.path.isfile(fpath):
             self._send_json({"error": "not found"}, 404)
             return
+        rule = _fw_interrupts.take(project, filename)   # FR-040
+        sent = 0
         try:
             fsize = os.path.getsize(fpath)
+            limit = fsize if rule is None else min(rule["cut_at"], fsize)
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Length", fsize)
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
             self.end_headers()
             with open(fpath, "rb") as f:
-                while True:
-                    chunk = f.read(8192)
+                while sent < limit:
+                    chunk = f.read(min(8192, limit - sent))
                     if not chunk:
                         break
                     self.wfile.write(chunk)
-        except BrokenPipeError:
+                    sent += len(chunk)
+            if rule is not None:
+                self._cut_firmware_download(rule, sent)
+        except (BrokenPipeError, ConnectionResetError):
             pass
+
+    def _cut_firmware_download(self, rule, sent):
+        """FR-040: the announced Content-Length is never completed. `close`
+        ends the TCP connection now (the client sees EOF); `stall` holds it
+        open, silent, for hold_s, then closes."""
+        self.wfile.flush()
+        log_activity(firmware_interrupt.log_line(rule, sent), "step")
+        if rule["mode"] == "stall":
+            time.sleep(rule["hold_s"])
+            log_activity(f"firmware: {rule['project']}/{rule['filename']} stall ended "
+                         f"after {rule['hold_s']} s, connection closed", "step")
+        self.close_connection = True
+        try:
+            self.connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def _handle_firmware_interrupt(self):
+        """FR-040: arm a cut for the next GET of one firmware file."""
+        body = self._read_json() or {}
+        project, filename = body.get("project"), body.get("filename")
+        size = None
+        if isinstance(project, str) and isinstance(filename, str) \
+                and ".." not in project + filename and "/" not in project + filename:
+            fpath = os.path.join(FIRMWARE_DIR, project, filename)
+            if os.path.isfile(fpath):
+                size = os.path.getsize(fpath)
+        rule, err = firmware_interrupt.validate(body, size)
+        if err:
+            self._send_json({"ok": False, "error": err}, 404 if err == "not found" else 400)
+            return
+        _fw_interrupts.arm(rule)
+        log_activity(f"firmware: {project}/{filename} armed — next GET cut after "
+                     f"{rule['cut_at']} of {rule['size']} bytes ({rule['mode']}"
+                     f"{'' if rule['once'] else ', every request'})", "info")
+        self._send_json({"ok": True, **rule})
 
     def _handle_firmware_upload(self):
         content_type = self.headers.get("Content-Type", "")

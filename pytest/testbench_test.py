@@ -2222,6 +2222,83 @@ class TestBenchReset:
         assert not second.get("errors"), second
 
 
+class TestFirmwareInterrupt:
+    """FR-040. An OTA download that stops part-way — the stimulus a DUT's
+    "interrupted download keeps the running firmware" requirement needs."""
+
+    PROJECT = "pytest-fw-interrupt"
+    NAME = "cut.bin"
+    SIZE = 65536
+
+    @pytest.fixture
+    def served(self, testbench, tmp_path):
+        path = tmp_path / self.NAME
+        path.write_bytes(os.urandom(self.SIZE))
+        assert testbench.firmware_upload(self.PROJECT, str(path)).get("ok")
+        yield path.read_bytes()
+        testbench.firmware_interrupt_clear()
+        testbench.firmware_delete(self.PROJECT, self.NAME)
+
+    def _get(self, testbench, read_timeout=10.0):
+        """(Content-Length announced, body bytes received, ended by EOF)."""
+        from urllib.parse import urlparse
+        u = urlparse(testbench.base_url)
+        sock = socket.create_connection((u.hostname, u.port or 80), timeout=10)
+        sock.sendall(f"GET /firmware/{self.PROJECT}/{self.NAME} HTTP/1.1\r\n"
+                     f"Host: {u.hostname}\r\nConnection: close\r\n\r\n".encode())
+        sock.settimeout(read_timeout)
+        data, eof = b"", False
+        try:
+            while True:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    eof = True
+                    break
+                data += chunk
+        except socket.timeout:
+            pass
+        finally:
+            sock.close()
+        head, _, body = data.partition(b"\r\n\r\n")
+        length = int(re.search(rb"Content-Length: (\d+)", head).group(1))
+        return length, body, eof
+
+    def test_close_sends_the_fraction_then_eof_and_the_next_get_is_whole(self, testbench, served):
+        r = testbench.firmware_interrupt(self.PROJECT, self.NAME, after_fraction=0.5, mode="close")
+        assert r["cut_at"] == self.SIZE // 2, r
+        length, body, eof = self._get(testbench)
+        assert (length, len(body), eof) == (self.SIZE, self.SIZE // 2, True)
+        assert body == served[: self.SIZE // 2]
+        length, body, eof = self._get(testbench)
+        assert (length, body, eof) == (self.SIZE, served, True), "one-shot cut applied twice"
+
+    def test_stall_holds_the_connection_silent(self, testbench, served):
+        testbench.firmware_interrupt(self.PROJECT, self.NAME, after_bytes=1000,
+                                     mode="stall", hold_s=4)
+        t0 = time.time()
+        length, body, eof = self._get(testbench, read_timeout=2.0)
+        assert (length, len(body), eof) == (self.SIZE, 1000, False), \
+            "the stalled connection closed or sent more"
+        assert time.time() - t0 < 4
+
+    def test_refuses_a_missing_file_and_a_bad_cut(self, testbench, served):
+        missing = testbench._api_post_raw("/api/firmware/interrupt",
+                                          {"project": self.PROJECT, "filename": "nope.bin",
+                                           "after_bytes": 1})
+        assert missing["ok"] is False and missing["error"] == "not found"
+        bad = testbench._api_post_raw("/api/firmware/interrupt",
+                                      {"project": self.PROJECT, "filename": self.NAME,
+                                       "after_bytes": self.SIZE})
+        assert bad["ok"] is False
+        assert testbench.firmware_interrupt_list() == []
+
+    def test_bench_reset_clears_an_armed_cut(self, testbench, served):
+        testbench.firmware_interrupt(self.PROJECT, self.NAME, after_bytes=1, once=False)
+        r = testbench.bench_reset()
+        assert "cleared armed firmware download cuts" in r["changed"], r
+        assert testbench.firmware_interrupt_list() == []
+
+
 class TestSerialWrite:
     """FR-030. Without it, a project's only way to send a byte is to open the
     RFC2217 port itself — and that asserts the control lines."""

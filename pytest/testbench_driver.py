@@ -836,6 +836,33 @@ class TestbenchDriver:
             raise CommandTimeout(f"POST /api/firmware/upload: {e}")
         return data
 
+    def firmware_interrupt(self, project: str, filename: str, *,
+                           after_bytes: Optional[int] = None,
+                           after_fraction: Optional[float] = None,
+                           mode: str = "close", hold_s: float = 60,
+                           once: bool = True) -> dict:
+        """FR-040: cut the next GET of one firmware file after N bytes, then
+        close (`close`) or hold the connection silent for hold_s (`stall`)."""
+        body: dict = {"project": project, "filename": filename,
+                      "mode": mode, "hold_s": hold_s, "once": once}
+        if after_bytes is not None:
+            body["after_bytes"] = after_bytes
+        if after_fraction is not None:
+            body["after_fraction"] = after_fraction
+        return self._api_post("/api/firmware/interrupt", body)
+
+    def firmware_interrupt_list(self) -> list[dict]:
+        return self._api_get("/api/firmware/interrupt").get("armed", [])
+
+    def firmware_interrupt_clear(self) -> bool:
+        req = urllib.request.Request(f"{self.base_url}/api/firmware/interrupt",
+                                     method="DELETE")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return bool(json.loads(resp.read()).get("cleared"))
+        except Exception as e:
+            raise CommandTimeout(f"DELETE /api/firmware/interrupt: {e}")
+
     def firmware_delete(self, project: str, filename: str) -> dict:
         """DELETE /api/firmware/delete — delete a firmware file."""
         url = f"{self.base_url}/api/firmware/delete"
